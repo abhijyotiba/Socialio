@@ -18,7 +18,9 @@ Every table has Row Level Security enabled. Every table's policies are documente
   - `prompt_versions`
   - `social_connections`
   - Vault helper functions
-- Phase 2 — Ingestion *(to be added)*
+- [Phase 2 — Ingestion](#phase-2--ingestion)
+  - `ingestion_jobs`
+  - `media_assets`
 - Phase 3 — Generation *(to be added)*
 - Phase 4 — Publishing *(to be added)*
 
@@ -177,6 +179,63 @@ Two `SECURITY DEFINER` SQL functions exposed to PostgREST. Both are `REVOKE`d fr
 
 - `public.vault_create_secret(p_secret TEXT, p_name TEXT) RETURNS UUID` — stores a secret, returns the Vault UUID.
 - `public.vault_read_secret(p_id UUID) RETURNS TEXT` — retrieves a decrypted secret by its Vault UUID.
+
+---
+
+## Phase 2 — Ingestion
+
+Migration: `supabase/migrations/0003_ingestion.sql`
+
+### `ingestion_jobs`
+
+One row per ingestion request. Tracks the scraping pipeline from submission through to extracted content.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `source_type` | `TEXT` NOT NULL | CHECK `IN ('url', 'text', 'mcp')` |
+| `source_url` | `TEXT` | Nullable — populated when `source_type = 'url'` |
+| `source_text` | `TEXT` | Nullable — populated when `source_type = 'text'` |
+| `extracted_title` | `TEXT` | Set by worker after successful scrape |
+| `extracted_text` | `TEXT` | Set by worker after successful scrape |
+| `stage` | `TEXT` NOT NULL | Default `'pending'`. CHECK `IN ('pending','scraping','uploading_media','analyzing','generating','storing','done','failed')` |
+| `error` | `TEXT` | Error message if `stage = 'failed'` |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+| `completed_at` | `TIMESTAMPTZ` | Set when `stage = 'done'` or `'failed'` |
+
+**RLS**
+
+- `ingestion_jobs_member_select` — workspace members can read.
+- `ingestion_jobs_member_insert` — workspace members can insert.
+- `ingestion_jobs_member_update` — workspace members can update.
+
+**Indexes:** `idx_ingestion_jobs_workspace`, `idx_ingestion_jobs_stage`, `idx_ingestion_jobs_created`.
+
+### `media_assets`
+
+One row per media item (image or video) scraped and uploaded to Cloudinary during ingestion.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `ingestion_job_id` | `UUID` | FK `ingestion_jobs(id)`, SET NULL on delete |
+| `cloudinary_url` | `TEXT` NOT NULL | Secure CDN URL |
+| `cloudinary_id` | `TEXT` NOT NULL | Cloudinary `public_id` for transformations |
+| `resource_type` | `TEXT` NOT NULL | CHECK `IN ('image', 'video')` |
+| `format` | `TEXT` | e.g. `'jpg'`, `'mp4'` |
+| `bytes` | `BIGINT` | File size |
+| `width` | `INT` | Pixel width |
+| `height` | `INT` | Pixel height |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+
+**RLS**
+
+- `media_assets_member_select` — workspace members can read.
+- `media_assets_member_insert` — workspace members can insert.
+
+**Indexes:** `idx_media_assets_job`, `idx_media_assets_workspace`.
 
 ---
 

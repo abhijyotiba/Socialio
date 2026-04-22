@@ -90,6 +90,113 @@ export type Database = {
           },
         ]
       }
+      ingestion_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          extracted_text: string | null
+          extracted_title: string | null
+          id: string
+          source_text: string | null
+          source_type: string
+          source_url: string | null
+          stage: string
+          workspace_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          extracted_text?: string | null
+          extracted_title?: string | null
+          id?: string
+          source_text?: string | null
+          source_type: string
+          source_url?: string | null
+          stage?: string
+          workspace_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          extracted_text?: string | null
+          extracted_title?: string | null
+          id?: string
+          source_text?: string | null
+          source_type?: string
+          source_url?: string | null
+          stage?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ingestion_jobs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_assets: {
+        Row: {
+          bytes: number | null
+          cloudinary_id: string
+          cloudinary_url: string
+          created_at: string
+          format: string | null
+          height: number | null
+          id: string
+          ingestion_job_id: string | null
+          resource_type: string
+          width: number | null
+          workspace_id: string
+        }
+        Insert: {
+          bytes?: number | null
+          cloudinary_id: string
+          cloudinary_url: string
+          created_at?: string
+          format?: string | null
+          height?: number | null
+          id?: string
+          ingestion_job_id?: string | null
+          resource_type: string
+          width?: number | null
+          workspace_id: string
+        }
+        Update: {
+          bytes?: number | null
+          cloudinary_id?: string
+          cloudinary_url?: string
+          created_at?: string
+          format?: string | null
+          height?: number | null
+          id?: string
+          ingestion_job_id?: string | null
+          resource_type?: string
+          width?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_assets_ingestion_job_id_fkey"
+            columns: ["ingestion_job_id"]
+            isOneToOne: false
+            referencedRelation: "ingestion_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_assets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

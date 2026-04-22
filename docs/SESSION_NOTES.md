@@ -13,6 +13,69 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-23 — Phase 2 complete: Ingestion pipeline end-to-end
+
+**What got built:**
+
+- Migration `0003_ingestion.sql` applied — `ingestion_jobs`, `media_assets` tables with RLS; 5 indexes
+- `web/lib/db/types.ts` regenerated; both new tables present
+- Python worker scaffold:
+  - `worker/pyproject.toml` + `uv.lock` (uv sync completed; 39 packages installed)
+  - `worker/config.py` — pydantic-settings with lazy `get_settings()` + `@lru_cache`
+  - `worker/auth.py` — HMAC-SHA256 verification (`X-Worker-Signature: sha256=<hex>`)
+  - `worker/main.py` — FastAPI app with `/health` and ingest router
+  - `worker/pipeline/scrape.py` — DNS-based SSRF guard + Playwright one-browser-per-request
+  - `worker/pipeline/extract.py` — BeautifulSoup: og:title → title → h1; strip nav/footer/scripts; og:image + img[src] up to 5; relative URL resolution
+  - `worker/pipeline/upload.py` — Cloudinary upload with non-fatal per-image error handling
+  - `worker/routes/ingest.py` — thin route, delegates to pipeline; returns `IngestResponse` with `stage_timings`
+  - `worker/tests/conftest.py` — sets dummy env vars before collection (no live creds needed)
+  - `worker/tests/test_extract.py` — 9 tests covering title fallback, media ordering, nav stripping, relative URLs, max-5 cap
+  - `worker/tests/test_ssrf.py` — 8 tests covering loopback, RFC-1918 ranges, AWS metadata, DNS failure, missing hostname
+  - `worker/Dockerfile` + `worker/fly.toml`
+- Web layer:
+  - `web/lib/worker-client.ts` — HMAC-signed typed fetch client
+  - `web/lib/db/ingestion.ts` — `createIngestionJob`, `updateIngestionJob`, `getIngestionJob`, `countRecentJobs`
+  - `web/lib/db/media-assets.ts` — `createMediaAssets`, `getMediaAssetsForJob`
+  - `web/app/api/ingest/route.ts` — POST: Zod validation, LinkedIn guard, rate-limit (2/min, 50/day), synchronous worker call, status updates
+  - `web/app/api/ingest/[job_id]/route.ts` — GET with explicit workspace ownership check
+- Chat UI:
+  - `web/app/(app)/chat/page.tsx` — client component; `idle → loading → success | error` states; extracted title + text preview (400 char + "Show more") + Cloudinary thumbnail grid; disabled "Generate post →" with tooltip; ⌘+Enter submit
+- Tests:
+  - `web/tests/db.ingestion.test.ts` — 7 type-level Vitest tests for `ingestion_jobs` and `media_assets`
+- Docs updated: `DATA_MODEL.md` (Phase 2 section), `API_CONTRACTS.md` (Phase 2 section), `.env.example` (`WORKER_URL`, `WORKER_SHARED_SECRET`)
+
+**Confirmed working:**
+
+- `pnpm --dir web typecheck` — passes (0 errors)
+- `pnpm --dir web test` — 17/17 tests pass
+- `cd worker && uv run pytest tests/` — 17/17 tests pass
+- `pnpm --dir web supabase db push --workdir ..` — migration applied cleanly
+- `pnpm --dir web gen:types` — types regenerated with `ingestion_jobs` and `media_assets`
+
+**Decisions made:**
+
+- `config.py` uses `@lru_cache` on `get_settings()` so tests can set env vars in `conftest.py` before the first import triggers `Settings()`. Avoids having to mock pydantic-settings.
+- `extract.py` takes a `base_url` parameter so relative image src values can be resolved against the page origin. Without it, relative URLs are silently skipped (no crash).
+- Chat page uses a single `InputForm` component rendered in three states (idle, error, success) rather than duplicating the textarea. Keeps the re-submit flow clean.
+- Phase 2 route is synchronous (waits for worker). Phase 3 will switch to async + Supabase Realtime when LLM calls extend total time to 10–20s.
+
+**What's next (Phase 3 — Generation):**
+
+- `content_items` and `post_variants` tables (migration 0004)
+- Worker `/generate` endpoint: Pass 1 (LLM summarize source) + Pass 2 (LLM generate platform variants)
+- `web/lib/adapters/` LLM adapter (Groq primary, Gemini fallback)
+- Switch ingest route to async + Supabase Realtime stage updates
+- Enable "Generate post →" button on the chat page
+
+**Gotchas to watch:**
+
+- `uv.lock` must be committed — Fly.io build depends on it for reproducibility.
+- `worker/.env` (gitignored) must be created locally with real `WORKER_SHARED_SECRET` + `CLOUDINARY_*` values before `uv run fastapi dev` works.
+- Vercel Hobby function timeout is 10s — scraping fast pages is fine but slow blogs may exceed it. If this becomes a problem on Hobby, upgrade to Pro (60s timeout) before Phase 3.
+- The `worker/tests/conftest.py` only sets dummy values; Cloudinary upload tests in Phase 3 will need a real creds strategy (env-based skip or VCR cassettes).
+
+---
+
 ## 2026-04-22 — Phase 1 complete: Auth, Brand, and LinkedIn OAuth
 
 **What got built:**
