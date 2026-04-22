@@ -13,6 +13,30 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-22 — Phase 0 closeout + Phase 1 brief authored
+
+**What got built / finalized:**
+
+- Supabase CLI login and project linking verified for project `igrzkqtidqjwmxzqlawm`
+- Foundation migration `0001_foundation.sql` applied against the correct repo root workdir (`--workdir ..`)
+- Confirmed remote schema now includes `profiles`, `workspaces`, and `workspace_members`
+- Regenerated `web/lib/db/types.ts` from real schema; verified Phase 0 tables appear in generated types
+- Added complete Phase 1 implementation brief in `docs/phases/PHASE_1_AUTH_BRAND.md`
+
+**What's confirmed working:**
+
+- `pnpm --dir web typecheck` passes
+- `pnpm --dir web test` passes
+- `pnpm supabase db push --workdir ..` applies foundation migration cleanly
+- `pnpm --dir web gen:types` / `pnpm exec supabase gen types ...` produce valid TypeScript definitions
+
+**What's next:**
+
+- Start Phase 1 implementation from the new brief:
+	onboarding wizard, Google login button, LinkedIn OAuth routes, `0002_brand_and_connections.sql`, and settings pages.
+
+---
+
 ## 2026-04-22 — Phase 0 implementation
 
 **What got built:**
