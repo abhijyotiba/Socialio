@@ -16,7 +16,7 @@ The full product vision lives in `docs/PRD.md`. The current architecture lives i
 
 ## 2. Current phase
 
-**Phase 0 — Foundation.** See `docs/phases/PHASE_0_FOUNDATION.md`.
+**Phase 1 — Auth & Brand.** See `docs/phases/PHASE_1_AUTH_BRAND.md`.
 
 When a phase changes, update this line. Do **not** modify files outside the current phase's scope without explicit permission from the user.
 

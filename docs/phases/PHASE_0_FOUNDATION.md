@@ -246,12 +246,12 @@ Tick these one by one. Do not declare the phase done until all are green.
 - [ ] Logged-out user hitting `/dashboard` is redirected to `/login`
 - [ ] `/dashboard` renders "Hello, {user.email}"
 - [ ] Logout button logs out and redirects to `/login`
-- [ ] `pnpm --dir web typecheck` passes with zero errors
-- [ ] `pnpm --dir web test` passes (the smoke test is allowed to be trivial)
+- [x] `pnpm --dir web typecheck` passes with zero errors
+- [x] `pnpm --dir web test` passes (the smoke test is allowed to be trivial)
 - [ ] CI workflow passes on a test PR
 - [ ] Vercel deployment succeeds; the public URL works end-to-end with signup and login
-- [ ] `.env.example` has every variable the app reads, with empty values
-- [ ] `docs/DATA_MODEL.md` includes the three tables from this phase
+- [x] `.env.example` has every variable the app reads, with empty values
+- [x] `docs/DATA_MODEL.md` includes the three tables from this phase
 - [ ] `CLAUDE.md` updated: "Current phase" now says Phase 1
 - [ ] `docs/SESSION_NOTES.md` has a new entry summarizing what got built
 
