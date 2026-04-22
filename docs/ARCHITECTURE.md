@@ -1,0 +1,329 @@
+# Architecture
+
+This document describes *how* SocialOS is built: the folder layout inside each service, the patterns every piece of code must follow, and the reasoning behind the big choices. It is aimed at an engineer (human or Claude) who has read `CLAUDE.md` and needs to know where a new piece of code should go.
+
+If you're looking for *what* SocialOS does, read `docs/PRD.md`. If you're looking for the database schema, read `docs/DATA_MODEL.md`.
+
+---
+
+## 1. The two-service shape
+
+SocialOS has exactly two services in V1:
+
+```
+┌────────────────────────────────────────────────┐
+│            Next.js 16 app — web/               │
+│                                                │
+│  UI (React Server Components + Client Comps)  │
+│  Route handlers (auth, CRUD, OAuth, cron)     │
+│  Database access via Supabase JS client       │
+│  Platform adapters (LinkedIn, X REST calls)   │
+│                                                │
+│  Hosted on Vercel                              │
+└───────────────────────┬────────────────────────┘
+                        │ HTTPS (HMAC-signed)
+                        ▼
+┌────────────────────────────────────────────────┐
+│        Python FastAPI — worker/                │
+│                                                │
+│  /ingest    — Playwright scraping              │
+│  /generate  — LLM orchestration                │
+│  (optionally /ingest-and-generate combined)    │
+│                                                │
+│  Hosted on Fly.io                              │
+└────────────────────────────────────────────────┘
+
+         ┌──────────────────────┬──────────────────┐
+         │                      │                  │
+         ▼                      ▼                  ▼
+  ┌─────────────┐        ┌──────────────┐  ┌───────────────┐
+  │  Supabase   │        │  Cloudinary  │  │  LinkedIn /   │
+  │  Postgres   │        │  (media CDN) │  │  X platform   │
+  │  + Auth     │        │              │  │  APIs         │
+  │  + Vault    │        └──────────────┘  └───────────────┘
+  └─────────────┘
+```
+
+### Why two services
+
+The web app is Next.js because the product's UI is the main surface and we want one deploy target for the user-facing stuff. The worker exists because:
+
+1. Playwright is Python-first in our team's experience, more battle-tested with stealth setups, and separating it lets us run it on a beefier machine with higher memory limits without paying Vercel's per-function pricing.
+2. LLM orchestration is clearer in Python (LLM SDKs tend to be more mature there), and isolating LLM calls behind one HTTP boundary means we can swap provider or add caching in one place.
+3. Separation of concerns: if the scraper crashes, the web app still serves the dashboard.
+
+### Why NOT more services
+
+We explicitly do not have a separate auth service, CRUD service, scheduler service, or publisher service. Those all live inside Next.js. Splitting further would force us to deploy, monitor, and secure more surface area than V1 needs. The moment one of these becomes large enough to matter (tens of thousands of scheduled posts, say), we split.
+
+---
+
+## 2. Inside `web/` — folder layout
+
+```
+web/
+├── app/
+│   ├── (auth)/                  # Route group — no app chrome
+│   │   ├── login/page.tsx
+│   │   ├── signup/page.tsx
+│   │   └── layout.tsx
+│   ├── (app)/                   # Route group — authenticated, has chrome
+│   │   ├── layout.tsx           # Checks auth; redirects to /login if not
+│   │   ├── dashboard/page.tsx
+│   │   ├── chat/page.tsx        # Primary ingestion UI
+│   │   ├── queue/page.tsx
+│   │   ├── settings/
+│   │   │   ├── brand/page.tsx
+│   │   │   ├── connections/page.tsx
+│   │   │   └── ai/page.tsx
+│   │   └── onboarding/page.tsx
+│   ├── api/
+│   │   ├── ingest/route.ts          # POST — proxies to worker
+│   │   ├── posts/
+│   │   │   ├── route.ts             # GET, POST
+│   │   │   └── [id]/
+│   │   │       ├── route.ts         # GET, PUT, DELETE
+│   │   │       ├── publish/route.ts # POST — immediate publish
+│   │   │       └── schedule/route.ts# POST
+│   │   ├── oauth/
+│   │   │   ├── linkedin/
+│   │   │   │   ├── start/route.ts
+│   │   │   │   └── callback/route.ts
+│   │   │   └── x/
+│   │   │       ├── start/route.ts
+│   │   │       └── callback/route.ts
+│   │   └── cron/
+│   │       ├── publish-due/route.ts
+│   │       └── token-expiry-check/route.ts
+│   └── layout.tsx                   # Root layout
+├── components/
+│   ├── ui/                          # shadcn/ui primitives — do not modify without reason
+│   └── app/                         # Our own composed components
+├── lib/
+│   ├── supabase/
+│   │   ├── server.ts                # User-scoped client (RLS enforced)
+│   │   ├── admin.ts                 # Service-role client (bypasses RLS)
+│   │   └── middleware.ts            # For updating session in Edge middleware
+│   ├── db/
+│   │   ├── types.ts                 # Generated by `supabase gen types`
+│   │   ├── workspaces.ts            # getWorkspaceForUser, etc.
+│   │   ├── brand.ts                 # getBrand, updateBrand, createPromptVersion
+│   │   ├── posts.ts                 # listPosts, createDraft, claimDue, etc.
+│   │   ├── connections.ts
+│   │   └── ingestion.ts
+│   ├── adapters/
+│   │   ├── linkedin.ts              # Publish, upload media, refresh token
+│   │   ├── x.ts
+│   │   ├── cloudinary.ts
+│   │   └── types.ts                 # PlatformAdapter interface
+│   ├── encryption.ts                # Wraps Supabase Vault for token en/decryption
+│   ├── worker-client.ts             # Typed client for hitting the Python worker
+│   └── utils.ts                     # cn(), formatters, etc.
+├── middleware.ts                    # Runs on every request — refreshes Supabase session
+├── public/
+├── tests/
+├── package.json
+├── tsconfig.json
+└── next.config.ts
+```
+
+### Patterns
+
+**Route groups `(auth)` and `(app)`.** The `(app)` layout checks auth and redirects to `/login` if the user isn't signed in. The `(auth)` layout does the opposite. This means no route handler inside `(app)` ever has to check auth by hand — a layout is always above it.
+
+**Server Components by default.** A page is a Server Component unless it needs interactivity. Client Components (those with `"use client"`) should be leaf components — a `<ChatInput />` inside a server page, not a whole page marked client.
+
+**Route handlers are thin.** A route handler does three things: (1) parse and validate the request with a Zod schema, (2) call one function in `lib/db/` or `lib/adapters/`, (3) format the response. Business logic lives in `lib/`, not in the route file.
+
+**`lib/db/` owns every query.** Nothing outside `lib/db/` ever calls `supabase.from(...)`. This means when we change a table's name or add a column, there's one place to update. It also gives us a natural seam for testing (we can mock one module instead of the whole client).
+
+**`lib/adapters/` owns every third-party call.** Same principle — the LinkedIn adapter has `publish()`, `uploadMedia()`, `refreshToken()`, nothing more. No route handler fetches LinkedIn directly.
+
+---
+
+## 3. Inside `worker/` — folder layout
+
+```
+worker/
+├── main.py                      # FastAPI app; routes live here, thin
+├── config.py                    # Env vars, parsed once at startup
+├── auth.py                      # HMAC verification for incoming requests
+├── routes/
+│   ├── ingest.py                # Pydantic models + route logic
+│   └── generate.py
+├── pipeline/
+│   ├── scrape.py                # Playwright orchestration
+│   ├── extract.py               # HTML → title, text, media URLs
+│   ├── upload.py                # Media → Cloudinary
+│   ├── analyze.py               # Pass-1 LLM call: summarize source
+│   └── generate.py              # Pass-2 LLM call: generate platform posts
+├── adapters/
+│   ├── groq.py
+│   ├── gemini.py
+│   ├── cloudinary.py
+│   └── llm.py                   # Unified generate() — tries primary, falls back
+├── tests/
+├── pyproject.toml
+├── uv.lock
+├── Dockerfile                   # mcr.microsoft.com/playwright/python base
+└── fly.toml
+```
+
+### Patterns
+
+**FastAPI routes are thin.** Same philosophy as web. The route file parses the Pydantic request model and calls into `pipeline/`. It does not contain business logic.
+
+**`pipeline/` is a sequence of small functions.** No LangGraph, no orchestration framework. The flow is:
+
+```python
+# routes/ingest.py
+async def ingest(req: IngestRequest) -> IngestResponse:
+    html = await scrape.fetch(req.source_url)
+    extracted = extract.parse(html)
+    media_urls = await upload.to_cloudinary(extracted.media, req.workspace_id)
+    return IngestResponse(title=extracted.title, text=extracted.text, media=media_urls)
+```
+
+Each step is a function. Each is independently testable. If we ever genuinely need branching (e.g. "if video found, transcribe"), we add an `if` statement — not a framework.
+
+**No direct DB access from the worker.** The worker does not have Supabase credentials. It processes a request and returns a result. The web app writes the result to the DB. This means the worker is stateless and restartable at any time without consequence.
+
+---
+
+## 4. Request lifecycle — a scraping + generation round-trip
+
+To make all the above concrete, here is exactly what happens when a user pastes a URL in the chat UI:
+
+1. **Client (browser)** — User submits the form. Client component sends `POST /api/ingest` with `{ source_url }`.
+
+2. **`web/app/api/ingest/route.ts`** — Parses and validates body with Zod. Reads the current user's workspace from Supabase (user-scoped client). Creates an `ingestion_jobs` row with `status = 'pending'`. Returns `{ job_id }` immediately to the client (so the UI can show a spinner).
+
+3. **Background in the same request (async)** — The route handler calls `workerClient.ingest({ source_url, workspace_id })`. This is an HMAC-signed HTTPS call to the Python worker.
+
+4. **`worker/main.py` → `routes/ingest.py`** — Verifies HMAC. Runs `scrape → extract → upload` pipeline. Returns `{ title, text, media: [{ cloudinary_url, ... }] }`.
+
+5. **Back in web route handler** — Writes results to `ingestion_jobs` (updates status, sets extracted fields) and `media_assets` (one row per media item). Updates the row status to `done`.
+
+6. **Client polls or subscribes** — The UI either polls `GET /api/ingest/:job_id` every 2s or subscribes to Supabase Realtime on the `ingestion_jobs` row. When status becomes `done`, the UI shows the extracted content and a "Generate post" button.
+
+7. **Generate button** — Same pattern: `POST /api/posts` creates a draft, route handler calls `workerClient.generate({ ingestion_job_id, platforms: ["linkedin"] })`, worker runs analyze + generate, returns text, web app writes `content_items` and `post_variants` rows.
+
+This shape — web writes DB, worker is stateless compute, results flow back through web — is the load-bearing pattern of the whole system. Stick to it.
+
+---
+
+## 5. Authentication — two layers
+
+**User auth (Supabase).** Supabase Auth handles email/password and Google OAuth. On every request, Next.js middleware calls Supabase to refresh the session cookie. Server Components and route handlers read the user via `supabase.auth.getUser()` on the server-scoped client. The JWT is forwarded automatically via the `sb-access-token` cookie; we never manually read or validate it.
+
+**Platform OAuth (LinkedIn, X).** Separate from login. When a user clicks "Connect LinkedIn" we (a) generate a PKCE code verifier, (b) stash it in a short-lived row or in a signed cookie, (c) redirect to LinkedIn. When LinkedIn calls back to `/api/oauth/linkedin/callback`, we exchange the code for tokens, encrypt them via Supabase Vault, and store them in `social_connections`.
+
+Tokens are *never* sent to the browser. When the UI wants to show "Connected as John Doe," it reads non-secret metadata (account name, avatar, expiry date) from `social_connections`. The actual token lives encrypted at rest and is decrypted only inside route handlers that need to publish.
+
+---
+
+## 6. The publishing state machine
+
+A `post_variants` row progresses through these statuses:
+
+```
+draft ──→ scheduled ──→ publishing ──→ published
+              │              │
+              ▼              ▼
+          cancelled        failed ──→ (retry) ──→ publishing
+```
+
+**Transitions**
+
+- `draft → scheduled` — user clicked "Schedule" and set `scheduled_at`.
+- `draft → publishing` — user clicked "Publish Now" (skips `scheduled`).
+- `scheduled → cancelled` — user cancelled before it ran.
+- `scheduled → publishing` — cron claimed the row via `FOR UPDATE SKIP LOCKED`.
+- `publishing → published` — platform API returned success.
+- `publishing → failed` — platform API returned a non-retriable error, or retries exhausted.
+- `failed → publishing` — operator or automated retry.
+
+**Rules**
+
+- State transitions happen in `lib/db/posts.ts`. Nothing else should write to `post_variants.status`.
+- Every claim of `scheduled → publishing` records `claimed_at` and `worker_id`. A separate sweeper cron resets rows stuck in `publishing` for > 10 minutes back to `scheduled`.
+- A `publish_attempts` table records every attempt (timestamp, request id, response code, error). This is the audit log and the idempotency guard.
+
+---
+
+## 7. Scheduling and the cron loop
+
+Vercel Cron hits `POST /api/cron/publish-due` every 5 minutes. The route:
+
+1. Verifies `Authorization: Bearer $CRON_SECRET`. Otherwise returns 401.
+2. Claims up to 10 due rows:
+    ```sql
+    UPDATE post_variants
+    SET status = 'publishing', claimed_at = now(), worker_id = $1
+    WHERE id IN (
+      SELECT id FROM post_variants
+      WHERE status = 'scheduled' AND scheduled_at <= now()
+      ORDER BY scheduled_at
+      LIMIT 10
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *;
+    ```
+3. For each claimed row, calls the platform adapter's `publish()` in parallel. Writes `publish_attempts` rows. Updates status to `published` or `failed`.
+4. Returns a summary `{ attempted, succeeded, failed }` for logging.
+
+A second cron (`/api/cron/token-expiry-check`, daily) flags connections whose tokens expire in the next 7 days, triggers refresh if possible, and writes in-app notifications otherwise.
+
+---
+
+## 8. Error handling and observability
+
+**Error categories**
+
+- **User errors** (invalid input, RLS-blocked access) — return 4xx with a clean message.
+- **Integration errors** (LinkedIn 429, Cloudinary 500) — logged with full context, retried per the retry table in the PRD, surfaced to user only on final failure.
+- **Bugs** (null reference, missing column) — fail loud, log with stack trace, return 500.
+
+**Logging**
+
+- JSON-structured. Every log line carries `request_id`, `user_id`, `workspace_id`, and the operation name.
+- Sentry captures exceptions in both services.
+- The Python worker uses `structlog`. The Next.js app uses `pino` on the server side.
+
+**Dashboards we will build in Phase 6**
+
+- Time-to-publish distribution per post (ingest → publish wall-clock), broken down by stage.
+- On-time publish SLI: `|published_at - scheduled_at| < 60s` / total scheduled publishes.
+- Scraper success rate and median extraction time.
+- LLM p50/p95 latency per provider.
+
+---
+
+## 9. Security posture
+
+- All tables have RLS enabled. Every new table ships with a policy in the same migration.
+- Service role key is only used inside `app/api/cron/**` and `app/api/oauth/**/callback/route.ts`. A CI lint rule enforces this.
+- OAuth callback flows are entirely server-side. Tokens are encrypted at rest via Supabase Vault. The browser never sees a token.
+- Inputs to the Python worker are HMAC-signed. Worker rejects any request with a bad signature.
+- The Python worker's Playwright runs with `--disable-extensions --no-sandbox` inside Docker, never as root, with a request-level memory cap.
+- SSRF protection: worker's scraper rejects URLs that resolve to private IP space (10./172.16-31./192.168./169.254./localhost) before fetching. Implemented via a DNS resolution check, not a string match.
+- Rate limits: 5 ingestion requests/minute per user, 50/day. Enforced at the `/api/ingest` route using Upstash Redis (or Supabase table if Redis isn't wired yet).
+
+---
+
+## 10. What changes in V2 (so we don't block it now)
+
+Decisions made now that should not need migration later:
+
+- `workspace_members` table exists from Phase 1 even though each user has one workspace in V1. When team support lands, we add rows — no schema change.
+- All `*.workspace_id` foreign keys point to `workspaces`, not `auth.users`. Users are members of workspaces, not owners of resources.
+- Platform identifiers are strings (`"linkedin"`, `"x_twitter"`), not enums. Adding Instagram is a row insert in `platforms`, not a schema migration.
+- `post_variants` has a `platform` column for the same reason.
+
+Things we consciously *don't* build yet and may need migration for later:
+
+- Post approval workflow — `post_variants.approved_by` and `approved_at` will be added.
+- Analytics pull-back — `post_metrics` table, populated by a new cron, referenced by a dashboard.
+- Team roles and permissions — `workspace_members.role` is already a string, but we'll add a separate `permissions` table if we need fine-grained controls.
+
+These are noted in `docs/DECISIONS.md` with "V2-reserved" markers so we don't paint ourselves into a corner.
