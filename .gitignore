@@ -33,3 +33,37 @@ coverage/
 dist/
 .pytest_cache/
 .mypy_cache/
+.nyc_output/
+
+# Local tool and package manager caches
+.pnpm-store/
+.npm/
+.cache/
+.turbo/
+
+# Python tooling
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+
+# Test and report outputs
+test-results/
+playwright-report/
+htmlcov/
+*.lcov
+
+# TypeScript / JS
+*.tsbuildinfo
+
+# Next/Vercel local state
+.vercel/
+
+# Supabase local state
+supabase/.temp/
+supabase/.branches/
+
+# IDE/editor local files
+.idea/
+*.swp
+*.swo
