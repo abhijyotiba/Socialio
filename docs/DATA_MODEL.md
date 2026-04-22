@@ -13,7 +13,11 @@ Every table has Row Level Security enabled. Every table's policies are documente
   - `workspaces`
   - `workspace_members`
   - `user_workspace_ids()` helper
-- Phase 1 — Brand & Connections *(to be added)*
+- [Phase 1 — Brand & Connections](#phase-1--brand--connections)
+  - `brand_configs`
+  - `prompt_versions`
+  - `social_connections`
+  - Vault helper functions
 - Phase 2 — Ingestion *(to be added)*
 - Phase 3 — Generation *(to be added)*
 - Phase 4 — Publishing *(to be added)*
@@ -88,6 +92,91 @@ On `INSERT INTO auth.users`, we automatically create:
 3. A row in `workspace_members` linking them with `role = 'owner'`
 
 The trigger function is `public.handle_new_user()`, marked `SECURITY DEFINER` so it can insert into tables the user's own role cannot write to.
+
+---
+
+---
+
+## Phase 1 — Brand & Connections
+
+Migration: `supabase/migrations/0002_brand_and_connections.sql`
+
+### `brand_configs`
+
+One row per workspace. Holds brand profile and a pointer to the currently active prompt version. The `custom_system_prompt` column is a convenience copy of the active prompt text; the source of truth for history is `prompt_versions`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `workspace_id` | `UUID` PK | FK `workspaces(id)`, cascade delete |
+| `brand_name` | `TEXT` NOT NULL | Display name for the brand |
+| `industry` | `TEXT` | Optional |
+| `website_url` | `TEXT` | Optional |
+| `tone_tags` | `TEXT[]` NOT NULL | Default `'{}'`. e.g. `{'professional','witty'}` |
+| `custom_system_prompt` | `TEXT` | Copied from the latest `prompt_versions` row |
+| `current_prompt_version_id` | `UUID` | FK `prompt_versions(id)`, SET NULL on delete |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+| `updated_at` | `TIMESTAMPTZ` NOT NULL | Updated by trigger `trg_brand_configs_updated_at` |
+
+**RLS**
+
+- `brand_configs_member_select` — workspace members can read.
+- `brand_configs_member_insert` — workspace members can insert.
+- `brand_configs_member_update` — workspace members can update.
+
+### `prompt_versions`
+
+Append-only log of every system prompt used by a workspace. **Never UPDATE a row here.** When a user edits their prompt, INSERT a new row with `version_number + 1`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `version_number` | `INTEGER` NOT NULL | Monotonically increasing per workspace |
+| `system_prompt` | `TEXT` NOT NULL | The full system prompt text |
+| `created_by` | `UUID` NOT NULL | FK `auth.users(id)`, RESTRICT on delete |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+| — | UNIQUE (`workspace_id`, `version_number`) | |
+
+**RLS**
+
+- `prompt_versions_member_select` — workspace members can read.
+- `prompt_versions_member_insert` — workspace members can insert.
+
+**Index:** `idx_prompt_versions_workspace` on `workspace_id`.
+
+### `social_connections`
+
+One row per workspace × platform. Stores only Vault secret reference UUIDs — never raw token values.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `platform` | `TEXT` NOT NULL | CHECK `IN ('linkedin', 'x')` |
+| `platform_user_id` | `TEXT` | Provider's numeric/string user ID |
+| `platform_username` | `TEXT` | Human-readable display name |
+| `access_token_vault_id` | `UUID` | Vault secret reference ID |
+| `refresh_token_vault_id` | `UUID` | Vault secret reference ID (nullable) |
+| `token_expires_at` | `TIMESTAMPTZ` | |
+| `needs_reauth` | `BOOLEAN` NOT NULL | Default `false`. Set to `true` by token-expiry cron |
+| `connected_at` | `TIMESTAMPTZ` NOT NULL | |
+| `updated_at` | `TIMESTAMPTZ` NOT NULL | Updated by trigger |
+| — | UNIQUE (`workspace_id`, `platform`) | |
+
+**RLS**
+
+- `social_connections_member_select` — workspace members can read.
+- `social_connections_member_insert` — workspace members can insert.
+- `social_connections_member_update` — workspace members can update.
+
+**Indexes:** `idx_social_connections_workspace`, `idx_social_connections_expires`.
+
+### Vault helper functions
+
+Two `SECURITY DEFINER` SQL functions exposed to PostgREST. Both are `REVOKE`d from `PUBLIC` and `GRANT`ed to `service_role` only. Called from `lib/security/vault.ts` which is invoked only from OAuth callback routes and publish routes.
+
+- `public.vault_create_secret(p_secret TEXT, p_name TEXT) RETURNS UUID` — stores a secret, returns the Vault UUID.
+- `public.vault_read_secret(p_id UUID) RETURNS TEXT` — retrieves a decrypted secret by its Vault UUID.
 
 ---
 

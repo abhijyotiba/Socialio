@@ -28,4 +28,66 @@ No custom endpoints. All auth flows go through Supabase's built-in endpoints.
 
 ---
 
-*Endpoints will be added here as each phase ships.*
+## Phase 1
+
+### GET /api/brand/config
+
+Auth: authenticated user  
+Used by: `/settings/brand` page (client fetch on mount)  
+Request: none  
+Response 200: full `brand_configs` row as JSON  
+Errors: `401` unauthenticated, `403` no workspace, `404` brand config not yet created
+
+---
+
+### POST /api/brand/config
+
+Auth: authenticated user  
+Used by: onboarding `BrandStep`, `/settings/brand` save  
+Request:
+```ts
+{
+  brand_name: string        // required, min 1
+  industry?: string
+  website_url?: string      // valid URL or empty string
+  tone_tags: string[]
+  system_prompt: string     // required, min 1
+}
+```
+Response 200:
+```ts
+{
+  workspace_id: string
+  current_prompt_version_id: string
+  version_number: number
+}
+```
+Side effects: inserts a new `prompt_versions` row; upserts `brand_configs` with the new version ID  
+Errors: `400` validation, `401` unauthenticated, `403` no workspace
+
+---
+
+### GET /api/oauth/linkedin/start
+
+Auth: authenticated user  
+Used by: "Connect LinkedIn" button  
+Request: none  
+Response: `302` redirect to LinkedIn authorization URL  
+Side effects: sets `linkedin_oauth_state` cookie (httpOnly, 10 min TTL)  
+Errors: `401` unauthenticated, `500` configuration error
+
+---
+
+### GET /api/oauth/linkedin/callback
+
+Auth: authenticated user + valid state cookie  
+Used by: LinkedIn OAuth redirect  
+Query params: `code: string`, `state: string`  
+Response: `302` redirect to `/settings/connections?linkedin=connected`  
+Side effects:
+- Validates `state` against `linkedin_oauth_state` cookie
+- Exchanges `code` for tokens via LinkedIn API
+- Stores access/refresh tokens in Supabase Vault
+- Upserts `social_connections` row with Vault reference IDs and profile metadata
+
+Errors: `400` missing params or invalid state, `401` unauthenticated, `403` no workspace, `502` LinkedIn token exchange failed

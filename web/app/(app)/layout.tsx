@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getWorkspaceForUser } from "@/lib/db/workspaces";
+import { getBrandConfig } from "@/lib/db/brand-configs";
 import { TopBar } from "@/components/app/TopBar";
 
 export default async function AppLayout({
@@ -14,6 +17,20 @@ export default async function AppLayout({
 
   if (!user) {
     redirect("/login");
+  }
+
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") ?? "";
+
+  // Redirect first-time users to onboarding unless they're already there.
+  if (!pathname.startsWith("/onboarding")) {
+    const workspace = await getWorkspaceForUser(user.id);
+    if (workspace) {
+      const brandConfig = await getBrandConfig(workspace.workspace_id);
+      if (!brandConfig) {
+        redirect("/onboarding");
+      }
+    }
   }
 
   return (

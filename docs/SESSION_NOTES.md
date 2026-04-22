@@ -13,6 +13,59 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-22 — Phase 1 complete: Auth, Brand, and LinkedIn OAuth
+
+**What got built:**
+
+- Migration `0002_brand_and_connections.sql` applied — `brand_configs`, `prompt_versions`, `social_connections` tables with RLS; `touch_updated_at()` trigger; `vault_create_secret` / `vault_read_secret` SQL helpers (service_role only)
+- `web/lib/db/types.ts` regenerated; all three new tables present
+- `web/lib/security/vault.ts` — Supabase Vault helpers (create/read secrets via admin client RPC)
+- `web/lib/db/brand-configs.ts` — `getBrandConfig`, `upsertBrandConfig`
+- `web/lib/db/prompt-versions.ts` — `createPromptVersion` (auto-increments version_number), `getLatestPromptVersion`
+- `web/lib/db/social-connections.ts` — `getSocialConnection`, `upsertSocialConnection` (accepts optional client override for OAuth callback)
+- `web/lib/adapters/linkedin.ts` — `buildAuthorizationUrl`, `exchangeCodeForTokens`, `getUserInfo` with Zod validation
+- `web/app/api/brand/config/route.ts` — GET (read current config) + POST (upsert + new prompt version)
+- `web/app/api/oauth/linkedin/start/route.ts` — generates state, sets httpOnly cookie, redirects to LinkedIn
+- `web/app/api/oauth/linkedin/callback/route.ts` — validates state, exchanges code, stores tokens in Vault, upserts social_connections
+- `web/app/(app)/layout.tsx` — onboarding gate: checks `brand_configs` and redirects to `/onboarding` if missing
+- `web/lib/supabase/middleware.ts` — injects `x-pathname` header so the layout can read current route without a client hook
+- `web/app/(app)/onboarding/page.tsx` + 3 step components (`BrandStep`, `ConnectStep`, `TestPostStep`)
+- `web/app/(app)/settings/brand/page.tsx` — client component, fetches + saves brand config
+- `web/app/(app)/settings/connections/page.tsx` — server component, shows LinkedIn connection status
+- `components/ui/textarea.tsx` added via shadcn (needed by brand forms)
+- Tests: `db.brand-configs.test.ts` (type-level, 3 tests), `adapters.linkedin.test.ts` (4 tests) — 11/11 pass
+- `docs/DATA_MODEL.md`, `docs/API_CONTRACTS.md`, `docs/BACKLOG.md` updated
+- Google OAuth deferred to `docs/BACKLOG.md`
+
+**Confirmed working:**
+
+- `pnpm --dir web typecheck` — passes (0 errors)
+- `pnpm --dir web test` — 11/11 tests pass
+- `pnpm supabase db push --workdir ..` — migration applied cleanly
+
+**Decisions made:**
+
+- `lib/security/vault.ts` accepts a `SupabaseClient` parameter rather than importing `createAdminClient` directly, keeping admin import rule contained to route files
+- `upsertSocialConnection` accepts an optional `clientOverride` parameter so the OAuth callback (which already holds an admin client) can pass it without a second client instantiation
+- Onboarding gate uses `x-pathname` header injected by middleware rather than a separate nested route group
+- Google OAuth skipped per user instruction; noted in BACKLOG.md
+
+**What's next (Phase 2 — Ingestion):**
+
+- Write `docs/phases/PHASE_2_INGESTION.md` brief before starting code
+- Python worker scaffold: FastAPI, `routes/ingest.py`, Playwright scraping, Cloudinary upload
+- `web/app/api/ingest/route.ts` — creates `ingestion_jobs` row, calls worker, updates status
+- `ingestion_jobs` and `media_assets` tables (migration 0003)
+- Chat UI (`/chat`) with URL input and job status polling
+
+**Gotchas to watch:**
+
+- The onboarding gate in `(app)/layout.tsx` does two sequential DB queries (workspace + brand_config) on every protected page load. Fine for V1; consider caching in Phase 5+ if latency becomes an issue.
+- `vault_create_secret` is called once per token, so a LinkedIn connect creates 1–2 vault entries. If the connection is re-established, old vault entries become orphaned (no automatic cleanup). Add a cleanup step if Vault storage becomes a concern.
+- `upsertSocialConnection` with `onConflict: 'workspace_id,platform'` requires the unique constraint name to match exactly. Verified it's `social_connections_workspace_platform_unique` in the migration.
+
+---
+
 ## 2026-04-22 — Phase 0 closeout + Phase 1 brief authored
 
 **What got built / finalized:**
