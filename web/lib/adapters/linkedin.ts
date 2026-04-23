@@ -26,8 +26,8 @@ export function buildAuthorizationUrl(state: string): string {
     response_type: "code",
     client_id: process.env.LINKEDIN_CLIENT_ID!,
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI!,
-    // openid + profile + email for userinfo; w_member_social for posting (Phase 4)
-    scope: "openid profile email w_member_social",
+    // openid + profile + email for userinfo; w_member_social added in Phase 4 (requires partner approval)
+    scope: "openid profile email",
     state,
   });
   return `https://www.linkedin.com/oauth/v2/authorization?${params}`;
