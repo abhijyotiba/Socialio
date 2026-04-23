@@ -13,6 +13,45 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-23 — Phase 3 closeout patch: post_variants prompt provenance
+
+**What got built:**
+
+- Migration `0006_post_variants_prompt_version.sql` applied to remote Supabase
+- Added `post_variants.prompt_version_id` FK to `prompt_versions(id)` with `ON DELETE SET NULL`
+- Added index `idx_post_variants_prompt_version`
+- `POST /api/posts` now writes `prompt_version_id` onto each inserted `post_variants` row
+- Regenerated `web/lib/db/types.ts` after migration
+- Updated `docs/DATA_MODEL.md` to document `post_variants.prompt_version_id`
+- Updated `web/tests/db.posts.test.ts` to assert `PostVariantRow.prompt_version_id`
+
+**Confirmed working:**
+
+- `pnpm --dir web supabase db push --workdir ..` applied `0006_post_variants_prompt_version.sql`
+- `pnpm --dir web gen:types` completed successfully
+- `pnpm --dir web typecheck` — passes
+- `pnpm --dir web test` — 21/21 passing
+
+**Decisions made:**
+
+- Prompt provenance must exist at both levels:
+  - `content_items.prompt_version_id` for generation event provenance
+  - `post_variants.prompt_version_id` for per-variant publish/audit provenance
+
+**Gotchas:**
+
+- Phase 4 plan previously referenced migration `0006_publish_attempts.sql`; migration numbering now starts at `0007` for publishing
+
+**What's next (Phase 4 — Publishing):**
+
+- Create migration `0007_publish_attempts.sql`
+- Implement `POST /api/posts/[id]/publish`, `/schedule`, `/cancel`
+- Add X OAuth start/callback and adapter
+
+**First action next session:**
+
+- Run `pnpm --dir web supabase db push --workdir ..` after creating `0007_publish_attempts.sql`
+
 ## 2026-04-23 — Phase 3 complete: AI generation pipeline
 
 **What got built:**

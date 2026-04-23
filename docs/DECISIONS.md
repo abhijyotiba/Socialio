@@ -15,6 +15,18 @@ Format:
 
 ---
 
+## 2026-04-23: Prompt provenance stored on both content_items and post_variants
+
+**Decision:** `post_variants` now stores `prompt_version_id` in addition to `content_items.prompt_version_id`. Generation writes both so each variant carries explicit prompt provenance.
+
+**Why:** Audit and publish diagnostics are variant-centric (`post_variants.id` is the idempotency anchor for publishing). Storing provenance only at the content-item level weakens traceability for per-platform behavior and future retries/analytics.
+
+**Alternatives considered:** Keep provenance only on `content_items` and resolve via join when needed. Rejected because it adds avoidable coupling and makes downstream auditing/reporting queries harder.
+
+**Trade-off:** One extra nullable FK column and index on `post_variants`.
+
+**Reversibility:** Medium. Easy to stop writing it, but removing the column later requires migration and backfill considerations.
+
 ## 2026-04-23: Groq primary / Gemini fallback LLM strategy
 
 **Decision:** The worker's `adapters/llm.py` tries Groq first and falls back to Gemini on any exception. Model config (`groq_model`, `gemini_model`) lives in `Settings` so it can be overridden via env vars without code changes.
