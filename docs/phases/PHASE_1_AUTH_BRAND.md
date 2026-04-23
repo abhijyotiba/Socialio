@@ -273,17 +273,17 @@ Add these entries to `docs/API_CONTRACTS.md` in this phase.
 
 ## Acceptance criteria
 
-- [ ] "Continue with Google" is visible and functional on `/login` and `/signup`
-- [ ] New users are redirected to `/onboarding` before dashboard access
-- [ ] Onboarding step 1 saves brand config and creates prompt version `1`
-- [ ] Editing prompt creates a new `prompt_versions` row (never updates historical rows)
-- [ ] LinkedIn connect flow completes through start + callback routes
-- [ ] LinkedIn tokens are stored via Vault references, not plaintext token columns
-- [ ] Settings pages show saved brand values and connection status
-- [ ] `0002_brand_and_connections.sql` applies cleanly via `db push`
-- [ ] `pnpm --dir web typecheck` passes
-- [ ] `pnpm --dir web test` passes
-- [ ] `web/lib/db/types.ts` regenerated and includes new Phase 1 tables
+- [ ] "Continue with Google" is visible and functional on `/login` and `/signup` *(deferred — see BACKLOG.md)*
+- [x] New users are redirected to `/onboarding` before dashboard access
+- [x] Onboarding step 1 saves brand config and creates prompt version `1`
+- [x] Editing prompt creates a new `prompt_versions` row (never updates historical rows)
+- [x] LinkedIn connect flow completes through start + callback routes
+- [x] LinkedIn tokens are stored via Vault references, not plaintext token columns
+- [x] Settings pages show saved brand values and connection status
+- [x] `0002_brand_and_connections.sql` applies cleanly via `db push`
+- [x] `pnpm --dir web typecheck` passes
+- [x] `pnpm --dir web test` passes
+- [x] `web/lib/db/types.ts` regenerated and includes new Phase 1 tables
 
 ---
 
@@ -300,8 +300,8 @@ Add these entries to `docs/API_CONTRACTS.md` in this phase.
 
 ## When the phase is done
 
-- [ ] All acceptance criteria are checked
-- [ ] `docs/DATA_MODEL.md` and `docs/API_CONTRACTS.md` are updated to match implementation
-- [ ] `CLAUDE.md` current phase is bumped to Phase 2
-- [ ] `docs/SESSION_NOTES.md` has a new top entry summarizing Phase 1 completion
-- [ ] Changes are committed with a conventional commit message
+- [x] All acceptance criteria are checked (Google OAuth deferred to backlog)
+- [x] `docs/DATA_MODEL.md` and `docs/API_CONTRACTS.md` are updated to match implementation
+- [x] `CLAUDE.md` current phase is bumped to Phase 2
+- [x] `docs/SESSION_NOTES.md` has a new top entry summarizing Phase 1 completion
+- [x] Changes are committed with a conventional commit message
