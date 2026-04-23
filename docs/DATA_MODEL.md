@@ -271,6 +271,7 @@ One row per platform per content_item. Each row is a generated post draft with i
 | `id` | `UUID` PK | |
 | `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
 | `content_item_id` | `UUID` NOT NULL | FK `content_items(id)`, cascade delete |
+| `prompt_version_id` | `UUID` | FK `prompt_versions(id)`, SET NULL on delete. Snapshot of prompt used to generate this variant |
 | `platform` | `TEXT` NOT NULL | CHECK `IN ('linkedin', 'x')` |
 | `body` | `TEXT` NOT NULL | Generated post text |
 | `status` | `TEXT` NOT NULL | Default `'draft'`. CHECK `IN ('draft','scheduled','publishing','published','failed','cancelled')` |
@@ -284,7 +285,7 @@ One row per platform per content_item. Each row is a generated post draft with i
 
 **RLS:** workspace members can select, insert, update.
 
-**Indexes:** `idx_post_variants_workspace`, `idx_post_variants_content_item`, `idx_post_variants_status`, `idx_post_variants_scheduled` (partial, WHERE status = 'scheduled').
+**Indexes:** `idx_post_variants_workspace`, `idx_post_variants_content_item`, `idx_post_variants_prompt_version`, `idx_post_variants_status`, `idx_post_variants_scheduled` (partial, WHERE status = 'scheduled').
 
 ---
 

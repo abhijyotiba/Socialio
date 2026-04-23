@@ -97,6 +97,7 @@ export async function POST(request: Request) {
       result.variants.map((v) => ({
         workspace_id: workspaceId,
         content_item_id: contentItem.id,
+        prompt_version_id: contentItem.prompt_version_id,
         platform: v.platform,
         body: v.body,
         status: "draft" as const,

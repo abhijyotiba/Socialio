@@ -255,6 +255,7 @@ export type Database = {
           error: string | null
           id: string
           platform: string
+          prompt_version_id: string | null
           published_at: string | null
           scheduled_at: string | null
           status: string
@@ -270,6 +271,7 @@ export type Database = {
           error?: string | null
           id?: string
           platform: string
+          prompt_version_id?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
@@ -285,6 +287,7 @@ export type Database = {
           error?: string | null
           id?: string
           platform?: string
+          prompt_version_id?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
@@ -298,6 +301,13 @@ export type Database = {
             columns: ["content_item_id"]
             isOneToOne: false
             referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_variants_prompt_version_id_fkey"
+            columns: ["prompt_version_id"]
+            isOneToOne: false
+            referencedRelation: "prompt_versions"
             referencedColumns: ["id"]
           },
           {

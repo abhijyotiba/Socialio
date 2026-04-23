@@ -31,6 +31,7 @@ describe("post_variants types", () => {
     expectTypeOf<PostVariantRow>().toHaveProperty("id");
     expectTypeOf<PostVariantRow>().toHaveProperty("workspace_id");
     expectTypeOf<PostVariantRow>().toHaveProperty("content_item_id");
+    expectTypeOf<PostVariantRow>().toHaveProperty("prompt_version_id");
     expectTypeOf<PostVariantRow>().toHaveProperty("platform");
     expectTypeOf<PostVariantRow>().toHaveProperty("body");
     expectTypeOf<PostVariantRow>().toHaveProperty("status");
