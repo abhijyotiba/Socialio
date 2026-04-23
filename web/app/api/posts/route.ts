@@ -71,15 +71,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const contentItem = await createContentItem({
-    workspace_id: workspaceId,
-    ingestion_job_id,
-    prompt_version_id: brand.current_prompt_version_id ?? null,
-  });
-
-  await updateIngestionJob(ingestion_job_id, { stage: "analyzing" });
-
   try {
+    const contentItem = await createContentItem({
+      workspace_id: workspaceId,
+      ingestion_job_id,
+      prompt_version_id: brand.current_prompt_version_id ?? null,
+    });
+
+    await updateIngestionJob(ingestion_job_id, { stage: "analyzing" });
+
     const result = await workerGenerate({
       job_id: ingestion_job_id,
       workspace_id: workspaceId,

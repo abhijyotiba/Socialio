@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -41,7 +41,6 @@ export default function ChatPage() {
   const [gen, setGen] = useState<GenerateState>({ kind: "idle" });
   const [showMore, setShowMore] = useState(false);
   const [platforms, setPlatforms] = useState<("linkedin" | "x")[]>(["linkedin"]);
-  const channelRef = useRef<object | null>(null);
 
   // Subscribe to job stage changes while generating
   useEffect(() => {
@@ -69,10 +68,8 @@ export default function ChatPage() {
       )
       .subscribe();
 
-    channelRef.current = channel;
     return () => {
       supabase.removeChannel(channel);
-      channelRef.current = null;
     };
   }, [ingest, gen.kind]);
 
