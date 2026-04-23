@@ -35,45 +35,47 @@ export default async function ConnectionsPage({
   const xError = params.x_error;
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm">
       <div>
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Settings
+        </p>
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
           Connected accounts
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+        <p className="mt-1.5 text-sm text-slate-500">
           Manage the social accounts SocialOS can publish to.
         </p>
       </div>
 
       {linkedInJustConnected && (
-        <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3">
-          <p className="text-sm text-green-700 dark:text-green-400">
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <p className="text-sm text-green-700">
             LinkedIn connected successfully.
           </p>
         </div>
       )}
 
       {xError && (
-        <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
-          <p className="text-sm text-red-700 dark:text-red-400">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-700">
             X connection failed: <span className="font-mono">{xError}</span>
           </p>
-          <p className="text-xs text-red-500 mt-1">
+          <p className="mt-1 text-xs text-red-500">
             Check that your X app has <strong>Read and write</strong> permissions, <strong>Web App</strong> type, and <strong>offline.access</strong> scope enabled.
           </p>
         </div>
       )}
 
       {xJustConnected && (
-        <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3">
-          <p className="text-sm text-green-700 dark:text-green-400">
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <p className="text-sm text-green-700">
             X / Twitter connected successfully.
           </p>
         </div>
       )}
 
-      {/* LinkedIn */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200/80 shadow-none">
         <CardHeader>
           <CardTitle>LinkedIn</CardTitle>
           <CardDescription>
@@ -83,18 +85,18 @@ export default async function ConnectionsPage({
         <CardContent className="flex items-center justify-between">
           {linkedIn && !linkedIn.needs_reauth ? (
             <div className="space-y-0.5">
-              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+              <p className="text-sm font-medium text-slate-900">
                 {linkedIn.platform_username ?? "Connected"}
               </p>
               {linkedIn.token_expires_at && (
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-slate-500">
                   Token expires{" "}
                   {new Date(linkedIn.token_expires_at).toLocaleDateString()}
                 </p>
               )}
             </div>
           ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-sm text-slate-500">
               {linkedIn?.needs_reauth
                 ? "Re-authentication required."
                 : "Not connected."}
@@ -103,15 +105,14 @@ export default async function ConnectionsPage({
 
           <a
             href="/api/oauth/linkedin/start"
-            className="text-sm underline underline-offset-2 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-50"
+            className="text-sm font-medium text-indigo-600 underline-offset-2 hover:underline"
           >
             {linkedIn ? "Reconnect" : "Connect"}
           </a>
         </CardContent>
       </Card>
 
-      {/* X / Twitter */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200/80 shadow-none">
         <CardHeader>
           <CardTitle>X / Twitter</CardTitle>
           <CardDescription>
@@ -122,18 +123,18 @@ export default async function ConnectionsPage({
         <CardContent className="flex items-center justify-between">
           {xConnection && !xConnection.needs_reauth ? (
             <div className="space-y-0.5">
-              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
+              <p className="text-sm font-medium text-slate-900">
                 @{xConnection.platform_username ?? "Connected"}
               </p>
               {xConnection.token_expires_at && (
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-slate-500">
                   Token expires{" "}
                   {new Date(xConnection.token_expires_at).toLocaleDateString()}
                 </p>
               )}
             </div>
           ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-sm text-slate-500">
               {xConnection?.needs_reauth
                 ? "Re-authentication required — token will expire shortly."
                 : "Not connected."}
@@ -142,7 +143,7 @@ export default async function ConnectionsPage({
 
           <a
             href="/api/oauth/x/start"
-            className="text-sm underline underline-offset-2 text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-50"
+            className="text-sm font-medium text-indigo-600 underline-offset-2 hover:underline"
           >
             {xConnection ? "Reconnect" : "Connect"}
           </a>

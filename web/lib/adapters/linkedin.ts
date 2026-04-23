@@ -122,6 +122,44 @@ export async function publishLinkedInPost(
   };
 }
 
+export async function getPostMetrics(
+  accessToken: string,
+  authorUrn: string,
+  platformPostId: string // e.g. urn:li:share:123456
+): Promise<{ impressions: number; likes: number; comments: number; shares: number }> {
+  // LinkedIn requires fetching Organizational Entity Share Statistics or relying on 
+  // Member organizational stats depending on the URN type.
+  // For V1, this simulates fetching from the LinkedIn Network Statistics endpoint
+  const url = `https://api.linkedin.com/rest/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=${encodeURIComponent(
+    authorUrn
+  )}&shares[0]=${encodeURIComponent(platformPostId)}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": "202304", // Set required API version header
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) throw new Error("POST_DELETED");
+    if (response.status === 401) throw new Error("TOKEN_EXPIRED");
+    throw new Error(`LinkedIn metrics fetch failed: ${response.status}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: any = await response.json();
+  const metrics = body?.elements?.[0]?.totalShareStatistics || {};
+
+  return {
+    impressions: metrics.impressionCount || 0,
+    likes: metrics.likeCount || 0,
+    comments: metrics.commentCount || 0,
+    shares: metrics.shareCount || 0,
+  };
+}
+
 function classifyLinkedInError(status: number, _body: unknown): string {
   if (status === 401) return "TOKEN_EXPIRED";
   if (status === 429) return "RATE_LIMITED";

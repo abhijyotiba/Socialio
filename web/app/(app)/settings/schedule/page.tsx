@@ -99,14 +99,14 @@ function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-4 space-y-4 mt-4">
-      <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Add slot</p>
+    <form onSubmit={handleSubmit} className="mt-4 space-y-4 rounded-2xl border border-slate-200 p-4">
+      <p className="text-sm font-medium text-slate-800">Add slot</p>
 
       <div className="flex gap-3 items-center">
         <select
           value={hour}
           onChange={(e) => setHour(Number(e.target.value))}
-          className="text-sm border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50"
+          className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900"
         >
           {HOURS.map((h) => (
             <option key={h} value={h}>
@@ -114,11 +114,11 @@ function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
             </option>
           ))}
         </select>
-        <span className="text-zinc-500">:</span>
+        <span className="text-slate-500">:</span>
         <select
           value={minute}
           onChange={(e) => setMinute(Number(e.target.value) as 0 | 30)}
-          className="text-sm border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1.5 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-50"
+          className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900"
         >
           {MINUTES.map((m) => (
             <option key={m} value={m}>
@@ -126,7 +126,7 @@ function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
             </option>
           ))}
         </select>
-        <span className="text-xs text-zinc-400">{timezone}</span>
+        <span className="text-xs text-slate-400">{timezone}</span>
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
@@ -137,8 +137,8 @@ function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
             onClick={() => toggleDay(i)}
             className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
               days.includes(i)
-                ? "bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 border-zinc-900 dark:border-zinc-50"
-                : "border-zinc-300 dark:border-zinc-600 text-zinc-600 dark:text-zinc-400 hover:border-zinc-500"
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-300 text-slate-600 hover:border-slate-500"
             }`}
           >
             {label}
@@ -197,7 +197,7 @@ function PlatformSection({ platform, label }: PlatformSectionProps) {
   }
 
   return (
-    <Card>
+    <Card className="rounded-2xl border-slate-200/80 shadow-none">
       <CardHeader>
         <CardTitle>{label}</CardTitle>
         <CardDescription>
@@ -206,9 +206,9 @@ function PlatformSection({ platform, label }: PlatformSectionProps) {
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
-          <p className="text-sm text-zinc-400">Loading…</p>
+          <p className="text-sm text-slate-500">Loading…</p>
         ) : slots.length === 0 ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-sm text-slate-500">
             No slots configured. Add one below.
           </p>
         ) : (
@@ -218,17 +218,17 @@ function PlatformSection({ platform, label }: PlatformSectionProps) {
                 key={slot.id}
                 className="flex items-center justify-between text-sm"
               >
-                <span className="text-zinc-800 dark:text-zinc-200">
+                <span className="text-slate-800">
                   {formatDays(slot.days_of_week)}{" "}
                   <span className="font-medium">
                     {formatHour(slot.hour, slot.minute)}
                   </span>{" "}
-                  <span className="text-xs text-zinc-400">{slot.timezone}</span>
+                  <span className="text-xs text-slate-400">{slot.timezone}</span>
                 </span>
                 <button
                   onClick={() => handleDelete(slot.id)}
                   disabled={deletingId === slot.id}
-                  className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
+                  className="text-xs text-red-500 disabled:opacity-40 hover:text-red-700"
                 >
                   {deletingId === slot.id ? "Removing…" : "Remove"}
                 </button>
@@ -238,11 +238,11 @@ function PlatformSection({ platform, label }: PlatformSectionProps) {
         )}
 
         {nextTimes.length > 0 && (
-          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
-            <p className="text-xs text-zinc-400 mb-1">Next upcoming slots</p>
+          <div className="border-t border-slate-100 pt-2">
+            <p className="mb-1 text-xs text-slate-400">Next upcoming slots</p>
             <ul className="space-y-0.5">
               {nextTimes.slice(0, 3).map((t) => (
-                <li key={t} className="text-xs text-zinc-500">
+                <li key={t} className="text-xs text-slate-500">
                   {new Date(t).toLocaleString(undefined, {
                     weekday: "short",
                     month: "short",
@@ -281,12 +281,15 @@ function PlatformSection({ platform, label }: PlatformSectionProps) {
 
 export default function PostingSchedulePage() {
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm">
       <div>
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Settings
+        </p>
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
           Posting Schedule
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+        <p className="mt-1.5 text-sm text-slate-500">
           Define your preferred posting times. When scheduling a post, these
           slots appear as one-click options.
         </p>

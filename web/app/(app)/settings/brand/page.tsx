@@ -96,22 +96,27 @@ export default function BrandSettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm">
       <div>
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Settings
+        </p>
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
           Brand settings
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+        <p className="mt-1.5 text-sm text-slate-500">
           Changing the system prompt creates a new version — previous posts keep
           their original prompt.
         </p>
       </div>
 
       {fetchError && (
-        <p className="text-sm text-red-600 dark:text-red-400">{fetchError}</p>
+        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {fetchError}
+        </p>
       )}
 
-      <Card>
+      <Card className="rounded-2xl border-slate-200/80 shadow-none">
         <CardHeader>
           <CardTitle>Brand profile</CardTitle>
           <CardDescription>
@@ -121,12 +126,12 @@ export default function BrandSettingsPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
             {saveError && (
-              <p className="text-sm text-red-600 dark:text-red-400">
+              <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {saveError}
               </p>
             )}
             {saved && (
-              <p className="text-sm text-green-600 dark:text-green-400">
+              <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-600">
                 Saved successfully.
               </p>
             )}
@@ -189,13 +194,13 @@ export default function BrandSettingsPage() {
                   {form.tone_tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700"
                     >
                       {tag}
                       <button
                         type="button"
                         onClick={() => removeToneTag(tag)}
-                        className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                        className="text-slate-400 hover:text-slate-700"
                       >
                         ×
                       </button>

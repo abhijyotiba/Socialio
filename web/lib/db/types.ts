@@ -246,6 +246,54 @@ export type Database = {
           },
         ]
       }
+      post_metrics: {
+        Row: {
+          comments: number | null
+          id: string
+          impressions: number | null
+          last_synced_at: string
+          likes: number | null
+          post_variant_id: string
+          shares: number | null
+          workspace_id: string
+        }
+        Insert: {
+          comments?: number | null
+          id?: string
+          impressions?: number | null
+          last_synced_at?: string
+          likes?: number | null
+          post_variant_id: string
+          shares?: number | null
+          workspace_id: string
+        }
+        Update: {
+          comments?: number | null
+          id?: string
+          impressions?: number | null
+          last_synced_at?: string
+          likes?: number | null
+          post_variant_id?: string
+          shares?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_metrics_post_variant_id_fkey"
+            columns: ["post_variant_id"]
+            isOneToOne: true
+            referencedRelation: "post_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_metrics_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_variants: {
         Row: {
           body: string
@@ -321,6 +369,50 @@ export type Database = {
           },
           {
             foreignKeyName: "post_variants_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posting_schedules: {
+        Row: {
+          created_at: string
+          days_of_week: number[]
+          hour: number
+          id: string
+          is_active: boolean
+          minute: number
+          platform: string
+          timezone: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          days_of_week?: number[]
+          hour: number
+          id?: string
+          is_active?: boolean
+          minute: number
+          platform: string
+          timezone?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          days_of_week?: number[]
+          hour?: number
+          id?: string
+          is_active?: boolean
+          minute?: number
+          platform?: string
+          timezone?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posting_schedules_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -494,50 +586,6 @@ export type Database = {
           },
         ]
       }
-      posting_schedules: {
-        Row: {
-          created_at: string
-          days_of_week: number[]
-          hour: number
-          id: string
-          is_active: boolean
-          minute: number
-          platform: string
-          timezone: string
-          workspace_id: string
-        }
-        Insert: {
-          created_at?: string
-          days_of_week?: number[]
-          hour: number
-          id?: string
-          is_active?: boolean
-          minute: number
-          platform: string
-          timezone?: string
-          workspace_id: string
-        }
-        Update: {
-          created_at?: string
-          days_of_week?: number[]
-          hour?: number
-          id?: string
-          is_active?: boolean
-          minute?: number
-          platform?: string
-          timezone?: string
-          workspace_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "posting_schedules_workspace_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       workspace_members: {
         Row: {
           joined_at: string
@@ -591,8 +639,32 @@ export type Database = {
     }
     Functions: {
       claim_due_variants: {
-        Args: { p_worker_id: string; p_limit?: number }
-        Returns: unknown[]
+        Args: { p_limit?: number; p_worker_id: string }
+        Returns: {
+          body: string
+          claimed_at: string | null
+          content_item_id: string
+          created_at: string
+          error: string | null
+          error_code: string | null
+          id: string
+          platform: string
+          platform_post_id: string | null
+          platform_post_url: string | null
+          prompt_version_id: string | null
+          published_at: string | null
+          scheduled_at: string | null
+          status: string
+          updated_at: string
+          worker_id: string | null
+          workspace_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "post_variants"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       user_workspace_ids: { Args: never; Returns: string[] }
       vault_create_secret: {

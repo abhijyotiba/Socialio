@@ -31,9 +31,9 @@ async def test_gemini_adapter_returns_text():
     mock_response.text = "Gemini generated text"
 
     with patch("adapters.gemini.genai") as mock_genai:
-        mock_model = MagicMock()
-        mock_genai.GenerativeModel.return_value = mock_model
-        mock_model.generate_content_async = AsyncMock(return_value=mock_response)
+        client_mock = MagicMock()
+        mock_genai.Client.return_value = client_mock
+        client_mock.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
         from adapters.gemini import gemini_generate
         result = await gemini_generate("system prompt", "user message")

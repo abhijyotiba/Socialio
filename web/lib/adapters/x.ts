@@ -116,6 +116,36 @@ export async function publishTweet(
   };
 }
 
+export async function getPostMetrics(
+  accessToken: string,
+  platformPostId: string
+): Promise<{ impressions: number; likes: number; comments: number; shares: number }> {
+  // Uses X API v2 standard metrics payload
+  const response = await fetch(
+    `https://api.twitter.com/2/tweets/${platformPostId}?tweet.fields=public_metrics`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 404) throw new Error("POST_DELETED");
+    if (response.status === 401) throw new Error("TOKEN_EXPIRED");
+    throw new Error(`X metrics fetch failed: ${response.status}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: any = await response.json();
+  const metrics = body?.data?.public_metrics || {};
+
+  return {
+    impressions: metrics.impression_count || 0,
+    likes: metrics.like_count || 0,
+    comments: metrics.reply_count || 0,
+    shares: metrics.retweet_count || 0,
+  };
+}
+
 function classifyXError(status: number, _body: unknown): string {
   if (status === 401) return "TOKEN_EXPIRED";
   if (status === 429) return "RATE_LIMITED";
