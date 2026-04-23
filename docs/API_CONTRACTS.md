@@ -137,3 +137,37 @@ Used by: any client that wants to poll ingestion status or retrieve results
 Request: none (job_id in path)  
 Response 200: full `ingestion_jobs` row + `media: MediaAssetRow[]`  
 Errors: `401` unauthenticated, `403` wrong workspace, `404` job not found
+
+---
+
+## Phase 3
+
+### POST /api/posts
+
+Auth: authenticated user  
+Used by: `/chat` page "Generate post" button  
+Request:
+```ts
+{
+  ingestion_job_id: string   // UUID — must have stage = 'done'
+  platforms: ("linkedin" | "x")[]  // at least one
+}
+```
+Response 200:
+```ts
+{
+  content_item_id: string
+  variants: Array<{
+    id: string
+    platform: "linkedin" | "x"
+    body: string
+    status: "draft"
+  }>
+}
+```
+Side effects:
+- `content_items` row created and updated with LLM summary
+- `post_variants` rows created (one per platform), status = 'draft'
+- `ingestion_jobs.stage` advanced: `analyzing → storing → done` (or `failed`)
+
+Errors: `400` validation, `401` unauthenticated, `403` wrong workspace or forbidden, `404` job not found, `409` job not ready or missing brand config, `502` worker error
