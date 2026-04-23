@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getIngestionJob, updateIngestionJob } from "@/lib/db/ingestion";
-import { getBrandConfig } from "@/lib/db/brand";
+import { getBrandConfig } from "@/lib/db/brand-configs";
 import {
   createContentItem,
   updateContentItem,
