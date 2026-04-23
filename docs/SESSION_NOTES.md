@@ -13,6 +13,51 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-23 — Phase 3 complete: AI generation pipeline
+
+**What got built:**
+
+- Migrations `0004_generation.sql` + `0005_content_items_indexes.sql` — `content_items`, `post_variants` tables with RLS, indexes, trigger
+- Worker LLM adapters: `worker/adapters/groq.py`, `worker/adapters/gemini.py`, `worker/adapters/llm.py` (Groq primary, Gemini fallback)
+- Worker pipeline: `worker/pipeline/analyze.py` (Pass 1: source → summary), `worker/pipeline/generate.py` (Pass 2: summary → platform variants)
+- Worker route: `worker/routes/generate.py` — `POST /generate`
+- Web: `workerGenerate()` added to `worker-client.ts`
+- Web db layer: `web/lib/db/posts.ts` — `createContentItem`, `updateContentItem`, `createPostVariants`, `getContentItemWithVariants`, `listContentItemsForJob`
+- Web db layer: `web/lib/db/brand.ts` — `getBrandConfig`
+- Web route: `web/app/api/posts/route.ts` — `POST /api/posts` with full auth + Zod + stage tracking
+- Browser Supabase client: `web/lib/supabase/browser.ts`
+- Chat UI: full generation flow — platform picker, Realtime stage labels, variant display, Copy button
+
+**Confirmed working:**
+
+- `pnpm --dir web typecheck` — 0 errors
+- `pnpm --dir web test` — 21/21 passing
+- `cd worker && uv run pytest tests/` — 28/28 passing
+- Both migrations applied to remote Supabase
+
+**Decisions made:**
+
+- Groq primary / Gemini fallback (see DECISIONS.md)
+- Generation synchronous in Phase 3 (see DECISIONS.md)
+
+**Gotchas:**
+
+- `getBrandConfig` was missing from `web/lib/db/brand.ts` — had to create the file
+- `google-generativeai` is deprecated (EOL) — tracked in `docs/BACKLOG.md`, must migrate to `google-genai` before production
+- Supabase Realtime stage updates require the `ingestion_jobs` table to have replica identity; Supabase enables this by default on new projects
+- `content_items` initially had only 2 indexes — added `0005_content_items_indexes.sql` to add the missing `prompt_version_id` and `created_at` indexes
+
+**What's next (Phase 4 — Publishing):**
+
+- X OAuth (start + callback routes, adapter)
+- `publish_attempts` table
+- `POST /api/posts/[id]/publish` (publish now)
+- `POST /api/posts/[id]/schedule` (schedule)
+- Cron: `POST /api/cron/publish-due`
+- Enable "Publish now" and "Schedule" buttons in the UI
+
+---
+
 ## 2026-04-23 — Phase 2 complete: Ingestion pipeline end-to-end
 
 **What got built:**
