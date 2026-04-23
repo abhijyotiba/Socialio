@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     cloudinary_api_secret: str
     playwright_timeout_ms: int = 20000
 
+    groq_api_key: str
+    groq_model: str = "llama-3.1-70b-versatile"
+    gemini_api_key: str
+    gemini_model: str = "gemini-1.5-flash"
+
 
 @lru_cache
 def get_settings() -> Settings:

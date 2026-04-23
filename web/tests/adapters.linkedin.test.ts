@@ -28,7 +28,8 @@ describe("buildAuthorizationUrl", () => {
     const scope = parsed.searchParams.get("scope") ?? "";
     expect(scope).toContain("openid");
     expect(scope).toContain("profile");
-    expect(scope).toContain("w_member_social");
+    expect(scope).toContain("email");
+    // w_member_social added in Phase 4 (requires LinkedIn partner approval)
   });
 
   it("includes different states for different calls", () => {

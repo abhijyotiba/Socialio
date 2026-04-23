@@ -15,6 +15,34 @@ Format:
 
 ---
 
+## 2026-04-23: Groq primary / Gemini fallback LLM strategy
+
+**Decision:** The worker's `adapters/llm.py` tries Groq first and falls back to Gemini on any exception. Model config (`groq_model`, `gemini_model`) lives in `Settings` so it can be overridden via env vars without code changes.
+
+**Why:** Groq is faster and cheaper for Llama 3; Gemini is a reliable fallback with a generous free tier. Having both prevents a single point of failure for generation.
+
+**Alternatives considered:** OpenAI (more expensive, no speed advantage for our use case), single provider (fragile if that provider has an outage).
+
+**Trade-off:** Two API keys to manage, two different SDK interfaces in the codebase.
+
+**Reversibility:** Cheap — swap the adapter function and re-deploy.
+
+---
+
+## 2026-04-23: POST /api/posts is synchronous in Phase 3
+
+**Decision:** The generation route waits for the worker to return before responding (same pattern as Phase 2 ingest). Supabase Realtime is used for stage-label updates in the UI, but the response body carries the final variants.
+
+**Why:** Async fire-and-forget on Vercel Hobby has a 10s function timeout. Adding `@vercel/functions waitUntil` or a background queue introduces infra complexity not yet warranted. Generation currently takes < 10s with Groq.
+
+**Alternatives considered:** Vercel `waitUntil` (works on Pro, not Hobby), Inngest background jobs (adds a managed service), polling-only (simpler but less responsive UI).
+
+**Trade-off:** If generation ever exceeds the Vercel timeout (10s Hobby / 60s Pro), we will need to move to async. Noted for Phase 5.
+
+**Reversibility:** Medium. Moving to async requires a job queue and changing the client polling model.
+
+---
+
 ## 2026-04-22: Single Next.js app + thin Python worker (not a split FastAPI backend)
 
 **Decision:** The web app is Next.js 15 with Route Handlers for all CRUD, auth, OAuth callbacks, and cron. A single Python FastAPI service called `worker/` exists only for Playwright scraping and LLM orchestration.

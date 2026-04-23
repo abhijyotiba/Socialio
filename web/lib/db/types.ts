@@ -90,6 +90,55 @@ export type Database = {
           },
         ]
       }
+      content_items: {
+        Row: {
+          created_at: string
+          id: string
+          ingestion_job_id: string | null
+          prompt_version_id: string | null
+          summary: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ingestion_job_id?: string | null
+          prompt_version_id?: string | null
+          summary?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ingestion_job_id?: string | null
+          prompt_version_id?: string | null
+          summary?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_items_ingestion_job_id_fkey"
+            columns: ["ingestion_job_id"]
+            isOneToOne: false
+            referencedRelation: "ingestion_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_prompt_version_id_fkey"
+            columns: ["prompt_version_id"]
+            isOneToOne: false
+            referencedRelation: "prompt_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ingestion_jobs: {
         Row: {
           completed_at: string | null
@@ -190,6 +239,69 @@ export type Database = {
           },
           {
             foreignKeyName: "media_assets_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_variants: {
+        Row: {
+          body: string
+          claimed_at: string | null
+          content_item_id: string
+          created_at: string
+          error: string | null
+          id: string
+          platform: string
+          published_at: string | null
+          scheduled_at: string | null
+          status: string
+          updated_at: string
+          worker_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          body: string
+          claimed_at?: string | null
+          content_item_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          platform: string
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          body?: string
+          claimed_at?: string | null
+          content_item_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          platform?: string
+          published_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          updated_at?: string
+          worker_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_variants_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_variants_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
