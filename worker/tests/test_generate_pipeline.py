@@ -37,6 +37,7 @@ async def test_analyze_handles_empty_title():
         assert result == "summary"
         call_kwargs = mock_gen.call_args[1]
         assert "Some content" in call_kwargs["user_message"]
+        assert "Title:" not in call_kwargs["user_message"]
 
 
 # ─── generate tests ───────────────────────────────────────────────────────────
@@ -97,3 +98,4 @@ async def test_generate_multiple_platforms_calls_llm_once_per_platform():
         assert call_count == 2
         platforms = {v["platform"] for v in variants}
         assert platforms == {"linkedin", "x"}
+        assert variants[0]["body"] != variants[1]["body"]

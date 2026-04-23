@@ -260,7 +260,7 @@ One row per "generate" action. Links an ingestion job to its generated variants 
 
 **RLS:** workspace members can select, insert, update.
 
-**Indexes:** `idx_content_items_workspace`, `idx_content_items_job`.
+**Indexes:** `idx_content_items_workspace`, `idx_content_items_job`, `idx_content_items_prompt_version`, `idx_content_items_created`.
 
 ### `post_variants`
 

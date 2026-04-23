@@ -78,3 +78,5 @@ async def test_llm_raises_if_both_fail():
         from adapters.llm import generate
         with pytest.raises(Exception, match="Gemini down"):
             await generate("sys", "user")
+        mock_groq.assert_called_once()
+        mock_gemini.assert_called_once()
