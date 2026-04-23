@@ -12,7 +12,7 @@ import {
 export default async function ConnectionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ linkedin?: string; x?: string }>;
+  searchParams: Promise<{ linkedin?: string; x?: string; x_error?: string }>;
 }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -32,6 +32,7 @@ export default async function ConnectionsPage({
 
   const linkedInJustConnected = params.linkedin === "connected";
   const xJustConnected = params.x === "connected";
+  const xError = params.x_error;
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
@@ -48,6 +49,17 @@ export default async function ConnectionsPage({
         <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3">
           <p className="text-sm text-green-700 dark:text-green-400">
             LinkedIn connected successfully.
+          </p>
+        </div>
+      )}
+
+      {xError && (
+        <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
+          <p className="text-sm text-red-700 dark:text-red-400">
+            X connection failed: <span className="font-mono">{xError}</span>
+          </p>
+          <p className="text-xs text-red-500 mt-1">
+            Check that your X app has <strong>Read and write</strong> permissions, <strong>Web App</strong> type, and <strong>offline.access</strong> scope enabled.
           </p>
         </div>
       )}

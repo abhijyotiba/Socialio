@@ -17,11 +17,27 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
+
+  // X sends ?error=access_denied&error_description=... when the user denies or
+  // the app config is wrong. Redirect back to settings with a readable message.
+  const xError = searchParams.get("error");
+  if (xError) {
+    const desc = searchParams.get("error_description") ?? xError;
+    return NextResponse.redirect(
+      new URL(
+        `/settings/connections?x_error=${encodeURIComponent(desc)}`,
+        request.url
+      )
+    );
+  }
+
   const code = searchParams.get("code");
   const state = searchParams.get("state");
 
   if (!code || !state) {
-    return NextResponse.json({ error: "Missing code or state" }, { status: 400 });
+    return NextResponse.redirect(
+      new URL("/settings/connections?x_error=missing_code", request.url)
+    );
   }
 
   const cookieStore = await cookies();
