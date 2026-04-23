@@ -129,3 +129,39 @@ function classifyLinkedInError(status: number, _body: unknown): string {
   if (status >= 500) return "SERVER_ERROR";
   return "UNKNOWN";
 }
+
+const RefreshResponseSchema = z.object({
+  access_token: z.string(),
+  expires_in: z.number(),
+  refresh_token: z.string().optional(),
+});
+
+export type LinkedInRefreshResponse = z.infer<typeof RefreshResponseSchema>;
+
+export async function refreshLinkedInToken(
+  refreshToken: string
+): Promise<{ accessToken: string; expiresIn: number; newRefreshToken?: string }> {
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: process.env.LINKEDIN_CLIENT_ID!,
+    client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+  });
+
+  const response = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`LinkedIn token refresh failed: ${response.status}`);
+  }
+
+  const data = RefreshResponseSchema.parse(await response.json());
+  return {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in,
+    newRefreshToken: data.refresh_token,
+  };
+}

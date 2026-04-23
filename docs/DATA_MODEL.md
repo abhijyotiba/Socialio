@@ -320,6 +320,37 @@ Append-only audit log of every publish attempt. Also serves as the idempotency g
 
 ---
 
+## Phase 5 — Scheduling & Cron
+
+Migrations: `supabase/migrations/0008_posting_schedules.sql`, `supabase/migrations/0009_cron_helpers.sql`
+
+### `posting_schedules`
+
+One row per workspace × platform × time slot. Stores the user's preferred posting times in their local timezone.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `platform` | `TEXT` NOT NULL | CHECK `IN ('linkedin', 'x')` |
+| `hour` | `INT` NOT NULL | 0–23, in user's timezone |
+| `minute` | `INT` NOT NULL | CHECK `IN (0, 30)` — half-hour slots only |
+| `days_of_week` | `INT[]` NOT NULL | Array of 0–6 (0=Sun … 6=Sat). Default = every day |
+| `timezone` | `TEXT` NOT NULL | IANA tz string, e.g. `'America/New_York'`. Default `'UTC'` |
+| `is_active` | `BOOLEAN` NOT NULL | Default `true`. Soft-disable without deleting |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+| — | UNIQUE (`workspace_id`, `platform`, `hour`, `minute`, `timezone`) | No duplicate slots |
+
+**RLS:** workspace members can select, insert, update, delete.
+
+**Indexes:** `idx_posting_schedules_workspace`, `idx_posting_schedules_platform`.
+
+### `claim_due_variants()` SQL function
+
+`SECURITY DEFINER` function restricted to `service_role`. Called by the publish-due cron via `admin.rpc('claim_due_variants', { p_worker_id, p_limit })`. Atomically marks up to `p_limit` due `scheduled` variants as `publishing` using `FOR UPDATE SKIP LOCKED`.
+
+---
+
 ## Conventions for future tables
 
 When adding a new table in later phases, follow these rules unless you have a stated reason not to:

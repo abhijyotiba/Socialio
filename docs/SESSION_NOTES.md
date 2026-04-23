@@ -13,6 +13,53 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-23 — Phase 5: Scheduling & Cron
+
+### What got built
+
+- **Migration 0008** — `posting_schedules` table (workspace×platform×time slot, IANA timezone, RLS, indexes)
+- **Migration 0009** — `claim_due_variants(p_worker_id, p_limit)` SQL function with `FOR UPDATE SKIP LOCKED`, restricted to `service_role`
+- **`web/lib/db/schedule-utils.ts`** — `nextSlots(schedules, count, after)` pure utility; converts schedule rows to upcoming UTC datetimes using `Intl.DateTimeFormat` (no external timezone package)
+- **`web/lib/db/posting-schedules.ts`** — CRUD helpers (`getScheduleSlotsForWorkspace`, `createScheduleSlot`, `deleteScheduleSlot`, `getNextSlotsForWorkspace`)
+- **`web/lib/adapters/linkedin.ts`** — added `refreshLinkedInToken()`
+- **`web/lib/adapters/x.ts`** — added `refreshXToken()`
+- **`web/app/api/schedule-slots/route.ts`** — GET (list slots + next 5 UTC datetimes) / POST (create slot)
+- **`web/app/api/schedule-slots/[id]/route.ts`** — DELETE slot
+- **`web/app/api/cron/publish-due/route.ts`** — sweeper + `claim_due_variants` RPC + parallel publish + attempt logging; auth via `CRON_SECRET`
+- **`web/app/api/cron/token-expiry-check/route.ts`** — finds connections expiring within 7 days, attempts token refresh, sets `needs_reauth = true` on failure
+- **`vercel.json`** — cron schedule (`*/5 * * * *` for publish-due, `0 6 * * *` for token-expiry-check)
+- **`web/app/(app)/settings/layout.tsx`** — settings sidebar nav (Brand / Connections / Posting Schedule)
+- **`web/app/(app)/settings/schedule/page.tsx`** — posting schedule UI; per-platform slot lists with add/remove, shows next 3 upcoming slots
+- **`web/app/(app)/chat/_components/VariantCard.tsx`** — Schedule button now fetches next slots first; shows slot buttons if configured, custom datetime picker with Settings hint otherwise
+- **`web/lib/db/types.ts`** — manually added `posting_schedules` table types and `claim_due_variants` function type (pending `pnpm gen:types` once migration is applied to Supabase project)
+- Tests: 10 unit tests for `nextSlots()` (all pass); full suite 40/40 green
+
+### What's left in Phase 5
+
+All acceptance criteria are implemented. Pending manual steps:
+- Apply migrations 0008 and 0009 to the Supabase project (`supabase db push` or paste into SQL editor)
+- Run `pnpm --dir web gen:types` to regenerate types from Supabase (then remove the manual `posting_schedules` block from `types.ts`)
+- Add `CRON_SECRET` env var to `.env.local` and Vercel
+- Test schedule slot creation + VariantCard schedule flow end-to-end
+- Verify Vercel plan supports 5-minute crons (Pro required; Hobby minimum is daily)
+
+### Decisions made
+
+- Used `Intl.DateTimeFormat` for timezone conversion instead of adding `luxon`/`date-fns-tz` — no new npm packages needed; acceptable precision for scheduling
+- `claim_due_variants` is a `SECURITY DEFINER` SQL function (not JS-level `FOR UPDATE SKIP LOCKED`) to ensure the claim is atomic inside a single Postgres transaction
+- `nextSlots` generates `count` candidates per schedule so a single-schedule workspace can still get 5 upcoming slots (via `multipleOccurrences` helper)
+
+### Gotchas
+
+- X free tier may not issue a refresh token even with `offline.access` scope; `token-expiry-check` sets `needs_reauth = true` in that case
+- Vercel Hobby crons fire at most daily — `*/5 * * * *` silently becomes daily on Hobby plans
+
+### Next session
+
+Phase 6 — Analytics. First action: define Phase 6 scope with user, write `docs/phases/PHASE_6_ANALYTICS.md`.
+
+---
+
 ## 2026-04-23 — Phase 4 complete: Publishing pipeline
 
 **What got built:**

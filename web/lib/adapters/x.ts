@@ -123,3 +123,44 @@ function classifyXError(status: number, _body: unknown): string {
   if (status >= 500) return "SERVER_ERROR";
   return "UNKNOWN";
 }
+
+const RefreshResponseSchema = z.object({
+  access_token: z.string(),
+  token_type: z.string(),
+  expires_in: z.number().optional(),
+  refresh_token: z.string().optional(),
+  scope: z.string().optional(),
+});
+
+export async function refreshXToken(
+  refreshToken: string
+): Promise<{ accessToken: string; expiresIn?: number; newRefreshToken?: string }> {
+  const credentials = Buffer.from(
+    `${process.env.X_CLIENT_ID}:${process.env.X_CLIENT_SECRET}`
+  ).toString("base64");
+
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+  });
+
+  const response = await fetch("https://api.twitter.com/2/oauth2/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${credentials}`,
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`X token refresh failed: ${response.status}`);
+  }
+
+  const data = RefreshResponseSchema.parse(await response.json());
+  return {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in,
+    newRefreshToken: data.refresh_token,
+  };
+}

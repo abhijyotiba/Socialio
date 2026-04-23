@@ -494,6 +494,50 @@ export type Database = {
           },
         ]
       }
+      posting_schedules: {
+        Row: {
+          created_at: string
+          days_of_week: number[]
+          hour: number
+          id: string
+          is_active: boolean
+          minute: number
+          platform: string
+          timezone: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          days_of_week?: number[]
+          hour: number
+          id?: string
+          is_active?: boolean
+          minute: number
+          platform: string
+          timezone?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          days_of_week?: number[]
+          hour?: number
+          id?: string
+          is_active?: boolean
+          minute?: number
+          platform?: string
+          timezone?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "posting_schedules_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_members: {
         Row: {
           joined_at: string
@@ -546,6 +590,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_due_variants: {
+        Args: { p_worker_id: string; p_limit?: number }
+        Returns: unknown[]
+      }
       user_workspace_ids: { Args: never; Returns: string[] }
       vault_create_secret: {
         Args: { p_name: string; p_secret: string }

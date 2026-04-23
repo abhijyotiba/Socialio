@@ -12,8 +12,10 @@ type ActionState =
   | { kind: "idle" }
   | { kind: "publishing" }
   | { kind: "published"; url: string }
-  | { kind: "scheduling" }
+  | { kind: "loadingSlots" }
+  | { kind: "pickingSlot"; nextSlots: string[] }
   | { kind: "pickingTime" }
+  | { kind: "scheduling" }
   | { kind: "scheduled"; scheduledAt: string }
   | { kind: "cancelling" }
   | { kind: "cancelled" }
@@ -43,20 +45,33 @@ export function VariantCard({ variant }: { variant: Variant }) {
     }
   }
 
-  async function handleScheduleConfirm() {
-    if (!scheduledAt) return;
-    // Convert local datetime-local value to UTC ISO string
-    const utcDate = new Date(scheduledAt).toISOString();
-    if (new Date(utcDate) <= new Date()) {
-      setState({ kind: "error", message: "Scheduled time must be in the future." });
-      return;
+  async function handleScheduleClick() {
+    setState({ kind: "loadingSlots" });
+    try {
+      const res = await fetch(
+        `/api/schedule-slots?platform=${variant.platform}`
+      );
+      if (!res.ok) throw new Error("Failed to load slots");
+      const body = await res.json();
+      const next: string[] = body.next ?? [];
+      if (next.length > 0) {
+        setState({ kind: "pickingSlot", nextSlots: next.slice(0, 3) });
+      } else {
+        setState({ kind: "pickingTime" });
+      }
+    } catch {
+      // Fall back to custom picker if slots can't be fetched
+      setState({ kind: "pickingTime" });
     }
+  }
+
+  async function scheduleAt(utcIso: string) {
     setState({ kind: "scheduling" });
     try {
       const res = await fetch(`/api/posts/${variant.id}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduled_at: utcDate }),
+        body: JSON.stringify({ scheduled_at: utcIso }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -73,6 +88,19 @@ export function VariantCard({ variant }: { variant: Variant }) {
     } catch {
       setState({ kind: "error", message: "Network error. Please try again." });
     }
+  }
+
+  async function handleScheduleConfirm() {
+    if (!scheduledAt) return;
+    const utcDate = new Date(scheduledAt).toISOString();
+    if (new Date(utcDate) <= new Date()) {
+      setState({
+        kind: "error",
+        message: "Scheduled time must be in the future.",
+      });
+      return;
+    }
+    await scheduleAt(utcDate);
   }
 
   async function handleCancel() {
@@ -101,8 +129,13 @@ export function VariantCard({ variant }: { variant: Variant }) {
     state.kind === "cancelled";
   const isBusy =
     state.kind === "publishing" ||
+    state.kind === "loadingSlots" ||
     state.kind === "scheduling" ||
     state.kind === "cancelling";
+  const showIdleActions =
+    !isTerminal &&
+    state.kind !== "pickingSlot" &&
+    state.kind !== "pickingTime";
 
   return (
     <div className="border rounded-lg p-4 space-y-3">
@@ -124,7 +157,7 @@ export function VariantCard({ variant }: { variant: Variant }) {
 
       {/* Actions */}
       <div className="pt-1 border-t space-y-2">
-        {/* Success states */}
+        {/* Terminal states */}
         {state.kind === "published" && (
           <div className="flex items-center gap-2 text-sm text-green-600">
             <span>Published ✓</span>
@@ -175,34 +208,79 @@ export function VariantCard({ variant }: { variant: Variant }) {
           </div>
         )}
 
-        {/* Datetime picker for scheduling */}
-        {state.kind === "pickingTime" && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="text-sm border rounded px-2 py-1 bg-background"
-              min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
-            />
+        {/* Slot picker — shows next configured slots as one-click buttons */}
+        {state.kind === "pickingSlot" && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">Pick a slot:</p>
+            <div className="flex flex-wrap gap-2">
+              {state.nextSlots.map((slot) => (
+                <button
+                  key={slot}
+                  onClick={() => scheduleAt(slot)}
+                  className="px-3 py-1.5 rounded-md border text-xs hover:bg-accent transition-colors"
+                >
+                  {new Date(slot).toLocaleString(undefined, {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </button>
+              ))}
+            </div>
             <button
-              onClick={handleScheduleConfirm}
-              disabled={!scheduledAt}
-              className="px-3 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
+              onClick={() => setState({ kind: "pickingTime" })}
+              className="text-xs text-primary underline"
             >
-              Confirm
+              Pick custom time →
             </button>
             <button
               onClick={() => setState({ kind: "idle" })}
-              className="text-xs text-muted-foreground underline"
+              className="text-xs text-muted-foreground underline ml-3"
             >
               Cancel
             </button>
           </div>
         )}
 
+        {/* Custom datetime picker */}
+        {state.kind === "pickingTime" && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="text-sm border rounded px-2 py-1 bg-background"
+                min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+              />
+              <button
+                onClick={handleScheduleConfirm}
+                disabled={!scheduledAt}
+                className="px-3 py-1 rounded-md bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setState({ kind: "idle" })}
+                className="text-xs text-muted-foreground underline"
+              >
+                Cancel
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Configure posting schedule in{" "}
+              <a href="/settings/schedule" className="underline text-primary">
+                Settings
+              </a>{" "}
+              for quick slots.
+            </p>
+          </div>
+        )}
+
         {/* Idle / busy action buttons */}
-        {!isTerminal && state.kind !== "pickingTime" && (
+        {showIdleActions && (
           <div className="flex gap-2">
             <button
               onClick={handlePublishNow}
@@ -219,16 +297,22 @@ export function VariantCard({ variant }: { variant: Variant }) {
               )}
             </button>
             <button
-              onClick={() => setState({ kind: "pickingTime" })}
+              onClick={handleScheduleClick}
               disabled={isBusy}
-              className="px-3 py-1 rounded-md border text-xs disabled:opacity-50"
+              className="px-3 py-1 rounded-md border text-xs disabled:opacity-50 flex items-center gap-1"
             >
-              Schedule
+              {state.kind === "loadingSlots" ? (
+                <>
+                  <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                  Loading…
+                </>
+              ) : (
+                "Schedule"
+              )}
             </button>
           </div>
         )}
 
-        {/* Cancelling spinner */}
         {state.kind === "cancelling" && (
           <p className="text-xs text-muted-foreground">Cancelling…</p>
         )}

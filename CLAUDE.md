@@ -16,7 +16,7 @@ The full product vision lives in `docs/PRD.md`. The current architecture lives i
 
 ## 2. Current phase
 
-**Phase 4 — Publishing.** Phase 3 (Generation) is complete. See `docs/phases/PHASE_3_GENERATION.md` for what was built.
+**Phase 5 — Scheduling & Cron.** Phase 4 (Publishing) is complete. See `docs/phases/PHASE_4_PUBLISHING.md` for what was built.
 
 When a phase changes, update this line. Do **not** modify files outside the current phase's scope without explicit permission from the user.
 
