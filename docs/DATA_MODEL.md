@@ -21,7 +21,9 @@ Every table has Row Level Security enabled. Every table's policies are documente
 - [Phase 2 — Ingestion](#phase-2--ingestion)
   - `ingestion_jobs`
   - `media_assets`
-- Phase 3 — Generation *(to be added)*
+- [Phase 3 — Generation](#phase-3--generation)
+  - `content_items`
+  - `post_variants`
 - Phase 4 — Publishing *(to be added)*
 
 ---
@@ -236,6 +238,53 @@ One row per media item (image or video) scraped and uploaded to Cloudinary durin
 - `media_assets_member_insert` — workspace members can insert.
 
 **Indexes:** `idx_media_assets_job`, `idx_media_assets_workspace`.
+
+---
+
+## Phase 3 — Generation
+
+Migration: `supabase/migrations/0004_generation.sql`
+
+### `content_items`
+
+One row per "generate" action. Links an ingestion job to its generated variants and records which prompt version produced them.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `ingestion_job_id` | `UUID` | FK `ingestion_jobs(id)`, SET NULL on delete |
+| `prompt_version_id` | `UUID` | FK `prompt_versions(id)`, SET NULL on delete. Snapshot of which brand prompt was active |
+| `summary` | `TEXT` | Pass-1 LLM output: condensed summary of the source content |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+
+**RLS:** workspace members can select, insert, update.
+
+**Indexes:** `idx_content_items_workspace`, `idx_content_items_job`.
+
+### `post_variants`
+
+One row per platform per content_item. Each row is a generated post draft with its own publishing state machine.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `content_item_id` | `UUID` NOT NULL | FK `content_items(id)`, cascade delete |
+| `platform` | `TEXT` NOT NULL | CHECK `IN ('linkedin', 'x')` |
+| `body` | `TEXT` NOT NULL | Generated post text |
+| `status` | `TEXT` NOT NULL | Default `'draft'`. CHECK `IN ('draft','scheduled','publishing','published','failed','cancelled')` |
+| `scheduled_at` | `TIMESTAMPTZ` | Populated when user schedules |
+| `published_at` | `TIMESTAMPTZ` | Set on successful publish |
+| `claimed_at` | `TIMESTAMPTZ` | Set by cron when it claims the row for publishing |
+| `worker_id` | `TEXT` | Cron instance that claimed this row |
+| `error` | `TEXT` | Last error message if status = 'failed' |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+| `updated_at` | `TIMESTAMPTZ` NOT NULL | Maintained by trigger `trg_post_variants_updated_at` |
+
+**RLS:** workspace members can select, insert, update.
+
+**Indexes:** `idx_post_variants_workspace`, `idx_post_variants_content_item`, `idx_post_variants_status`, `idx_post_variants_scheduled` (partial, WHERE status = 'scheduled').
 
 ---
 
