@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { VariantCard } from "./_components/VariantCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -279,36 +280,7 @@ export default function ChatPage() {
         <div className="space-y-4">
           <p className="text-sm font-medium">Generated drafts</p>
           {gen.variants.map((v) => (
-            <div key={v.id} className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {v.platform === "linkedin" ? "LinkedIn" : "X / Twitter"}
-                </span>
-                <button
-                  onClick={() => navigator.clipboard.writeText(v.body)}
-                  className="text-xs text-primary underline"
-                >
-                  Copy
-                </button>
-              </div>
-              <p className="text-sm whitespace-pre-wrap">{v.body}</p>
-              <div className="flex gap-2 pt-1 border-t">
-                <button
-                  disabled
-                  title="Coming in Phase 4"
-                  className="px-3 py-1 rounded-md border text-xs disabled:opacity-40 cursor-not-allowed"
-                >
-                  Schedule
-                </button>
-                <button
-                  disabled
-                  title="Coming in Phase 4"
-                  className="px-3 py-1 rounded-md border text-xs disabled:opacity-40 cursor-not-allowed"
-                >
-                  Publish now
-                </button>
-              </div>
-            </div>
+            <VariantCard key={v.id} variant={v} />
           ))}
           <button
             onClick={() => setGen({ kind: "idle" })}

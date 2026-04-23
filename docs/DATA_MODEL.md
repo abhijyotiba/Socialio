@@ -287,6 +287,37 @@ One row per platform per content_item. Each row is a generated post draft with i
 
 **Indexes:** `idx_post_variants_workspace`, `idx_post_variants_content_item`, `idx_post_variants_prompt_version`, `idx_post_variants_status`, `idx_post_variants_scheduled` (partial, WHERE status = 'scheduled').
 
+> **Phase 4 additions (migration 0007):** `platform_post_id TEXT`, `platform_post_url TEXT`, `error_code TEXT` — populated on publish success/failure.
+
+---
+
+## Phase 4 — Publishing
+
+Migration: `supabase/migrations/0007_publish_attempts.sql`
+
+### `publish_attempts`
+
+Append-only audit log of every publish attempt. Also serves as the idempotency guard — a variant with a `success` row is never published again.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `post_variant_id` | `UUID` NOT NULL | FK `post_variants(id)`, cascade delete |
+| `idempotency_key` | `TEXT` NOT NULL | Equals `post_variant_id`; sent to LinkedIn via `X-RestLi-Request-Id` |
+| `attempt_number` | `INT` NOT NULL | Monotonically increasing per variant. `UNIQUE (idempotency_key, attempt_number)` |
+| `status` | `TEXT` NOT NULL | Default `'attempting'`. CHECK `IN ('attempting', 'success', 'failed')` |
+| `platform_post_id` | `TEXT` | Platform's post ID returned on success |
+| `platform_post_url` | `TEXT` | Direct link to the published post |
+| `error_code` | `TEXT` | Machine-readable: `TOKEN_EXPIRED`, `RATE_LIMITED`, `CONTENT_POLICY`, `SERVER_ERROR`, `UNKNOWN` |
+| `error_detail` | `TEXT` | Raw error message for debugging |
+| `attempted_at` | `TIMESTAMPTZ` NOT NULL | Default `now()` |
+| `completed_at` | `TIMESTAMPTZ` | Set on success or final failure |
+
+**RLS:** workspace members can select, insert, update.
+
+**Indexes:** `idx_publish_attempts_variant`, `idx_publish_attempts_workspace`, `idx_publish_attempts_idempotency`.
+
 ---
 
 ## Conventions for future tables

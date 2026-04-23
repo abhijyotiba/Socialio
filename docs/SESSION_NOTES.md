@@ -13,6 +13,63 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-23 — Phase 4 complete: Publishing pipeline
+
+**What got built:**
+
+- Migration `0007_publish_attempts.sql` applied — `publish_attempts` table with RLS + indexes; added `platform_post_id`, `platform_post_url`, `error_code` to `post_variants`
+- `web/lib/db/types.ts` regenerated after migration
+- `web/lib/adapters/x.ts` — X/Twitter OAuth 2.0 PKCE adapter: `buildAuthorizationUrl`, `exchangeCodeForTokens`, `getUserInfo`, `publishTweet`
+- `web/lib/adapters/linkedin.ts` — added `publishLinkedInPost` with LinkedIn UGC Posts API + idempotency header; updated OAuth scope to include `w_member_social`
+- `web/lib/db/publish-attempts.ts` — `createPublishAttempt`, `updatePublishAttempt`, `getLatestAttempt`, `hasSuccessfulAttempt`
+- `web/lib/db/posts.ts` — added `getPostVariant`, `updatePostVariant`
+- `web/app/api/oauth/x/start/route.ts` — PKCE flow: generates code_verifier, stores in httpOnly cookie, redirects to X
+- `web/app/api/oauth/x/callback/route.ts` — validates state + PKCE, exchanges code, stores tokens in Vault, upserts `social_connections`; sets `needs_reauth = true` when no refresh token returned
+- `web/app/api/posts/[id]/publish/route.ts` — state machine guard, idempotency check, vault token read, platform dispatch (LinkedIn or X), attempt logging
+- `web/app/api/posts/[id]/schedule/route.ts` — validates future datetime, sets `status = 'scheduled'`
+- `web/app/api/posts/[id]/cancel/route.ts` — guards `status = 'scheduled'`, sets `status = 'cancelled'`
+- `web/app/(app)/chat/_components/VariantCard.tsx` — extracted component with local action state: Publish Now (spinner → published + link), Schedule (datetime picker → confirmed), Cancel; shows errors with dismiss
+- `web/app/(app)/chat/page.tsx` — replaced inline disabled buttons with `<VariantCard />`
+- `web/app/(app)/settings/connections/page.tsx` — added X/Twitter connection card with status + reconnect link
+- `web/app/(app)/onboarding/_components/ConnectStep.tsx` — added "Connect X / Twitter" button
+- `web/tests/adapters.x.test.ts` — 5 tests: URL structure, PKCE params, scopes, state uniqueness
+- `web/tests/db.publish-attempts.test.ts` — type-level tests for `publish_attempts` and Phase 4 `post_variants` columns
+- `docs/DATA_MODEL.md`, `docs/API_CONTRACTS.md`, `docs/DECISIONS.md` updated
+
+**Confirmed working:**
+
+- `pnpm --dir web typecheck` — 0 errors
+- `pnpm --dir web test` — 30/30 passing (was 21)
+- Migration `0007_publish_attempts.sql` applied cleanly to remote Supabase
+- `pnpm --dir web gen:types` — types regenerated
+
+**Decisions made:**
+
+- `createAdminClient` now also permitted in `publish/route.ts` for Vault reads (see DECISIONS.md)
+- `attempt_number` computed dynamically via `getLatestAttempt` — hardcoding `1` would fail on retry after failure (unique constraint violation)
+- X callback sets `needs_reauth = true` when no refresh token returned (X free tier may omit it)
+
+**Gotchas:**
+
+- LinkedIn `w_member_social` scope requires LinkedIn partner approval (submit review in LinkedIn Developer Portal). OAuth flow works immediately; `publishLinkedInPost` will return 403 until approved
+- X publish rate limit on free tier: 17 tweets per user per 24h. `RATE_LIMITED` error_code surfaces this cleanly
+- `scheduled_at` from `datetime-local` input is local time — `VariantCard` converts to UTC via `new Date(scheduledAt).toISOString()` before sending to the API
+- Cron publisher for scheduled posts is **Phase 5 scope** — scheduled variants sit in DB with `status = 'scheduled'` until Phase 5 fires them
+
+**What's next (Phase 5 — Scheduler & Cron):**
+
+- `POST /api/cron/publish-due` — claims scheduled variants with `FOR UPDATE SKIP LOCKED`, calls platform adapters in parallel
+- Token expiry cron (`/api/cron/token-expiry-check`)
+- Sweeper: reset `publishing` variants stuck > 10 min back to `scheduled`
+- `posting_schedules` table and smart slot assignment (optional for Phase 5)
+
+**First action next session:**
+
+- Create `web/app/api/cron/publish-due/route.ts`
+- Create migration for any new tables needed (e.g. `posting_schedules`)
+
+---
+
 ## 2026-04-23 — Phase 3 closeout patch: post_variants prompt provenance
 
 **What got built:**

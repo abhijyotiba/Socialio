@@ -253,8 +253,11 @@ export type Database = {
           content_item_id: string
           created_at: string
           error: string | null
+          error_code: string | null
           id: string
           platform: string
+          platform_post_id: string | null
+          platform_post_url: string | null
           prompt_version_id: string | null
           published_at: string | null
           scheduled_at: string | null
@@ -269,8 +272,11 @@ export type Database = {
           content_item_id: string
           created_at?: string
           error?: string | null
+          error_code?: string | null
           id?: string
           platform: string
+          platform_post_id?: string | null
+          platform_post_url?: string | null
           prompt_version_id?: string | null
           published_at?: string | null
           scheduled_at?: string | null
@@ -285,8 +291,11 @@ export type Database = {
           content_item_id?: string
           created_at?: string
           error?: string | null
+          error_code?: string | null
           id?: string
           platform?: string
+          platform_post_id?: string | null
+          platform_post_url?: string | null
           prompt_version_id?: string | null
           published_at?: string | null
           scheduled_at?: string | null
@@ -368,6 +377,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "prompt_versions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      publish_attempts: {
+        Row: {
+          attempt_number: number
+          attempted_at: string
+          completed_at: string | null
+          error_code: string | null
+          error_detail: string | null
+          id: string
+          idempotency_key: string
+          platform_post_id: string | null
+          platform_post_url: string | null
+          post_variant_id: string
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          attempt_number?: number
+          attempted_at?: string
+          completed_at?: string | null
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          idempotency_key: string
+          platform_post_id?: string | null
+          platform_post_url?: string | null
+          post_variant_id: string
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          attempt_number?: number
+          attempted_at?: string
+          completed_at?: string | null
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          idempotency_key?: string
+          platform_post_id?: string | null
+          platform_post_url?: string | null
+          post_variant_id?: string
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publish_attempts_post_variant_id_fkey"
+            columns: ["post_variant_id"]
+            isOneToOne: false
+            referencedRelation: "post_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publish_attempts_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
