@@ -38,6 +38,6 @@ See `CLAUDE.md` for the operating manual. At session start, read:
 4. The current phase doc (see `CLAUDE.md` §2)
 5. Top entry of `docs/SESSION_NOTES.md`
 
-## Tech stack
+## Tech stack 
 
 Next.js 15, Supabase, Cloudinary, Groq + Gemini, FastAPI + Playwright, TypeScript, Tailwind, shadcn/ui. Hosted on Vercel + Fly.io.

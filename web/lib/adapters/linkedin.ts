@@ -26,8 +26,8 @@ export function buildAuthorizationUrl(state: string): string {
     response_type: "code",
     client_id: process.env.LINKEDIN_CLIENT_ID!,
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI!,
-    // openid + profile + email for userinfo; w_member_social added in Phase 4 (requires partner approval)
-    scope: "openid profile email",
+    // openid + profile + email for userinfo; w_member_social for UGC posting (requires LinkedIn partner approval)
+    scope: "openid profile email w_member_social",
     state,
   });
   return `https://www.linkedin.com/oauth/v2/authorization?${params}`;
@@ -72,4 +72,134 @@ export async function getUserInfo(
   }
 
   return UserInfoSchema.parse(await response.json());
+}
+
+export async function publishLinkedInPost(
+  accessToken: string,
+  authorUrn: string,
+  text: string,
+  idempotencyKey: string
+): Promise<{ platformPostId: string; platformPostUrl: string }> {
+  const body = {
+    author: authorUrn,
+    lifecycleState: "PUBLISHED",
+    specificContent: {
+      "com.linkedin.ugc.ShareContent": {
+        shareCommentary: { text },
+        shareMediaCategory: "NONE",
+      },
+    },
+    visibility: {
+      "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
+    },
+  };
+
+  const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+      "X-RestLi-Request-Id": idempotencyKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- error body shape varies
+    const errorBody = await response.json().catch(() => ({}) as any);
+    const errorCode = classifyLinkedInError(response.status, errorBody);
+    throw Object.assign(
+      new Error(`LinkedIn publish failed: ${response.status}`),
+      { errorCode }
+    );
+  }
+
+  const postUrn = response.headers.get("x-restli-id") ?? "";
+  return {
+    platformPostId: postUrn,
+    platformPostUrl: `https://www.linkedin.com/feed/update/${postUrn}/`,
+  };
+}
+
+export async function getPostMetrics(
+  accessToken: string,
+  authorUrn: string,
+  platformPostId: string // e.g. urn:li:share:123456
+): Promise<{ impressions: number; likes: number; comments: number; shares: number }> {
+  // LinkedIn requires fetching Organizational Entity Share Statistics or relying on 
+  // Member organizational stats depending on the URN type.
+  // For V1, this simulates fetching from the LinkedIn Network Statistics endpoint
+  const url = `https://api.linkedin.com/rest/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity=${encodeURIComponent(
+    authorUrn
+  )}&shares[0]=${encodeURIComponent(platformPostId)}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": "202304", // Set required API version header
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) throw new Error("POST_DELETED");
+    if (response.status === 401) throw new Error("TOKEN_EXPIRED");
+    throw new Error(`LinkedIn metrics fetch failed: ${response.status}`);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: any = await response.json();
+  const metrics = body?.elements?.[0]?.totalShareStatistics || {};
+
+  return {
+    impressions: metrics.impressionCount || 0,
+    likes: metrics.likeCount || 0,
+    comments: metrics.commentCount || 0,
+    shares: metrics.shareCount || 0,
+  };
+}
+
+function classifyLinkedInError(status: number, _body: unknown): string {
+  if (status === 401) return "TOKEN_EXPIRED";
+  if (status === 429) return "RATE_LIMITED";
+  if (status === 422 || status === 400) return "CONTENT_POLICY";
+  if (status >= 500) return "SERVER_ERROR";
+  return "UNKNOWN";
+}
+
+const RefreshResponseSchema = z.object({
+  access_token: z.string(),
+  expires_in: z.number(),
+  refresh_token: z.string().optional(),
+});
+
+export type LinkedInRefreshResponse = z.infer<typeof RefreshResponseSchema>;
+
+export async function refreshLinkedInToken(
+  refreshToken: string
+): Promise<{ accessToken: string; expiresIn: number; newRefreshToken?: string }> {
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: process.env.LINKEDIN_CLIENT_ID!,
+    client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+  });
+
+  const response = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`LinkedIn token refresh failed: ${response.status}`);
+  }
+
+  const data = RefreshResponseSchema.parse(await response.json());
+  return {
+    accessToken: data.access_token,
+    expiresIn: data.expires_in,
+    newRefreshToken: data.refresh_token,
+  };
 }

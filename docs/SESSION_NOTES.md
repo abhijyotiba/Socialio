@@ -13,6 +13,149 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-23 — Phase 5: Scheduling & Cron
+
+### What got built
+
+- **Migration 0008** — `posting_schedules` table (workspace×platform×time slot, IANA timezone, RLS, indexes)
+- **Migration 0009** — `claim_due_variants(p_worker_id, p_limit)` SQL function with `FOR UPDATE SKIP LOCKED`, restricted to `service_role`
+- **`web/lib/db/schedule-utils.ts`** — `nextSlots(schedules, count, after)` pure utility; converts schedule rows to upcoming UTC datetimes using `Intl.DateTimeFormat` (no external timezone package)
+- **`web/lib/db/posting-schedules.ts`** — CRUD helpers (`getScheduleSlotsForWorkspace`, `createScheduleSlot`, `deleteScheduleSlot`, `getNextSlotsForWorkspace`)
+- **`web/lib/adapters/linkedin.ts`** — added `refreshLinkedInToken()`
+- **`web/lib/adapters/x.ts`** — added `refreshXToken()`
+- **`web/app/api/schedule-slots/route.ts`** — GET (list slots + next 5 UTC datetimes) / POST (create slot)
+- **`web/app/api/schedule-slots/[id]/route.ts`** — DELETE slot
+- **`web/app/api/cron/publish-due/route.ts`** — sweeper + `claim_due_variants` RPC + parallel publish + attempt logging; auth via `CRON_SECRET`
+- **`web/app/api/cron/token-expiry-check/route.ts`** — finds connections expiring within 7 days, attempts token refresh, sets `needs_reauth = true` on failure
+- **`vercel.json`** — cron schedule (`*/5 * * * *` for publish-due, `0 6 * * *` for token-expiry-check)
+- **`web/app/(app)/settings/layout.tsx`** — settings sidebar nav (Brand / Connections / Posting Schedule)
+- **`web/app/(app)/settings/schedule/page.tsx`** — posting schedule UI; per-platform slot lists with add/remove, shows next 3 upcoming slots
+- **`web/app/(app)/chat/_components/VariantCard.tsx`** — Schedule button now fetches next slots first; shows slot buttons if configured, custom datetime picker with Settings hint otherwise
+- **`web/lib/db/types.ts`** — manually added `posting_schedules` table types and `claim_due_variants` function type (pending `pnpm gen:types` once migration is applied to Supabase project)
+- Tests: 10 unit tests for `nextSlots()` (all pass); full suite 40/40 green
+
+### What's left in Phase 5
+
+All acceptance criteria are implemented. Pending manual steps:
+- Apply migrations 0008 and 0009 to the Supabase project (`supabase db push` or paste into SQL editor)
+- Run `pnpm --dir web gen:types` to regenerate types from Supabase (then remove the manual `posting_schedules` block from `types.ts`)
+- Add `CRON_SECRET` env var to `.env.local` and Vercel
+- Test schedule slot creation + VariantCard schedule flow end-to-end
+- Verify Vercel plan supports 5-minute crons (Pro required; Hobby minimum is daily)
+
+### Decisions made
+
+- Used `Intl.DateTimeFormat` for timezone conversion instead of adding `luxon`/`date-fns-tz` — no new npm packages needed; acceptable precision for scheduling
+- `claim_due_variants` is a `SECURITY DEFINER` SQL function (not JS-level `FOR UPDATE SKIP LOCKED`) to ensure the claim is atomic inside a single Postgres transaction
+- `nextSlots` generates `count` candidates per schedule so a single-schedule workspace can still get 5 upcoming slots (via `multipleOccurrences` helper)
+
+### Gotchas
+
+- X free tier may not issue a refresh token even with `offline.access` scope; `token-expiry-check` sets `needs_reauth = true` in that case
+- Vercel Hobby crons fire at most daily — `*/5 * * * *` silently becomes daily on Hobby plans
+
+### Next session
+
+Phase 6 — Analytics. First action: define Phase 6 scope with user, write `docs/phases/PHASE_6_ANALYTICS.md`.
+
+---
+
+## 2026-04-23 — Phase 4 complete: Publishing pipeline
+
+**What got built:**
+
+- Migration `0007_publish_attempts.sql` applied — `publish_attempts` table with RLS + indexes; added `platform_post_id`, `platform_post_url`, `error_code` to `post_variants`
+- `web/lib/db/types.ts` regenerated after migration
+- `web/lib/adapters/x.ts` — X/Twitter OAuth 2.0 PKCE adapter: `buildAuthorizationUrl`, `exchangeCodeForTokens`, `getUserInfo`, `publishTweet`
+- `web/lib/adapters/linkedin.ts` — added `publishLinkedInPost` with LinkedIn UGC Posts API + idempotency header; updated OAuth scope to include `w_member_social`
+- `web/lib/db/publish-attempts.ts` — `createPublishAttempt`, `updatePublishAttempt`, `getLatestAttempt`, `hasSuccessfulAttempt`
+- `web/lib/db/posts.ts` — added `getPostVariant`, `updatePostVariant`
+- `web/app/api/oauth/x/start/route.ts` — PKCE flow: generates code_verifier, stores in httpOnly cookie, redirects to X
+- `web/app/api/oauth/x/callback/route.ts` — validates state + PKCE, exchanges code, stores tokens in Vault, upserts `social_connections`; sets `needs_reauth = true` when no refresh token returned
+- `web/app/api/posts/[id]/publish/route.ts` — state machine guard, idempotency check, vault token read, platform dispatch (LinkedIn or X), attempt logging
+- `web/app/api/posts/[id]/schedule/route.ts` — validates future datetime, sets `status = 'scheduled'`
+- `web/app/api/posts/[id]/cancel/route.ts` — guards `status = 'scheduled'`, sets `status = 'cancelled'`
+- `web/app/(app)/chat/_components/VariantCard.tsx` — extracted component with local action state: Publish Now (spinner → published + link), Schedule (datetime picker → confirmed), Cancel; shows errors with dismiss
+- `web/app/(app)/chat/page.tsx` — replaced inline disabled buttons with `<VariantCard />`
+- `web/app/(app)/settings/connections/page.tsx` — added X/Twitter connection card with status + reconnect link
+- `web/app/(app)/onboarding/_components/ConnectStep.tsx` — added "Connect X / Twitter" button
+- `web/tests/adapters.x.test.ts` — 5 tests: URL structure, PKCE params, scopes, state uniqueness
+- `web/tests/db.publish-attempts.test.ts` — type-level tests for `publish_attempts` and Phase 4 `post_variants` columns
+- `docs/DATA_MODEL.md`, `docs/API_CONTRACTS.md`, `docs/DECISIONS.md` updated
+
+**Confirmed working:**
+
+- `pnpm --dir web typecheck` — 0 errors
+- `pnpm --dir web test` — 30/30 passing (was 21)
+- Migration `0007_publish_attempts.sql` applied cleanly to remote Supabase
+- `pnpm --dir web gen:types` — types regenerated
+
+**Decisions made:**
+
+- `createAdminClient` now also permitted in `publish/route.ts` for Vault reads (see DECISIONS.md)
+- `attempt_number` computed dynamically via `getLatestAttempt` — hardcoding `1` would fail on retry after failure (unique constraint violation)
+- X callback sets `needs_reauth = true` when no refresh token returned (X free tier may omit it)
+
+**Gotchas:**
+
+- LinkedIn `w_member_social` scope requires LinkedIn partner approval (submit review in LinkedIn Developer Portal). OAuth flow works immediately; `publishLinkedInPost` will return 403 until approved
+- X publish rate limit on free tier: 17 tweets per user per 24h. `RATE_LIMITED` error_code surfaces this cleanly
+- `scheduled_at` from `datetime-local` input is local time — `VariantCard` converts to UTC via `new Date(scheduledAt).toISOString()` before sending to the API
+- Cron publisher for scheduled posts is **Phase 5 scope** — scheduled variants sit in DB with `status = 'scheduled'` until Phase 5 fires them
+
+**What's next (Phase 5 — Scheduler & Cron):**
+
+- `POST /api/cron/publish-due` — claims scheduled variants with `FOR UPDATE SKIP LOCKED`, calls platform adapters in parallel
+- Token expiry cron (`/api/cron/token-expiry-check`)
+- Sweeper: reset `publishing` variants stuck > 10 min back to `scheduled`
+- `posting_schedules` table and smart slot assignment (optional for Phase 5)
+
+**First action next session:**
+
+- Create `web/app/api/cron/publish-due/route.ts`
+- Create migration for any new tables needed (e.g. `posting_schedules`)
+
+---
+
+## 2026-04-23 — Phase 3 closeout patch: post_variants prompt provenance
+
+**What got built:**
+
+- Migration `0006_post_variants_prompt_version.sql` applied to remote Supabase
+- Added `post_variants.prompt_version_id` FK to `prompt_versions(id)` with `ON DELETE SET NULL`
+- Added index `idx_post_variants_prompt_version`
+- `POST /api/posts` now writes `prompt_version_id` onto each inserted `post_variants` row
+- Regenerated `web/lib/db/types.ts` after migration
+- Updated `docs/DATA_MODEL.md` to document `post_variants.prompt_version_id`
+- Updated `web/tests/db.posts.test.ts` to assert `PostVariantRow.prompt_version_id`
+
+**Confirmed working:**
+
+- `pnpm --dir web supabase db push --workdir ..` applied `0006_post_variants_prompt_version.sql`
+- `pnpm --dir web gen:types` completed successfully
+- `pnpm --dir web typecheck` — passes
+- `pnpm --dir web test` — 21/21 passing
+
+**Decisions made:**
+
+- Prompt provenance must exist at both levels:
+  - `content_items.prompt_version_id` for generation event provenance
+  - `post_variants.prompt_version_id` for per-variant publish/audit provenance
+
+**Gotchas:**
+
+- Phase 4 plan previously referenced migration `0006_publish_attempts.sql`; migration numbering now starts at `0007` for publishing
+
+**What's next (Phase 4 — Publishing):**
+
+- Create migration `0007_publish_attempts.sql`
+- Implement `POST /api/posts/[id]/publish`, `/schedule`, `/cancel`
+- Add X OAuth start/callback and adapter
+
+**First action next session:**
+
+- Run `pnpm --dir web supabase db push --workdir ..` after creating `0007_publish_attempts.sql`
+
 ## 2026-04-23 — Phase 3 complete: AI generation pipeline
 
 **What got built:**

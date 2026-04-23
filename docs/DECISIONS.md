@@ -15,6 +15,18 @@ Format:
 
 ---
 
+## 2026-04-23: Prompt provenance stored on both content_items and post_variants
+
+**Decision:** `post_variants` now stores `prompt_version_id` in addition to `content_items.prompt_version_id`. Generation writes both so each variant carries explicit prompt provenance.
+
+**Why:** Audit and publish diagnostics are variant-centric (`post_variants.id` is the idempotency anchor for publishing). Storing provenance only at the content-item level weakens traceability for per-platform behavior and future retries/analytics.
+
+**Alternatives considered:** Keep provenance only on `content_items` and resolve via join when needed. Rejected because it adds avoidable coupling and makes downstream auditing/reporting queries harder.
+
+**Trade-off:** One extra nullable FK column and index on `post_variants`.
+
+**Reversibility:** Medium. Easy to stop writing it, but removing the column later requires migration and backfill considerations.
+
 ## 2026-04-23: Groq primary / Gemini fallback LLM strategy
 
 **Decision:** The worker's `adapters/llm.py` tries Groq first and falls back to Gemini on any exception. Model config (`groq_model`, `gemini_model`) lives in `Settings` so it can be overridden via env vars without code changes.
@@ -154,3 +166,24 @@ Format:
 **Reversibility:** Cheap.
 
 ---
+## 2026-04-23: createAdminClient permitted in publish routes (Vault reads)
+
+**Decision:** `web/app/api/posts/[id]/publish/route.ts` imports `createAdminClient` to call `readSecret()` (which requires service_role because `vault_read_secret` is REVOKE'd from all other roles). This is an exception to the architecture rule that restricts admin-client imports to `cron/**` and `oauth/**/callback` routes.
+
+**Why:** There is no alternative. Vault secrets cannot be read without the service-role key. We cannot pass the token to the browser or store it unencrypted. The publish route is the only non-cron, non-callback place that needs to decrypt a stored OAuth token.
+
+**Alternatives considered:** Worker-side token decryption (would require sending service-role key to the worker, worse), storing tokens in a non-Vault column (violates our security posture).
+
+**Impact:** If a CI lint rule for admin-client imports is ever added, `publish/route.ts` (and any future publish-adjacent routes) must be explicitly whitelisted.
+
+**Reversibility:** Low. If we ever restructure publishing into a dedicated service, the Vault read moves there.
+
+---
+
+## 2026-04-23: attempt_number is computed dynamically on retry
+
+**Decision:** `POST /api/posts/[id]/publish` queries `getLatestAttempt` before inserting into `publish_attempts`, and sets `attempt_number = latestAttempt.attempt_number + 1` (or 1 on first attempt). The spec's original hardcoded `1` would violate the `UNIQUE (idempotency_key, attempt_number)` constraint on a re-attempt after failure.
+
+**Why:** The state machine allows `failed → publishing` (user retries). Hardcoding `1` would error on the second attempt for the same variant.
+
+**Reversibility:** Trivial.

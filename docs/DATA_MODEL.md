@@ -271,6 +271,7 @@ One row per platform per content_item. Each row is a generated post draft with i
 | `id` | `UUID` PK | |
 | `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
 | `content_item_id` | `UUID` NOT NULL | FK `content_items(id)`, cascade delete |
+| `prompt_version_id` | `UUID` | FK `prompt_versions(id)`, SET NULL on delete. Snapshot of prompt used to generate this variant |
 | `platform` | `TEXT` NOT NULL | CHECK `IN ('linkedin', 'x')` |
 | `body` | `TEXT` NOT NULL | Generated post text |
 | `status` | `TEXT` NOT NULL | Default `'draft'`. CHECK `IN ('draft','scheduled','publishing','published','failed','cancelled')` |
@@ -284,7 +285,69 @@ One row per platform per content_item. Each row is a generated post draft with i
 
 **RLS:** workspace members can select, insert, update.
 
-**Indexes:** `idx_post_variants_workspace`, `idx_post_variants_content_item`, `idx_post_variants_status`, `idx_post_variants_scheduled` (partial, WHERE status = 'scheduled').
+**Indexes:** `idx_post_variants_workspace`, `idx_post_variants_content_item`, `idx_post_variants_prompt_version`, `idx_post_variants_status`, `idx_post_variants_scheduled` (partial, WHERE status = 'scheduled').
+
+> **Phase 4 additions (migration 0007):** `platform_post_id TEXT`, `platform_post_url TEXT`, `error_code TEXT` — populated on publish success/failure.
+
+---
+
+## Phase 4 — Publishing
+
+Migration: `supabase/migrations/0007_publish_attempts.sql`
+
+### `publish_attempts`
+
+Append-only audit log of every publish attempt. Also serves as the idempotency guard — a variant with a `success` row is never published again.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `post_variant_id` | `UUID` NOT NULL | FK `post_variants(id)`, cascade delete |
+| `idempotency_key` | `TEXT` NOT NULL | Equals `post_variant_id`; sent to LinkedIn via `X-RestLi-Request-Id` |
+| `attempt_number` | `INT` NOT NULL | Monotonically increasing per variant. `UNIQUE (idempotency_key, attempt_number)` |
+| `status` | `TEXT` NOT NULL | Default `'attempting'`. CHECK `IN ('attempting', 'success', 'failed')` |
+| `platform_post_id` | `TEXT` | Platform's post ID returned on success |
+| `platform_post_url` | `TEXT` | Direct link to the published post |
+| `error_code` | `TEXT` | Machine-readable: `TOKEN_EXPIRED`, `RATE_LIMITED`, `CONTENT_POLICY`, `SERVER_ERROR`, `UNKNOWN` |
+| `error_detail` | `TEXT` | Raw error message for debugging |
+| `attempted_at` | `TIMESTAMPTZ` NOT NULL | Default `now()` |
+| `completed_at` | `TIMESTAMPTZ` | Set on success or final failure |
+
+**RLS:** workspace members can select, insert, update.
+
+**Indexes:** `idx_publish_attempts_variant`, `idx_publish_attempts_workspace`, `idx_publish_attempts_idempotency`.
+
+---
+
+## Phase 5 — Scheduling & Cron
+
+Migrations: `supabase/migrations/0008_posting_schedules.sql`, `supabase/migrations/0009_cron_helpers.sql`
+
+### `posting_schedules`
+
+One row per workspace × platform × time slot. Stores the user's preferred posting times in their local timezone.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `platform` | `TEXT` NOT NULL | CHECK `IN ('linkedin', 'x')` |
+| `hour` | `INT` NOT NULL | 0–23, in user's timezone |
+| `minute` | `INT` NOT NULL | CHECK `IN (0, 30)` — half-hour slots only |
+| `days_of_week` | `INT[]` NOT NULL | Array of 0–6 (0=Sun … 6=Sat). Default = every day |
+| `timezone` | `TEXT` NOT NULL | IANA tz string, e.g. `'America/New_York'`. Default `'UTC'` |
+| `is_active` | `BOOLEAN` NOT NULL | Default `true`. Soft-disable without deleting |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | |
+| — | UNIQUE (`workspace_id`, `platform`, `hour`, `minute`, `timezone`) | No duplicate slots |
+
+**RLS:** workspace members can select, insert, update, delete.
+
+**Indexes:** `idx_posting_schedules_workspace`, `idx_posting_schedules_platform`.
+
+### `claim_due_variants()` SQL function
+
+`SECURITY DEFINER` function restricted to `service_role`. Called by the publish-due cron via `admin.rpc('claim_due_variants', { p_worker_id, p_limit })`. Atomically marks up to `p_limit` due `scheduled` variants as `publishing` using `FOR UPDATE SKIP LOCKED`.
 
 ---
 

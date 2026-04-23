@@ -67,6 +67,31 @@ export async function getContentItemWithVariants(
   return { content_item: item, variants: variants ?? [] };
 }
 
+export async function getPostVariant(
+  id: string
+): Promise<PostVariantRow | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("post_variants")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) return null;
+  return data;
+}
+
+export async function updatePostVariant(
+  id: string,
+  patch: Partial<PostVariantRow>
+): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("post_variants")
+    .update(patch)
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function listContentItemsForJob(
   jobId: string
 ): Promise<ContentItemRow[]> {
