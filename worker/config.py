@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     playwright_timeout_ms: int = 20000
 
     groq_api_key: str
-    groq_model: str = "llama-3.1-70b-versatile"
+    groq_model: str = "llama-3.3-70b-versatile"
     gemini_api_key: str
     gemini_model: str = "gemini-1.5-flash"
 
