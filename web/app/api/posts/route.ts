@@ -80,6 +80,9 @@ export async function POST(request: Request) {
 
     await updateIngestionJob(ingestion_job_id, { stage: "analyzing" });
 
+    // Ensure we transition to generating before the worker call, or let worker handle it
+    await updateIngestionJob(ingestion_job_id, { stage: "generating" });
+
     const result = await workerGenerate({
       job_id: ingestion_job_id,
       workspace_id: workspaceId,

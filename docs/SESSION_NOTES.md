@@ -13,6 +13,42 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-24 — Phase 6: Media Attachments (complete)
+
+### What got built
+
+- **Migration 0011** — `post_variant_media` join table (composite PK, RLS, index)
+- **`web/lib/db/post-variant-media.ts`** — `getVariantMedia`, `setVariantMedia`, `getVariantMediaRaw`
+- **`web/lib/adapters/cloudinary.ts`** — signed server-side upload (no SDK)
+- **`web/lib/adapters/linkedin.ts`** — `registerLinkedInUpload`, `uploadBytesToLinkedIn`, `buildLinkedInPostBody` exported; `publishLinkedInPost` extended with optional `mediaUrns`
+- **`web/lib/adapters/x.ts`** — `uploadMediaToX`, `buildTweetBody` exported; `publishTweet` extended with optional `mediaIds`
+- **`web/lib/publish/upload-media.ts`** — `uploadMediaForPlatform` shared helper (non-fatal per-asset failures)
+- **`web/app/api/posts/[id]/media/route.ts`** — GET (selection) + PUT (save selection, max 4)
+- **`web/app/api/media/route.ts`** — GET `?job_id=` for listing image assets from an ingestion job
+- **`web/app/api/media/upload/route.ts`** — POST user file → Cloudinary → media_asset row
+- **`web/lib/db/media-assets.ts`** — `createUserUploadMediaAsset` for user-uploaded files (no job_id)
+- **`web/app/api/posts/[id]/publish/route.ts`** — media fetch + upload step before platform publish
+- **`web/app/api/cron/publish-due/route.ts`** — same media step via admin client (no user JWT)
+- **`web/app/(app)/chat/_components/MediaPicker.tsx`** — standalone picker component (thumbnail grid, file upload, debounced save)
+- **`web/app/(app)/chat/_components/VariantCard.tsx`** — renders `MediaPicker` below post body; hidden after terminal state
+
+### What's left in Phase 6
+
+Nothing. Phase 6 (Polish) is still the current phase but the media attachments feature is fully shipped.
+
+### Gotchas hit
+
+- `Buffer` → `Uint8Array` cast required in cloudinary.ts, linkedin.ts, x.ts for strict TS `BlobPart`/`BodyInit` compatibility.
+- `GET /api/posts/:id/media` must remap `media_asset_id` → `id` in the response so it matches the shape `GET /api/media` returns and `MediaPicker.tsx` expects.
+- `web/proxy.ts` was deleted during implementation and a `web/middleware.ts` was created in its place — caused `fetch failed` errors from the Supabase auth client. Restored `proxy.ts` with correct `export async function proxy()` signature.
+- Cron publisher cannot use `getVariantMedia` (user-scoped client) — must query `post_variant_media` directly via the admin client.
+
+### Next session first step
+
+Phase 6 polish continues. Review `docs/BACKLOG.md` for any outstanding items.
+
+---
+
 ## 2026-04-23 — Phase 5: Scheduling & Cron
 
 ### What got built

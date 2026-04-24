@@ -10,6 +10,7 @@ import {
 import { updatePostVariant } from "@/lib/db/posts";
 import { publishLinkedInPost } from "@/lib/adapters/linkedin";
 import { publishTweet } from "@/lib/adapters/x";
+import { uploadMediaForPlatform } from "@/lib/publish/upload-media";
 import type { Database } from "@/lib/db/types";
 
 type PostVariantRow = Database["public"]["Tables"]["post_variants"]["Row"];
@@ -68,16 +69,44 @@ async function publishVariant(
   try {
     let result: { platformPostId: string; platformPostUrl: string };
 
+    // Fetch attached media via admin client (no user JWT in cron context)
+    const { data: mediaRows } = await admin
+      .from("post_variant_media")
+      .select("media_asset_id, position, media_assets(cloudinary_url)")
+      .eq("post_variant_id", variant.id)
+      .order("position");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join shape
+    const mediaAssets = ((mediaRows ?? []) as any[])
+      .map((row) => ({ cloudinary_url: row.media_assets?.cloudinary_url ?? "" }))
+      .filter((a) => a.cloudinary_url);
+
+    const authorUrn =
+      platform === "linkedin"
+        ? `urn:li:person:${connection.platform_user_id}`
+        : undefined;
+
+    const platformMediaIds = await uploadMediaForPlatform(
+      platform,
+      accessToken,
+      mediaAssets,
+      authorUrn
+    );
+
     if (platform === "linkedin") {
-      const authorUrn = `urn:li:person:${connection.platform_user_id}`;
       result = await publishLinkedInPost(
         accessToken,
-        authorUrn,
+        authorUrn!,
         variant.body,
-        idempotencyKey
+        idempotencyKey,
+        platformMediaIds.length > 0 ? platformMediaIds : undefined
       );
     } else {
-      result = await publishTweet(accessToken, variant.body);
+      result = await publishTweet(
+        accessToken,
+        variant.body,
+        platformMediaIds.length > 0 ? platformMediaIds : undefined
+      );
     }
 
     await updatePublishAttempt(attempt.id, {

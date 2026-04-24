@@ -13,6 +13,8 @@ import { getSocialConnection } from "@/lib/db/social-connections";
 import { readSecret } from "@/lib/security/vault";
 import { publishLinkedInPost } from "@/lib/adapters/linkedin";
 import { publishTweet } from "@/lib/adapters/x";
+import { getVariantMedia } from "@/lib/db/post-variant-media";
+import { uploadMediaForPlatform } from "@/lib/publish/upload-media";
 
 export async function POST(
   _request: Request,
@@ -97,16 +99,35 @@ export async function POST(
   try {
     let result: { platformPostId: string; platformPostUrl: string };
 
-    if (variant.platform === "linkedin") {
-      const authorUrn = `urn:li:person:${connection.platform_user_id}`;
+    // Fetch and upload any attached media assets before publishing
+    const mediaAssets = await getVariantMedia(id);
+    const platform = variant.platform as "linkedin" | "x";
+    const authorUrn =
+      platform === "linkedin"
+        ? `urn:li:person:${connection.platform_user_id}`
+        : undefined;
+
+    const platformMediaIds = await uploadMediaForPlatform(
+      platform,
+      accessToken,
+      mediaAssets,
+      authorUrn
+    );
+
+    if (platform === "linkedin") {
       result = await publishLinkedInPost(
         accessToken,
-        authorUrn,
+        authorUrn!,
         variant.body,
-        idempotencyKey
+        idempotencyKey,
+        platformMediaIds.length > 0 ? platformMediaIds : undefined
       );
     } else {
-      result = await publishTweet(accessToken, variant.body);
+      result = await publishTweet(
+        accessToken,
+        variant.body,
+        platformMediaIds.length > 0 ? platformMediaIds : undefined
+      );
     }
 
     await updatePublishAttempt(attempt.id, {

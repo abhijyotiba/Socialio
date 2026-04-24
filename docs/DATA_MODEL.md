@@ -318,6 +318,25 @@ Append-only audit log of every publish attempt. Also serves as the idempotency g
 
 **Indexes:** `idx_publish_attempts_variant`, `idx_publish_attempts_workspace`, `idx_publish_attempts_idempotency`.
 
+### `post_variant_media`
+
+Join table linking media assets to post variants. Persists the user's media selection so scheduled posts publish with the correct images.
+
+| Column | Type | Notes |
+|---|---|---|
+| `post_variant_id` | `UUID` | FK `post_variants(id)`, CASCADE delete. Part of PK. |
+| `media_asset_id` | `UUID` | FK `media_assets(id)`, CASCADE delete. Part of PK. |
+| `position` | `INT` NOT NULL | 0-indexed display order. Max 4 rows per `post_variant_id`. |
+| — | PRIMARY KEY (`post_variant_id`, `media_asset_id`) | |
+
+**RLS**
+
+- `post_variant_media_workspace_access` — workspace members can read rows via post_variants.workspace_id.
+- `post_variant_media_workspace_insert` — workspace members can insert.
+- `post_variant_media_workspace_delete` — workspace members can delete.
+
+**Indexes:** `idx_post_variant_media_variant` on `post_variant_id`.
+
 ---
 
 ## Phase 5 — Scheduling & Cron

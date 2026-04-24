@@ -20,8 +20,7 @@ export async function GET() {
       platform,
       status,
       scheduled_at,
-      content,
-      content_metadata,
+      body,
       created_at
     `)
     .eq("status", "scheduled")
@@ -31,5 +30,10 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(variants);
+  const formattedVariants = variants.map(v => ({
+    ...v,
+    content: v.body
+  }));
+
+  return NextResponse.json(formattedVariants);
 }

@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 
 const nav = [
-  { name: "Chat", href: "/chat", icon: PenLine },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Chat", href: "/chat", icon: PenLine },
   { name: "Queue", href: "/queue", icon: CalendarClock },
   { name: "Settings", href: "/settings/brand", icon: SlidersHorizontal },
 ];

@@ -76,7 +76,7 @@ async def test_llm_raises_if_both_fail():
         mock_gemini.side_effect = Exception("Gemini down")
 
         from adapters.llm import generate
-        with pytest.raises(Exception, match="Gemini down"):
+        with pytest.raises(Exception, match="fallback AI models failed"):
             await generate("sys", "user")
         mock_groq.assert_called_once()
         mock_gemini.assert_called_once()

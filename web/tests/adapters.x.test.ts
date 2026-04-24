@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAuthorizationUrl } from "@/lib/adapters/x";
+import { buildAuthorizationUrl, buildTweetBody } from "@/lib/adapters/x";
 
 // Set required env vars before importing the adapter
 process.env.X_CLIENT_ID = "test-x-client-id";
@@ -43,5 +43,19 @@ describe("buildAuthorizationUrl", () => {
     const url2 = buildAuthorizationUrl("state-b", "challenge");
     expect(new URL(url1).searchParams.get("state")).toBe("state-a");
     expect(new URL(url2).searchParams.get("state")).toBe("state-b");
+  });
+});
+
+describe("buildTweetBody", () => {
+  it("returns text-only body when no mediaIds provided", () => {
+    const body = buildTweetBody("Hello world", undefined);
+    expect(body.text).toBe("Hello world");
+    expect(body.media).toBeUndefined();
+  });
+
+  it("includes media object when mediaIds provided", () => {
+    const body = buildTweetBody("Hello world", ["111", "222"]);
+    expect(body.text).toBe("Hello world");
+    expect(body.media).toEqual({ media_ids: ["111", "222"] });
   });
 });

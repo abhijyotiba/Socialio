@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAuthorizationUrl } from "@/lib/adapters/linkedin";
+import { buildAuthorizationUrl, buildLinkedInPostBody } from "@/lib/adapters/linkedin";
 
 // Set required env vars for tests that build URLs
 process.env.LINKEDIN_CLIENT_ID = "test-client-id";
@@ -37,5 +37,26 @@ describe("buildAuthorizationUrl", () => {
     const url2 = buildAuthorizationUrl("state-b");
     expect(new URL(url1).searchParams.get("state")).toBe("state-a");
     expect(new URL(url2).searchParams.get("state")).toBe("state-b");
+  });
+});
+
+describe("buildLinkedInPostBody", () => {
+  it("sets shareMediaCategory to NONE when no mediaUrns provided", () => {
+    const body = buildLinkedInPostBody("urn:li:person:123", "Hello world", undefined);
+    expect(body.specificContent["com.linkedin.ugc.ShareContent"].shareMediaCategory).toBe("NONE");
+    expect((body.specificContent["com.linkedin.ugc.ShareContent"] as Record<string, unknown>).media).toBeUndefined();
+  });
+
+  it("sets shareMediaCategory to IMAGE and includes media array when urns provided", () => {
+    const body = buildLinkedInPostBody("urn:li:person:123", "Hello world", [
+      "urn:li:digitalmediaAsset:ABC",
+      "urn:li:digitalmediaAsset:DEF",
+    ]);
+    const content = body.specificContent["com.linkedin.ugc.ShareContent"] as Record<string, unknown>;
+    expect(content.shareMediaCategory).toBe("IMAGE");
+    const media = content.media as Array<{ status: string; media: string }>;
+    expect(media).toHaveLength(2);
+    expect(media[0].media).toBe("urn:li:digitalmediaAsset:ABC");
+    expect(media[1].media).toBe("urn:li:digitalmediaAsset:DEF");
   });
 });
