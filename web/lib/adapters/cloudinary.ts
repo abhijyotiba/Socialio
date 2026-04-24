@@ -33,11 +33,8 @@ export async function uploadToCloudinary(
   const apiSecret = process.env.CLOUDINARY_API_SECRET!;
 
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const params: Record<string, string> = {
-    folder,
-    resource_type: "image",
-    timestamp,
-  };
+  // resource_type is part of the URL path, not a signed form param
+  const params: Record<string, string> = { folder, timestamp };
   const signature = buildSignature(params, apiSecret);
 
   const form = new FormData();
@@ -45,7 +42,6 @@ export async function uploadToCloudinary(
   form.append("api_key", apiKey);
   form.append("timestamp", timestamp);
   form.append("folder", folder);
-  form.append("resource_type", "image");
   form.append("signature", signature);
 
   const response = await fetch(
