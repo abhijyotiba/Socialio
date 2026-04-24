@@ -74,25 +74,120 @@ export async function getUserInfo(
   return UserInfoSchema.parse(await response.json());
 }
 
-export async function publishLinkedInPost(
-  accessToken: string,
+// Exported for testing. Builds the UGC post request body.
+export function buildLinkedInPostBody(
   authorUrn: string,
   text: string,
-  idempotencyKey: string
-): Promise<{ platformPostId: string; platformPostUrl: string }> {
-  const body = {
+  mediaUrns?: string[]
+) {
+  const shareContent: Record<string, unknown> = {
+    shareCommentary: { text },
+    shareMediaCategory: mediaUrns && mediaUrns.length > 0 ? "IMAGE" : "NONE",
+  };
+
+  if (mediaUrns && mediaUrns.length > 0) {
+    shareContent.media = mediaUrns.map((urn) => ({
+      status: "READY",
+      media: urn,
+    }));
+  }
+
+  return {
     author: authorUrn,
     lifecycleState: "PUBLISHED",
     specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: { text },
-        shareMediaCategory: "NONE",
-      },
+      "com.linkedin.ugc.ShareContent": shareContent,
     },
     visibility: {
       "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
     },
   };
+}
+
+const RegisterUploadResponseSchema = z.object({
+  value: z.object({
+    uploadMechanism: z.object({
+      "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest": z.object({
+        uploadUrl: z.string(),
+      }),
+    }),
+    asset: z.string(), // e.g. "urn:li:digitalmediaAsset:ABC123"
+  }),
+});
+
+// Step 1 of LinkedIn media upload: register and get upload URL + asset URN.
+export async function registerLinkedInUpload(
+  accessToken: string,
+  authorUrn: string,
+  fileSizeBytes: number
+): Promise<{ uploadUrl: string; assetUrn: string }> {
+  const body = {
+    registerUploadRequest: {
+      recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+      owner: authorUrn,
+      serviceRelationships: [
+        {
+          relationshipType: "OWNER",
+          identifier: "urn:li:userGeneratedContent",
+        },
+      ],
+      supportedUploadMechanism: ["SYNCHRONOUS_UPLOAD"],
+      fileSize: fileSizeBytes,
+    },
+  };
+
+  const response = await fetch(
+    "https://api.linkedin.com/v2/assets?action=registerUpload",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0",
+      },
+      body: JSON.stringify(body),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`LinkedIn registerUpload failed: ${response.status}`);
+  }
+
+  const parsed = RegisterUploadResponseSchema.parse(await response.json());
+  return {
+    uploadUrl:
+      parsed.value.uploadMechanism[
+        "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"
+      ].uploadUrl,
+    assetUrn: parsed.value.asset,
+  };
+}
+
+// Step 2 of LinkedIn media upload: PUT the image bytes to the pre-signed upload URL.
+// No Authorization header — LinkedIn pre-signs the URL.
+export async function uploadBytesToLinkedIn(
+  uploadUrl: string,
+  imageBytes: Buffer
+): Promise<void> {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: imageBytes,
+  });
+
+  if (!response.ok) {
+    throw new Error(`LinkedIn binary upload failed: ${response.status}`);
+  }
+}
+
+export async function publishLinkedInPost(
+  accessToken: string,
+  authorUrn: string,
+  text: string,
+  idempotencyKey: string,
+  mediaUrns?: string[]
+): Promise<{ platformPostId: string; platformPostUrl: string }> {
+  const body = buildLinkedInPostBody(authorUrn, text, mediaUrns);
 
   const response = await fetch("https://api.linkedin.com/v2/ugcPosts", {
     method: "POST",
