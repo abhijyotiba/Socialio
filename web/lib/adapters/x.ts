@@ -27,6 +27,10 @@ const PublishResponseSchema = z.object({
   }),
 });
 
+const MediaUploadResponseSchema = z.object({
+  media_id_string: z.string(),
+});
+
 export function buildAuthorizationUrl(
   state: string,
   codeChallenge: string
@@ -86,9 +90,53 @@ export async function getUserInfo(accessToken: string): Promise<XUserInfo> {
   return UserInfoSchema.parse(await response.json());
 }
 
+// Exported for testing. Builds the tweet request body.
+export function buildTweetBody(
+  text: string,
+  mediaIds?: string[]
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { text };
+  if (mediaIds && mediaIds.length > 0) {
+    body.media = { media_ids: mediaIds };
+  }
+  return body;
+}
+
+// Uploads image bytes to X's v1.1 media/upload endpoint.
+// Returns the media_id_string to be attached to the tweet.
+export async function uploadMediaToX(
+  accessToken: string,
+  imageBytes: Buffer,
+  mimeType: string
+): Promise<string> {
+  const form = new FormData();
+  form.append(
+    "media",
+    new Blob([imageBytes], { type: mimeType }),
+    "upload"
+  );
+
+  const response = await fetch(
+    "https://upload.twitter.com/1.1/media/upload.json",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`X media upload failed: ${response.status}`);
+  }
+
+  const data = MediaUploadResponseSchema.parse(await response.json());
+  return data.media_id_string;
+}
+
 export async function publishTweet(
   accessToken: string,
-  text: string
+  text: string,
+  mediaIds?: string[]
 ): Promise<{ platformPostId: string; platformPostUrl: string }> {
   const response = await fetch("https://api.twitter.com/2/tweets", {
     method: "POST",
@@ -96,7 +144,7 @@ export async function publishTweet(
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(buildTweetBody(text, mediaIds)),
   });
 
   if (!response.ok) {
