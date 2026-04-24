@@ -294,6 +294,39 @@ export type Database = {
           },
         ]
       }
+      post_variant_media: {
+        Row: {
+          media_asset_id: string
+          position: number
+          post_variant_id: string
+        }
+        Insert: {
+          media_asset_id: string
+          position?: number
+          post_variant_id: string
+        }
+        Update: {
+          media_asset_id?: string
+          position?: number
+          post_variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_variant_media_media_asset_id_fkey"
+            columns: ["media_asset_id"]
+            isOneToOne: false
+            referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_variant_media_post_variant_id_fkey"
+            columns: ["post_variant_id"]
+            isOneToOne: false
+            referencedRelation: "post_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_variants: {
         Row: {
           body: string
