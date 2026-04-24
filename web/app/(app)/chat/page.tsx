@@ -319,7 +319,7 @@ export default function ChatPage() {
             </button>
           </div>
           {gen.variants.map((v) => (
-            <VariantCard key={v.id} variant={v} />
+            <VariantCard key={v.id} variant={v} jobId={ingest.kind === "success" ? ingest.jobId : undefined} />
           ))}
         </div>
       )}

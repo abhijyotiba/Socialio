@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Copy, CheckCheck, ExternalLink, Loader2 } from "lucide-react";
+import { MediaPicker } from "./MediaPicker";
 
 type Variant = {
   id: string;
@@ -27,7 +28,7 @@ const platformConfig: Record<string, { label: string; bg: string; text: string }
   x: { label: "X / Twitter", bg: "bg-slate-100", text: "text-slate-800" },
 };
 
-export function VariantCard({ variant }: { variant: Variant }) {
+export function VariantCard({ variant, jobId }: { variant: Variant, jobId?: string }) {
   const [state, setState] = useState<ActionState>({ kind: "idle" });
   const [scheduledAt, setScheduledAt] = useState("");
   const [copied, setCopied] = useState(false);
@@ -169,6 +170,10 @@ export function VariantCard({ variant }: { variant: Variant }) {
           {variant.body}
         </p>
       </div>
+
+      {showIdleActions && (
+        <MediaPicker variantId={variant.id} jobId={jobId} />
+      )}
 
       <div className="border-t border-slate-100 bg-slate-50/70 px-5 py-3">
         {state.kind === "published" && (
