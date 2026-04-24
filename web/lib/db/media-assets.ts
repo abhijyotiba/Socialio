@@ -42,3 +42,36 @@ export async function getMediaAssetsForJob(
   if (error) return [];
   return data;
 }
+
+export type UserUploadMediaAssetInput = {
+  workspace_id: string;
+  cloudinary_url: string;
+  cloudinary_id: string;
+  format: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+};
+
+export async function createUserUploadMediaAsset(
+  input: UserUploadMediaAssetInput
+): Promise<MediaAssetRow> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("media_assets")
+    .insert({
+      workspace_id: input.workspace_id,
+      ingestion_job_id: null,
+      cloudinary_url: input.cloudinary_url,
+      cloudinary_id: input.cloudinary_id,
+      resource_type: "image",
+      format: input.format,
+      bytes: input.bytes,
+      width: input.width,
+      height: input.height,
+    })
+    .select()
+    .single();
+  if (error || !data) throw error ?? new Error("Failed to insert media asset");
+  return data;
+}

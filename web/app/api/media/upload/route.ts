@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { uploadToCloudinary } from "@/lib/adapters/cloudinary";
+import { createUserUploadMediaAsset } from "@/lib/db/media-assets";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -68,23 +69,18 @@ export async function POST(request: Request) {
   }
 
   // Persist as a media_asset row (no ingestion_job_id — user upload)
-  const { data: asset, error: dbError } = await supabase
-    .from("media_assets")
-    .insert({
+  let asset;
+  try {
+    asset = await createUserUploadMediaAsset({
       workspace_id: workspace.workspace_id,
-      ingestion_job_id: null,
       cloudinary_url: cloudinaryResult.secure_url,
       cloudinary_id: cloudinaryResult.public_id,
-      resource_type: "image",
       format: cloudinaryResult.format,
       bytes: cloudinaryResult.bytes,
       width: cloudinaryResult.width ?? null,
       height: cloudinaryResult.height ?? null,
-    })
-    .select()
-    .single();
-
-  if (dbError || !asset) {
+    });
+  } catch {
     return NextResponse.json(
       { error: "Failed to save asset record" },
       { status: 500 }
