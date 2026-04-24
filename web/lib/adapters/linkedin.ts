@@ -172,7 +172,7 @@ export async function uploadBytesToLinkedIn(
   const response = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": "application/octet-stream" },
-    body: imageBytes,
+    body: new Uint8Array(imageBytes),
   });
 
   if (!response.ok) {

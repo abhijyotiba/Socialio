@@ -112,7 +112,7 @@ export async function uploadMediaToX(
   const form = new FormData();
   form.append(
     "media",
-    new Blob([imageBytes], { type: mimeType }),
+    new Blob([new Uint8Array(imageBytes)], { type: mimeType }),
     "upload"
   );
 

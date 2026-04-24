@@ -41,7 +41,7 @@ export async function uploadToCloudinary(
   const signature = buildSignature(params, apiSecret);
 
   const form = new FormData();
-  form.append("file", new Blob([fileBuffer], { type: mimeType }));
+  form.append("file", new Blob([new Uint8Array(fileBuffer)], { type: mimeType }));
   form.append("api_key", apiKey);
   form.append("timestamp", timestamp);
   form.append("folder", folder);
