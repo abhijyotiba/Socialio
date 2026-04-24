@@ -41,7 +41,13 @@ export async function GET(
   }
 
   const assets = await getVariantMedia(id);
-  return NextResponse.json({ assets });
+  return NextResponse.json({
+    assets: assets.map((a) => ({
+      id: a.media_asset_id,
+      cloudinary_url: a.cloudinary_url,
+      resource_type: a.resource_type,
+    })),
+  });
 }
 
 export async function PUT(
