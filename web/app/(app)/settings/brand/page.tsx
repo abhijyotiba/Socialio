@@ -96,12 +96,12 @@ export default function BrandSettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl border border-slate-200/70 bg-white p-6 shadow-sm">
+    <div className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
           Settings
         </p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
+        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
           Brand settings
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">
@@ -111,32 +111,33 @@ export default function BrandSettingsPage() {
       </div>
 
       {fetchError && (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {fetchError}
         </p>
       )}
 
-      <Card className="rounded-2xl border-slate-200/80 shadow-none">
-        <CardHeader>
-          <CardTitle>Brand profile</CardTitle>
+      <Card className="overflow-hidden rounded-3xl border-slate-200/80 shadow-none">
+        <CardHeader className="border-b border-slate-100 pb-5">
+          <CardTitle className="text-xl font-bold">Brand profile</CardTitle>
           <CardDescription>
             Basic info used to tailor AI-generated content.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             {saveError && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {saveError}
               </p>
             )}
             {saved && (
-              <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-600">
+              <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 Saved successfully.
               </p>
             )}
 
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
               <Label htmlFor="brand_name">Brand name *</Label>
               <Input
                 id="brand_name"
@@ -145,10 +146,11 @@ export default function BrandSettingsPage() {
                 onChange={(e) =>
                   setForm((p) => ({ ...p, brand_name: e.target.value }))
                 }
+                className="h-11 rounded-xl"
               />
-            </div>
+              </div>
 
-            <div className="space-y-2">
+              <div className="space-y-2">
               <Label htmlFor="industry">Industry</Label>
               <Input
                 id="industry"
@@ -156,7 +158,9 @@ export default function BrandSettingsPage() {
                 onChange={(e) =>
                   setForm((p) => ({ ...p, industry: e.target.value }))
                 }
+                className="h-11 rounded-xl"
               />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -168,6 +172,7 @@ export default function BrandSettingsPage() {
                 onChange={(e) =>
                   setForm((p) => ({ ...p, website_url: e.target.value }))
                 }
+                className="h-11 rounded-xl"
               />
             </div>
 
@@ -184,17 +189,23 @@ export default function BrandSettingsPage() {
                       addToneTag();
                     }
                   }}
+                  className="h-11 rounded-xl"
                 />
-                <Button type="button" variant="outline" onClick={addToneTag}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addToneTag}
+                  className="h-11 rounded-xl"
+                >
                   Add
                 </Button>
               </div>
               {form.tone_tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   {form.tone_tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700"
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700"
                     >
                       {tag}
                       <button
@@ -220,10 +231,15 @@ export default function BrandSettingsPage() {
                 onChange={(e) =>
                   setForm((p) => ({ ...p, system_prompt: e.target.value }))
                 }
+                className="min-h-36 rounded-2xl"
               />
             </div>
 
-            <Button type="submit" disabled={loading}>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 font-semibold text-white hover:opacity-95"
+            >
               {loading ? "Saving…" : "Save changes"}
             </Button>
           </form>
