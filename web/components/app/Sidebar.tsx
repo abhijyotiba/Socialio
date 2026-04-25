@@ -44,7 +44,7 @@ export function Sidebar({ email }: { email: string }) {
             </div>
             <div>
               <p className="text-2xl font-bold leading-[1.05] tracking-tight text-white">SocialOS</p>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-indigo-300/85">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-indigo-300/85">
                 Content Engine
               </p>
             </div>
@@ -85,11 +85,11 @@ export function Sidebar({ email }: { email: string }) {
 
         <div className="relative z-10 mt-auto border-t border-white/10 pt-8">
           <div className="mb-5 flex items-center gap-4 rounded-2xl border border-white/5 bg-white/5 p-4 backdrop-blur-md">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[14px] border-2 border-indigo-500/30 bg-indigo-600 text-xs font-black text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[14px] border-2 border-indigo-500/30 bg-indigo-600 text-xs font-bold text-white">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black tracking-tight text-white">{displayName}</p>
+              <p className="truncate text-sm font-semibold tracking-tight text-white">{displayName}</p>
               <p className="truncate text-[10px] font-bold uppercase tracking-wider text-gray-500">
                 Enterprise Plan
               </p>

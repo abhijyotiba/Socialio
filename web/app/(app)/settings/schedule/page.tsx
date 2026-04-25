@@ -218,9 +218,6 @@ function PlatformSection({ platform, label }: PlatformSectionProps) {
           ) : null}
         </div>
 
-        <CardDescription className="sr-only">
-          Configure preferred posting times for {label}.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 p-0">
         <div className="px-6 pt-4">
@@ -324,7 +321,7 @@ export default function PostingSchedulePage() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
           Settings
         </p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
           Posting Schedule
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">

@@ -33,10 +33,10 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="relative flex min-h-screen overflow-hidden bg-transparent">
+    <div className="relative flex h-screen overflow-hidden bg-transparent">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1200px_700px_at_20%_-10%,rgba(124,58,237,0.08),transparent),radial-gradient(900px_600px_at_100%_110%,rgba(37,99,235,0.08),transparent)]" />
       <Sidebar email={user.email ?? ""} />
-      <main className="relative z-10 flex-1 overflow-auto p-4 md:p-6">
+      <main className="relative z-10 flex-1 overflow-y-auto p-6 md:p-8">
         {children}
       </main>
     </div>

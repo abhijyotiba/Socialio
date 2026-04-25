@@ -141,7 +141,7 @@ export default function ChatPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">
           Content studio
         </p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
           New Post
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">

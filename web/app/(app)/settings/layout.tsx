@@ -36,21 +36,17 @@ export default function SettingsLayout({
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 lg:flex-row">
       <nav className="w-full shrink-0 lg:w-[280px]">
         <div className="rounded-3xl border border-slate-200/75 bg-white/85 p-4 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-          <div className="mb-3 flex items-center gap-3 px-2">
+          <div className="mb-4 flex items-center gap-3 px-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
               <Settings2 className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                 Workspace
               </p>
               <p className="text-sm font-bold text-slate-900">Settings</p>
             </div>
           </div>
-
-          <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Settings
-          </p>
           <ul className="space-y-1">
             {navItems.map((item) => {
               const active = pathname === item.href;

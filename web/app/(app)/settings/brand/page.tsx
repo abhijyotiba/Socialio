@@ -101,7 +101,7 @@ export default function BrandSettingsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
           Settings
         </p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
           Brand settings
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">
@@ -138,28 +138,28 @@ export default function BrandSettingsPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-              <Label htmlFor="brand_name">Brand name *</Label>
-              <Input
-                id="brand_name"
-                required
-                value={form.brand_name}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, brand_name: e.target.value }))
-                }
-                className="h-11 rounded-xl"
-              />
+                <Label htmlFor="brand_name">Brand name *</Label>
+                <Input
+                  id="brand_name"
+                  required
+                  value={form.brand_name}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, brand_name: e.target.value }))
+                  }
+                  className="h-11 rounded-xl"
+                />
               </div>
 
               <div className="space-y-2">
-              <Label htmlFor="industry">Industry</Label>
-              <Input
-                id="industry"
-                value={form.industry}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, industry: e.target.value }))
-                }
-                className="h-11 rounded-xl"
-              />
+                <Label htmlFor="industry">Industry</Label>
+                <Input
+                  id="industry"
+                  value={form.industry}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, industry: e.target.value }))
+                  }
+                  className="h-11 rounded-xl"
+                />
               </div>
             </div>
 

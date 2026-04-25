@@ -44,7 +44,7 @@ export default async function ConnectionsPage({
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
           Settings
         </p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
           Connected accounts
         </h1>
         <p className="mt-1.5 text-sm text-slate-500">
