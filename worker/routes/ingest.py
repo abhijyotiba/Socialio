@@ -1,7 +1,7 @@
 import time
 from typing import Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from auth import verify_hmac
@@ -53,7 +53,10 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
         )
 
     t0 = _ms()
-    html = await scrape.fetch_html(req.source_url or "")
+    try:
+        html = await scrape.fetch_html(req.source_url or "")
+    except scrape.ScrapeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     t1 = _ms()
 
     extracted = extract.parse(html, base_url=req.source_url or "")
