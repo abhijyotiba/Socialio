@@ -50,7 +50,7 @@ export async function POST(
   if (variant.workspace_id !== workspace.workspace_id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!["draft", "failed"].includes(variant.status)) {
+  if (!["draft", "failed", "scheduled"].includes(variant.status)) {
     return NextResponse.json(
       { error: `Cannot schedule a variant with status '${variant.status}'` },
       { status: 409 }

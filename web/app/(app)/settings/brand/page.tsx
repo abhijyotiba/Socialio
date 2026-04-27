@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Loader2, CheckCheck, AlertCircle, X, Palette } from "lucide-react";
 
 interface BrandFormData {
   brand_name: string;
@@ -19,6 +9,15 @@ interface BrandFormData {
   website_url: string;
   tone_tags: string[];
   system_prompt: string;
+}
+
+function SectionHeader({ label, description }: { label: string; description?: string }) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-sm font-bold text-slate-800">{label}</h2>
+      {description && <p className="mt-0.5 text-xs text-slate-400">{description}</p>}
+    </div>
+  );
 }
 
 export default function BrandSettingsPage() {
@@ -31,6 +30,7 @@ export default function BrandSettingsPage() {
   });
   const [toneInput, setToneInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -48,7 +48,8 @@ export default function BrandSettingsPage() {
           system_prompt: data.custom_system_prompt ?? "",
         });
       })
-      .catch(() => setFetchError("Failed to load brand settings."));
+      .catch(() => setFetchError("Failed to load brand settings."))
+      .finally(() => setFetching(false));
   }, []);
 
   function addToneTag() {
@@ -60,10 +61,7 @@ export default function BrandSettingsPage() {
   }
 
   function removeToneTag(tag: string) {
-    setForm((prev) => ({
-      ...prev,
-      tone_tags: prev.tone_tags.filter((t) => t !== tag),
-    }));
+    setForm((prev) => ({ ...prev, tone_tags: prev.tone_tags.filter((t) => t !== tag) }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -71,180 +69,202 @@ export default function BrandSettingsPage() {
     setSaveError(null);
     setSaved(false);
     setLoading(true);
-
-    const res = await fetch("/api/brand/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        brand_name: form.brand_name,
-        industry: form.industry || undefined,
-        website_url: form.website_url || undefined,
-        tone_tags: form.tone_tags,
-        system_prompt: form.system_prompt,
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setSaveError(body.error ?? "Save failed. Please try again.");
+    try {
+      const res = await fetch("/api/brand/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brand_name: form.brand_name,
+          industry: form.industry || undefined,
+          website_url: form.website_url || undefined,
+          tone_tags: form.tone_tags,
+          system_prompt: form.system_prompt,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setSaveError(body.error ?? "Save failed. Please try again.");
+        return;
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
       setLoading(false);
-      return;
     }
+  }
 
-    setSaved(true);
-    setLoading(false);
+  if (fetching) {
+    return (
+      <div className="flex h-48 items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-          Settings
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
-          Brand settings
-        </h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          Changing the system prompt creates a new version — previous posts keep
-          their original prompt.
-        </p>
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+          <Palette className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Brand Settings</h1>
+          <p className="text-xs text-slate-400">
+            Changes to the system prompt create a new version — old posts keep their original.
+          </p>
+        </div>
       </div>
 
       {fetchError && (
-        <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {fetchError}
-        </p>
+        <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+          <p className="text-sm text-red-600">{fetchError}</p>
+        </div>
       )}
 
-      <Card className="overflow-hidden rounded-3xl border-slate-200/80 shadow-none">
-        <CardHeader className="border-b border-slate-100 pb-5">
-          <CardTitle className="text-xl font-bold">Brand profile</CardTitle>
-          <CardDescription>
-            Basic info used to tailor AI-generated content.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {saveError && (
-              <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                {saveError}
-              </p>
-            )}
-            {saved && (
-              <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                Saved successfully.
-              </p>
-            )}
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="brand_name">Brand name *</Label>
-                <Input
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Brand profile */}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+          <SectionHeader label="Brand Profile" description="Basic info used to tailor AI-generated content." />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600" htmlFor="brand_name">
+                  Brand Name <span className="text-red-400">*</span>
+                </label>
+                <input
                   id="brand_name"
                   required
                   value={form.brand_name}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, brand_name: e.target.value }))
-                  }
-                  className="h-11 rounded-xl"
+                  onChange={(e) => setForm((p) => ({ ...p, brand_name: e.target.value }))}
+                  placeholder="Acme Inc."
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="industry">Industry</Label>
-                <Input
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-600" htmlFor="industry">
+                  Industry
+                </label>
+                <input
                   id="industry"
                   value={form.industry}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, industry: e.target.value }))
-                  }
-                  className="h-11 rounded-xl"
+                  onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value }))}
+                  placeholder="SaaS, E-commerce, Finance…"
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="website_url">Website URL</Label>
-              <Input
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-600" htmlFor="website_url">
+                Website URL
+              </label>
+              <input
                 id="website_url"
                 type="url"
                 value={form.website_url}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, website_url: e.target.value }))
-                }
-                className="h-11 rounded-xl"
+                onChange={(e) => setForm((p) => ({ ...p, website_url: e.target.value }))}
+                placeholder="https://yourwebsite.com"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
             </div>
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label>Tone tags</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add a tag…"
-                  value={toneInput}
-                  onChange={(e) => setToneInput(e.target.value)}
-                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                    if (e.key === "Enter" || e.key === ",") {
-                      e.preventDefault();
-                      addToneTag();
-                    }
-                  }}
-                  className="h-11 rounded-xl"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addToneTag}
-                  className="h-11 rounded-xl"
-                >
-                  Add
-                </Button>
-              </div>
-              {form.tone_tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {form.tone_tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeToneTag(tag)}
-                        className="text-slate-400 hover:text-slate-700"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="system_prompt">System prompt *</Label>
-              <Textarea
-                id="system_prompt"
-                rows={6}
-                required
-                value={form.system_prompt}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, system_prompt: e.target.value }))
+        {/* Tone tags */}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+          <SectionHeader label="Tone Tags" description="Keywords that shape the voice of generated content." />
+          <div className="flex gap-2">
+            <input
+              placeholder="e.g. professional, witty, concise…"
+              value={toneInput}
+              onChange={(e) => setToneInput(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  addToneTag();
                 }
-                className="min-h-36 rounded-2xl"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="h-11 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 font-semibold text-white hover:opacity-95"
+              }}
+              className="h-10 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+            <button
+              type="button"
+              onClick={addToneTag}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600"
             >
-              {loading ? "Saving…" : "Save changes"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              Add
+            </button>
+          </div>
+          {form.tone_tags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {form.tone_tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeToneTag(tag)}
+                    className="text-indigo-400 transition hover:text-indigo-700"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {form.tone_tags.length === 0 && (
+            <p className="mt-2 text-xs text-slate-400">No tags yet. Type a tag and press Enter or comma.</p>
+          )}
+        </div>
+
+        {/* System prompt */}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+          <SectionHeader
+            label="System Prompt"
+            description="Instructions that guide every AI-generated post. Saving creates a new version."
+          />
+          <textarea
+            id="system_prompt"
+            rows={7}
+            required
+            value={form.system_prompt}
+            onChange={(e) => setForm((p) => ({ ...p, system_prompt: e.target.value }))}
+            placeholder="You are a content writer for {brand_name}. Write in a professional but approachable tone…"
+            className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          />
+          <p className="mt-1.5 text-[11px] text-slate-400">
+            {form.system_prompt.length.toLocaleString()} characters
+          </p>
+        </div>
+
+        {/* Feedback */}
+        {saveError && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+            <p className="text-sm text-red-600">{saveError}</p>
+          </div>
+        )}
+        {saved && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 animate-message-in">
+            <CheckCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+            <p className="text-sm font-medium text-emerald-700">Brand settings saved successfully.</p>
+          </div>
+        )}
+
+        {/* Save button */}
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={loading}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {loading ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -1,18 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Clock, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Clock, Plus, Trash2, Loader2, X, ChevronDown } from "lucide-react";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = [0, 30];
 
@@ -33,18 +24,15 @@ interface Slot {
   is_active: boolean;
 }
 
-interface AddSlotFormProps {
+function AddSlotForm({ platform, onAdded, onCancel }: {
   platform: "linkedin" | "x";
   onAdded: () => void;
-}
-
-function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
+  onCancel: () => void;
+}) {
   const [hour, setHour] = useState(9);
   const [minute, setMinute] = useState<0 | 30>(0);
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5]);
-  const [timezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone
-  );
+  const [timezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,10 +44,7 @@ function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (days.length === 0) {
-      setError("Select at least one day.");
-      return;
-    }
+    if (days.length === 0) { setError("Select at least one day."); return; }
     setSaving(true);
     setError(null);
     try {
@@ -83,47 +68,62 @@ function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-4 space-y-5 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4"
+      className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-4"
     >
-      <p className="text-sm font-semibold text-slate-800">Add custom slot</p>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={hour}
-          onChange={(e) => setHour(Number(e.target.value))}
-          className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900"
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-slate-700">New time slot</p>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition"
         >
-          {HOURS.map((h) => (
-            <option key={h} value={h}>
-              {h.toString().padStart(2, "0")}
-            </option>
-          ))}
-        </select>
-        <span className="text-slate-500">:</span>
-        <select
-          value={minute}
-          onChange={(e) => setMinute(Number(e.target.value) as 0 | 30)}
-          className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900"
-        >
-          {MINUTES.map((m) => (
-            <option key={m} value={m}>
-              {m === 0 ? "00" : "30"}
-            </option>
-          ))}
-        </select>
-        <span className="rounded-lg bg-white px-2 py-1 text-xs text-slate-500">{timezone}</span>
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Time pickers */}
+      <div className="flex items-center gap-2">
+        <div className="relative">
+          <select
+            value={hour}
+            onChange={(e) => setHour(Number(e.target.value))}
+            className="h-9 appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-sm font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          >
+            {HOURS.map((h) => (
+              <option key={h} value={h}>{h.toString().padStart(2, "0")}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+        </div>
+        <span className="text-sm font-bold text-slate-400">:</span>
+        <div className="relative">
+          <select
+            value={minute}
+            onChange={(e) => setMinute(Number(e.target.value) as 0 | 30)}
+            className="h-9 appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-sm font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          >
+            {MINUTES.map((m) => (
+              <option key={m} value={m}>{m === 0 ? "00" : "30"}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+        </div>
+        <span className="rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] font-medium text-slate-500">
+          {timezone}
+        </span>
+      </div>
+
+      {/* Day toggles */}
+      <div className="flex flex-wrap gap-1.5">
         {DAY_LABELS.map((label, i) => (
           <button
             key={i}
             type="button"
             onClick={() => toggleDay(i)}
-            className={`h-9 rounded-xl border px-3 text-xs font-semibold transition-colors ${
+            className={`h-8 min-w-[2.5rem] rounded-lg px-2.5 text-xs font-bold transition-all ${
               days.includes(i)
-                ? "border-indigo-500 bg-indigo-600 text-white"
-                : "border-slate-300 bg-white text-slate-600 hover:border-indigo-300"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "border border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600"
             }`}
           >
             {label}
@@ -133,26 +133,19 @@ function AddSlotForm({ platform, onAdded }: AddSlotFormProps) {
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      <div className="flex gap-2">
-        <Button
-          type="submit"
-          size="sm"
-          disabled={saving}
-          className="h-10 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 font-semibold text-white hover:opacity-95"
-        >
-          {saving ? "Adding…" : "Add slot"}
-        </Button>
-      </div>
+      <button
+        type="submit"
+        disabled={saving}
+        className="inline-flex h-9 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+      >
+        {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+        {saving ? "Adding…" : "Add slot"}
+      </button>
     </form>
   );
 }
 
-interface PlatformSectionProps {
-  platform: "linkedin" | "x";
-  label: string;
-}
-
-function PlatformSection({ platform, label }: PlatformSectionProps) {
+function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; label: string }) {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [nextTimes, setNextTimes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -187,148 +180,158 @@ function PlatformSection({ platform, label }: PlatformSectionProps) {
     }
   }
 
+  const isLinkedIn = platform === "linkedin";
+
   return (
-    <Card className="overflow-hidden rounded-3xl border-slate-200/80 shadow-none">
-      <CardHeader className="border-b border-slate-100 pb-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                platform === "linkedin"
-                  ? "bg-[#eef6ff] text-[#0077b5]"
-                  : "bg-slate-100 text-slate-800"
-              }`}
-            >
-              <span className="text-sm font-black">{platform === "linkedin" ? "in" : "X"}</span>
-            </div>
-            <div>
-              <CardTitle className="text-lg font-bold">{label} Schedule</CardTitle>
-              <CardDescription>{slots.length} active time slots</CardDescription>
-            </div>
+    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+      {/* Section header */}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ${
+              isLinkedIn ? "bg-[#0077b5]" : "bg-slate-900"
+            }`}
+          >
+            {isLinkedIn ? (
+              <svg className="h-4.5 w-4.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+              </svg>
+            ) : (
+              <svg className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L1.254 2.25H8.08l4.258 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
+              </svg>
+            )}
           </div>
-          {!showForm ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowForm(true)}
-              className="h-9 rounded-xl px-3 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
-            >
-              <Plus className="mr-1 h-4 w-4" /> Add
-            </Button>
-          ) : null}
-        </div>
-
-      </CardHeader>
-      <CardContent className="space-y-3 p-0">
-        <div className="px-6 pt-4">
-          <CardDescription>
-            Configure preferred posting times for {label}.
-          </CardDescription>
-        </div>
-
-        <div className="px-6 pb-1">
-          {loading ? (
-            <p className="text-sm text-slate-500">Loading…</p>
-          ) : slots.length === 0 ? (
-            <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              No slots configured. Add one below.
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">{label}</h2>
+            <p className="text-[11px] text-slate-400">
+              {loading ? "Loading…" : `${slots.length} active slot${slots.length !== 1 ? "s" : ""}`}
             </p>
-          ) : (
-            <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200/80 bg-white">
-              {slots.map((slot) => (
-                <li key={slot.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-slate-900">
-                      <Clock className="h-4 w-4 text-slate-400" />
-                      <span className="font-bold">{formatHour(slot.hour, slot.minute)}</span>
-                      <span className="text-xs text-slate-400">{slot.timezone}</span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {slot.days_of_week.map((d) => (
-                        <span
-                          key={`${slot.id}-${d}`}
-                          className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500"
-                        >
-                          {DAY_LABELS[d]}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(slot.id)}
-                    disabled={deletingId === slot.id}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
-                    title="Remove slot"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {nextTimes.length > 0 && (
-          <div className="mx-6 rounded-xl border border-slate-200/80 bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
-              Next upcoming slots
-            </p>
-            <ul className="space-y-0.5">
-              {nextTimes.slice(0, 3).map((t) => (
-                <li key={t} className="text-xs text-slate-500">
-                  {new Date(t).toLocaleString(undefined, {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </li>
-              ))}
-            </ul>
           </div>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add slot
+          </button>
         )}
+      </div>
 
-        <div className="px-6 pb-6">
-          {showForm ? (
-            <AddSlotForm
-              platform={platform}
-              onAdded={async () => {
-                setShowForm(false);
-                await load();
-              }}
-            />
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowForm(true)}
-              className="mt-2 h-10 rounded-xl"
-            >
-              <Plus className="mr-1 h-4 w-4" /> Add slot
-            </Button>
-          )}
+      {/* Slots list */}
+      {loading ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
-      </CardContent>
-    </Card>
+      ) : slots.length === 0 && !showForm ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-8 text-center">
+          <Clock className="mb-2 h-5 w-5 text-slate-300" />
+          <p className="text-xs font-medium text-slate-500">No time slots configured</p>
+          <button
+            onClick={() => setShowForm(true)}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+          >
+            <Plus className="h-3 w-3" />
+            Add first slot
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {slots.map((slot) => (
+            <div
+              key={slot.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="text-sm font-bold text-slate-800">
+                    {formatHour(slot.hour, slot.minute)}
+                  </span>
+                </div>
+                <div className="h-3.5 w-px bg-slate-200 shrink-0" />
+                <div className="flex flex-wrap gap-1 min-w-0">
+                  {slot.days_of_week.map((d) => (
+                    <span
+                      key={`${slot.id}-${d}`}
+                      className="rounded-md bg-white border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                    >
+                      {DAY_LABELS[d]}
+                    </span>
+                  ))}
+                </div>
+                <span className="shrink-0 text-[10px] text-slate-400 hidden sm:block">
+                  {slot.timezone}
+                </span>
+              </div>
+              <button
+                onClick={() => handleDelete(slot.id)}
+                disabled={deletingId === slot.id}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                title="Remove slot"
+              >
+                {deletingId === slot.id
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Trash2 className="h-3.5 w-3.5" />
+                }
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add form */}
+      {showForm && (
+        <AddSlotForm
+          platform={platform}
+          onAdded={async () => { setShowForm(false); await load(); }}
+          onCancel={() => setShowForm(false)}
+        />
+      )}
+
+      {/* Next upcoming slots */}
+      {nextTimes.length > 0 && !showForm && (
+        <div className="mt-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+            Next upcoming
+          </p>
+          <ul className="space-y-0.5">
+            {nextTimes.slice(0, 3).map((t) => (
+              <li key={t} className="text-xs text-slate-500">
+                {new Date(t).toLocaleString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function PostingSchedulePage() {
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-          Settings
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
-          Posting Schedule
-        </h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          Define your preferred posting times. When scheduling a post, these
-          slots appear as one-click options.
-        </p>
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+          <CalendarClock className="h-5 w-5" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Posting Schedule</h1>
+          <p className="text-xs text-slate-400">
+            Define preferred posting times — these appear as one-click options when scheduling.
+          </p>
+        </div>
       </div>
+
       <PlatformSection platform="linkedin" label="LinkedIn" />
       <PlatformSection platform="x" label="X / Twitter" />
     </div>
