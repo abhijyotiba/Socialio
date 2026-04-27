@@ -1,30 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { VariantCard } from "./_components/VariantCard";
-import { Loader2, Sparkles, Link2, Type } from "lucide-react";
+import { TypingIndicator } from "./_components/TypingIndicator";
+import { UserBubble } from "./_components/UserBubble";
+import { AiMessage } from "./_components/AiMessage";
+import { ExtractionCard } from "./_components/ExtractionCard";
+import { ChatInput } from "./_components/ChatInput";
 
-type IngestState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
+type Media = { cloudinary_url: string; cloudinary_id: string };
+type Variant = { id: string; platform: string; body: string };
+
+type ChatMessage =
+  | { id: string; type: "user"; text: string; isUrl: boolean }
+  | { id: string; type: "ai-typing"; label: string }
   | {
-      kind: "success";
+      id: string;
+      type: "ai-extracted";
       jobId: string;
       title: string;
       text: string;
-      media: { cloudinary_url: string; cloudinary_id: string }[];
-    };
-
-type GenerateState =
-  | { kind: "idle" }
-  | { kind: "loading"; stage: string }
-  | { kind: "error"; message: string }
-  | {
-      kind: "success";
-      variants: { id: string; platform: string; body: string }[];
-    };
+      media: Media[];
+      generationError?: string;
+      generated?: boolean;
+    }
+  | { id: string; type: "ai-generating"; jobId: string; stage: string }
+  | { id: string; type: "ai-variants"; variants: Variant[]; jobId: string }
+  | { id: string; type: "ai-error"; message: string };
 
 const STAGE_LABELS: Record<string, string> = {
   analyzing: "Analyzing content…",
@@ -33,31 +36,45 @@ const STAGE_LABELS: Record<string, string> = {
   done: "Done!",
 };
 
+let _uid = 0;
+function uid() {
+  return `msg-${++_uid}`;
+}
+
 export default function ChatPage() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [ingest, setIngest] = useState<IngestState>({ kind: "idle" });
-  const [gen, setGen] = useState<GenerateState>({ kind: "idle" });
-  const [showMore, setShowMore] = useState(false);
   const [platforms, setPlatforms] = useState<("linkedin" | "x")[]>(["linkedin"]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (ingest.kind !== "success" || gen.kind !== "loading") return;
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    if (!activeJobId || !isGenerating) return;
     const supabase = createBrowserSupabase();
-    const jobId = ingest.jobId;
     const channel = supabase
-      .channel(`gen-${jobId}`)
+      .channel(`gen-${activeJobId}`)
       .on(
         "postgres_changes",
         {
           event: "UPDATE",
           schema: "public",
           table: "ingestion_jobs",
-          filter: `id=eq.${jobId}`,
+          filter: `id=eq.${activeJobId}`,
         },
         (payload) => {
           const stage = (payload.new as { stage: string }).stage;
-          setGen((prev) =>
-            prev.kind === "loading" ? { kind: "loading", stage } : prev
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.type === "ai-generating" && m.jobId === activeJobId
+                ? { ...m, stage }
+                : m
+            )
           );
         }
       )
@@ -65,61 +82,114 @@ export default function ChatPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [ingest, gen.kind]);
+  }, [activeJobId, isGenerating]);
 
-  async function handleIngest(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim()) return;
-    const isUrl =
-      input.trim().startsWith("http://") || input.trim().startsWith("https://");
-    setIngest({ kind: "loading" });
-    setGen({ kind: "idle" });
-    setShowMore(false);
+  function addMessage(msg: ChatMessage) {
+    setMessages((prev) => [...prev, msg]);
+  }
+
+  function replaceMessage(id: string, msg: ChatMessage) {
+    setMessages((prev) => prev.map((m) => (m.id === id ? msg : m)));
+  }
+
+  async function handleSubmit() {
+    const text = input.trim();
+    if (!text || isExtracting || isGenerating) return;
+    const isUrl = text.startsWith("http://") || text.startsWith("https://");
+    setInput("");
+    setIsExtracting(true);
+
+    const userId = uid();
+    const typingId = uid();
+    addMessage({ id: userId, type: "user", text, isUrl });
+    addMessage({ id: typingId, type: "ai-typing", label: "Extracting content" });
+
     try {
       const res = await fetch("/api/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           source_type: isUrl ? "url" : "text",
-          ...(isUrl
-            ? { source_url: input.trim() }
-            : { source_text: input.trim() }),
+          ...(isUrl ? { source_url: text } : { source_text: text }),
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setIngest({ kind: "error", message: data.error ?? "Extraction failed." });
+        replaceMessage(typingId, {
+          id: typingId,
+          type: "ai-error",
+          message: data.error ?? "Extraction failed.",
+        });
         return;
       }
-      setIngest({
-        kind: "success",
+      setActiveJobId(data.job_id);
+      replaceMessage(typingId, {
+        id: typingId,
+        type: "ai-extracted",
         jobId: data.job_id,
         title: data.extracted_title,
         text: data.extracted_text,
         media: data.media,
       });
     } catch {
-      setIngest({ kind: "error", message: "Network error. Please try again." });
+      replaceMessage(typingId, {
+        id: typingId,
+        type: "ai-error",
+        message: "Network error. Please try again.",
+      });
+    } finally {
+      setIsExtracting(false);
     }
   }
 
-  async function handleGenerate() {
-    if (ingest.kind !== "success" || platforms.length === 0) return;
-    setGen({ kind: "loading", stage: "analyzing" });
+  async function handleGenerate(jobId: string) {
+    if (platforms.length === 0 || isGenerating) return;
+    setIsGenerating(true);
+
+    const generatingId = uid();
+    addMessage({ id: generatingId, type: "ai-generating", jobId, stage: "analyzing" });
+
     try {
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingestion_job_id: ingest.jobId, platforms }),
+        body: JSON.stringify({ ingestion_job_id: jobId, platforms }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setGen({ kind: "error", message: data.error ?? "Generation failed." });
+        setMessages((prev) =>
+          prev
+            .filter((m) => m.id !== generatingId)
+            .map((m) =>
+              m.type === "ai-extracted" && m.jobId === jobId
+                ? { ...m, generationError: data.error ?? "Generation failed." }
+                : m
+            )
+        );
         return;
       }
-      setGen({ kind: "success", variants: data.variants });
+      setMessages((prev) =>
+        prev
+          .map((m) =>
+            m.id === generatingId
+              ? ({ id: generatingId, type: "ai-variants", variants: data.variants, jobId } as ChatMessage)
+              : m.type === "ai-extracted" && m.jobId === jobId
+                ? { ...m, generated: true }
+                : m
+          )
+      );
     } catch {
-      setGen({ kind: "error", message: "Network error. Please try again." });
+      setMessages((prev) =>
+        prev
+          .filter((m) => m.id !== generatingId)
+          .map((m) =>
+            m.type === "ai-extracted" && m.jobId === jobId
+              ? { ...m, generationError: "Network error. Please try again." }
+              : m
+          )
+      );
+    } finally {
+      setIsGenerating(false);
     }
   }
 
@@ -129,200 +199,134 @@ export default function ChatPage() {
     );
   }
 
-  const isExtractionLoading = ingest.kind === "loading";
-  const isGenerationLoading = gen.kind === "loading";
-  const extractionDone = ingest.kind === "success";
-  const isUrl =
-    input.trim().startsWith("http://") || input.trim().startsWith("https://");
+  const isBusy = isExtracting || isGenerating;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
-      <div className="rounded-3xl border border-slate-200/70 bg-white/95 p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">
-          Content studio
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
-          New Post
-        </h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          Paste a URL or share an idea. SocialOS will extract context and draft platform-ready posts.
-        </p>
+    <div className="flex h-full flex-col">
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 shadow-sm shadow-indigo-500/30">
+            <svg className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 leading-tight">Content Studio</h1>
+            <p className="text-[11px] text-slate-400 leading-tight">Paste a URL or share an idea to generate posts</p>
+          </div>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-sm">
-        <form onSubmit={handleIngest}>
-          <div className="flex items-center gap-1.5 px-5 pb-2 pt-5">
-            {isUrl ? (
-              <Link2 className="h-3.5 w-3.5 text-indigo-500" />
-            ) : (
-              <Type className="h-3.5 w-3.5 text-slate-400" />
-            )}
-            <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-              {isUrl ? "URL detected" : "Free text"}
-            </span>
+      {/* Messages */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-center px-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-md shadow-indigo-500/30">
+              <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <p className="mt-4 text-base font-bold text-slate-800">
+              What would you like to post about?
+            </p>
+            <p className="mt-1 max-w-xs text-sm text-slate-400">
+              Paste a URL or share an idea. SocialOS will draft platform-ready posts in seconds.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {[
+                "Paste a blog URL",
+                "Share a product launch idea",
+                "Summarise a YouTube video",
+              ].map((hint) => (
+                <button
+                  key={hint}
+                  onClick={() => setInput(hint)}
+                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600"
+                >
+                  {hint}
+                </button>
+              ))}
+            </div>
           </div>
-
-          <textarea
-            className="min-h-[150px] w-full resize-none bg-transparent px-5 py-2 text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none"
-            placeholder="Paste a URL or describe what you want to post about…"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isExtractionLoading || isGenerationLoading}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault();
-                handleIngest(e as unknown as React.FormEvent);
+        ) : (
+          <div className="space-y-4 py-2 pr-1">
+            {messages.map((msg) => {
+              if (msg.type === "user") {
+                return (
+                  <UserBubble key={msg.id} text={msg.text} isUrl={msg.isUrl} />
+                );
               }
-            }}
-          />
-
-          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/70 px-5 py-3">
-            <span className="text-[11px] text-slate-400">
-              ⌘ + Enter to extract
-            </span>
-            <button
-              type="submit"
-              disabled={isExtractionLoading || isGenerationLoading || !input.trim()}
-              className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-40"
-            >
-              {isExtractionLoading ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Extracting…
-                </>
-              ) : (
-                "Extract"
-              )}
-            </button>
+              if (msg.type === "ai-typing") {
+                return (
+                  <TypingIndicator key={msg.id} label={msg.label} />
+                );
+              }
+              if (msg.type === "ai-error") {
+                return (
+                  <AiMessage key={msg.id}>
+                    <p className="text-sm text-red-600">{msg.message}</p>
+                  </AiMessage>
+                );
+              }
+              if (msg.type === "ai-extracted") {
+                return (
+                  <ExtractionCard
+                    key={msg.id}
+                    title={msg.title}
+                    text={msg.text}
+                    media={msg.media}
+                    platforms={platforms}
+                    onTogglePlatform={togglePlatform}
+                    onGenerate={() => handleGenerate(msg.jobId)}
+                    generationError={msg.generationError}
+                    generated={msg.generated}
+                  />
+                );
+              }
+              if (msg.type === "ai-generating") {
+                return (
+                  <TypingIndicator
+                    key={msg.id}
+                    label={STAGE_LABELS[msg.stage] ?? "Generating…"}
+                  />
+                );
+              }
+              if (msg.type === "ai-variants") {
+                return (
+                  <div key={msg.id} className="space-y-3 animate-message-in">
+                    <AiMessage>
+                      <p className="text-sm font-medium text-slate-700">
+                        Here are your drafts — ready to publish or schedule.
+                      </p>
+                    </AiMessage>
+                    {msg.variants.map((v, i) => (
+                      <div
+                        key={v.id}
+                        className="pl-11 animate-message-in"
+                        style={{ animationDelay: `${i * 0.08}s` }}
+                      >
+                        <VariantCard variant={v} jobId={msg.jobId} />
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+              return null;
+            })}
+            <div ref={bottomRef} />
           </div>
-        </form>
+        )}
       </div>
 
-      {ingest.kind === "error" && (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {ingest.message}
-        </p>
-      )}
-
-      {extractionDone && ingest.kind === "success" && (
-        <div className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Extracted Content
-            </p>
-            {ingest.title && (
-              <p className="mb-1.5 text-sm font-bold text-slate-900">
-                {ingest.title}
-              </p>
-            )}
-            {ingest.text && (
-              <div className="text-sm leading-relaxed text-slate-600">
-                <p>
-                  {showMore ? ingest.text : ingest.text.slice(0, 400)}
-                  {ingest.text.length > 400 && !showMore && "…"}
-                </p>
-                {ingest.text.length > 400 && (
-                  <button
-                    className="mt-1.5 text-xs font-medium text-indigo-600"
-                    onClick={() => setShowMore((v) => !v)}
-                  >
-                    {showMore ? "Show less" : "Show more"}
-                  </button>
-                )}
-              </div>
-            )}
-            {ingest.media.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {ingest.media.map((m) => (
-                  <a
-                    key={m.cloudinary_id}
-                    href={m.cloudinary_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={m.cloudinary_url}
-                      alt=""
-                      className="h-16 w-16 rounded-xl border border-slate-200 object-cover"
-                    />
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {(gen.kind === "idle" || gen.kind === "error") && (
-            <div className="space-y-3 px-5 py-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                Generate for
-              </p>
-              <div className="flex gap-2">
-                {(["linkedin", "x"] as const).map((p) => {
-                  const active = platforms.includes(p);
-                  const styles =
-                      p === "linkedin"
-                        ? active
-                          ? "bg-[#0077b5] text-white border-[#0077b5]"
-                          : "border-slate-200 text-slate-500 hover:border-[#0077b5] hover:text-[#0077b5]"
-                        : active
-                          ? "border-black bg-black text-white"
-                          : "border-slate-200 text-slate-500 hover:border-black hover:text-black";
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => togglePlatform(p)}
-                      className={`flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition ${styles}`}
-                    >
-                      {p === "linkedin" ? "LinkedIn" : "X / Twitter"}
-                    </button>
-                  );
-                })}
-              </div>
-              {gen.kind === "error" && (
-                <p className="text-sm text-red-600">{gen.message}</p>
-              )}
-              <button
-                onClick={handleGenerate}
-                disabled={platforms.length === 0}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_28px_-16px_rgba(79,70,229,0.9)] transition hover:opacity-95 disabled:opacity-40"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Generate post
-              </button>
-            </div>
-          )}
-
-          {gen.kind === "loading" && (
-            <div className="flex items-center gap-3 px-5 py-4">
-              <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-              <span className="text-sm font-medium text-slate-600">
-                {STAGE_LABELS[gen.stage] ?? "Generating…"}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {gen.kind === "success" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Generated Drafts
-            </p>
-            <button
-              onClick={() => setGen({ kind: "idle" })}
-              className="text-xs font-medium text-indigo-600 hover:underline"
-            >
-              Regenerate
-            </button>
-          </div>
-          {gen.variants.map((v) => (
-            <VariantCard key={v.id} variant={v} jobId={ingest.kind === "success" ? ingest.jobId : undefined} />
-          ))}
-        </div>
-      )}
+      {/* Input bar */}
+      <ChatInput
+        value={input}
+        onChange={setInput}
+        onSubmit={handleSubmit}
+        disabled={isBusy}
+        isLoading={isExtracting}
+      />
     </div>
   );
 }

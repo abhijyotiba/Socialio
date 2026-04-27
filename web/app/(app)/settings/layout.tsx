@@ -8,7 +8,7 @@ const navItems = [
   {
     href: "/settings/brand",
     label: "Brand",
-    description: "Voice, profile, and prompt",
+    description: "Voice, profile & prompt",
     icon: Palette,
   },
   {
@@ -33,55 +33,59 @@ export default function SettingsLayout({
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 lg:flex-row">
-      <nav className="w-full shrink-0 lg:w-[280px]">
-        <div className="rounded-3xl border border-slate-200/75 bg-white/85 p-4 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.45)] backdrop-blur-sm">
-          <div className="mb-4 flex items-center gap-3 px-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 lg:flex-row lg:items-start">
+      {/* Sidebar nav */}
+      <nav className="w-full shrink-0 lg:w-60">
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-2 shadow-sm">
+          <div className="mb-2 flex items-center gap-2.5 px-3 pt-2 pb-3 border-b border-slate-100">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
               <Settings2 className="h-4 w-4" />
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                 Workspace
               </p>
-              <p className="text-sm font-bold text-slate-900">Settings</p>
+              <p className="text-sm font-bold text-slate-900 leading-tight">Settings</p>
             </div>
           </div>
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
             {navItems.map((item) => {
               const active = pathname === item.href;
               const Icon = item.icon;
-
               return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`group flex items-center gap-3 rounded-2xl px-3 py-3 transition ${
-                    active
-                      ? "bg-indigo-50 text-indigo-700 shadow-[inset_0_0_0_1px_rgba(99,102,241,0.2)]"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
-                >
-                  <div
-                    className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition ${
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
                       active
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "bg-slate-100 text-slate-500 group-hover:bg-white group-hover:text-slate-700"
+                        ? "bg-indigo-50 text-indigo-700"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{item.label}</p>
-                    <p className="truncate text-xs text-slate-400">{item.description}</p>
-                  </div>
-                </Link>
-              </li>
+                    <div
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition ${
+                        active
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`truncate text-sm font-semibold ${active ? "text-indigo-700" : ""}`}>
+                        {item.label}
+                      </p>
+                      <p className="truncate text-[11px] text-slate-400">{item.description}</p>
+                    </div>
+                  </Link>
+                </li>
               );
             })}
           </ul>
         </div>
       </nav>
+
+      {/* Page content */}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
