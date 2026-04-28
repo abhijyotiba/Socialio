@@ -25,6 +25,10 @@ Every table has Row Level Security enabled. Every table's policies are documente
   - `content_items`
   - `post_variants`
 - Phase 4 — Publishing *(to be added)*
+- [Phase 7 — Voice & Refinement](#phase-7--voice--refinement)
+  - `brand_configs.voice_profile` *(extension)*
+  - `prompt_versions.source` *(extension)*
+  - `post_variant_revisions`
 
 ---
 
@@ -370,6 +374,56 @@ One row per workspace × platform × time slot. Stores the user's preferred post
 
 ---
 
+## Phase 7 — Voice & Refinement
+
+Migrations: `supabase/migrations/0012_voice_profile.sql`, `supabase/migrations/0013_post_variant_revisions.sql`
+
+### `brand_configs.voice_profile` *(extension)*
+
+Two new columns on `brand_configs`:
+
+| Column | Type | Notes |
+|---|---|---|
+| `voice_profile` | `JSONB` | Structured voice analysis (length, structure, tone, openers, closers, topics, avoid). The schema-of-record is `worker/pipeline/voice_profile.py:VoiceProfile`. NULL means the workspace has not run voice analysis. |
+| `voice_profile_updated_at` | `TIMESTAMPTZ` | Last successful analyze. NULL while `voice_profile` is NULL. |
+
+Existing `brand_configs` RLS policies (`brand_configs_member_select / insert / update`) cover these columns. No new policies.
+
+### `prompt_versions.source` *(extension)*
+
+One new column on `prompt_versions`:
+
+| Column | Type | Notes |
+|---|---|---|
+| `source` | `TEXT` NOT NULL DEFAULT `'manual'` | CHECK `IN ('manual','voice_profile','voice_profile_edited')`. `manual` = user wrote / edited it directly. `voice_profile` = system rendered from a `voice_profile` JSON. `voice_profile_edited` = was rendered from voice profile, then user edited. |
+
+The append-only rule from Phase 1 still applies: never UPDATE a `prompt_versions` row. When the user edits a `voice_profile`-sourced prompt, INSERT a new row with `source='voice_profile_edited'`.
+
+### `post_variant_revisions`
+
+Append-only history of `post_variants.body`. The current body still lives on `post_variants`; this table is the rollback log.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `UUID` PK | `gen_random_uuid()` |
+| `post_variant_id` | `UUID` NOT NULL | FK `post_variants(id)`, cascade delete |
+| `workspace_id` | `UUID` NOT NULL | FK `workspaces(id)`, cascade delete |
+| `revision_number` | `INT` NOT NULL | Monotonically increasing per variant. `1` is the initial generation snapshot. |
+| `body` | `TEXT` NOT NULL | Snapshot of `post_variants.body` at this revision |
+| `instruction` | `TEXT` | NULL on the initial snapshot; otherwise the user's regeneration instruction |
+| `created_at` | `TIMESTAMPTZ` NOT NULL | Default `now()` |
+| — | UNIQUE (`post_variant_id`, `revision_number`) | |
+
+**RLS**
+
+- `post_variant_revisions_member_select` — workspace members can read.
+- `post_variant_revisions_member_insert` — workspace members can insert.
+- No update or delete policies — append-only.
+
+**Index:** `idx_post_variant_revisions_variant` on `(post_variant_id, revision_number DESC)`.
+
+---
+
 ## Conventions for future tables
 
 When adding a new table in later phases, follow these rules unless you have a stated reason not to:
@@ -393,4 +447,4 @@ When adding a new table in later phases, follow these rules unless you have a st
 
 ---
 
-*Last updated: end of Phase 0 scaffolding. Phases 1+ will extend this document in place.*
+*Last updated: Phase 7 — added `brand_configs.voice_profile`, `prompt_versions.source`, `post_variant_revisions` (migrations 0012 and 0013).*

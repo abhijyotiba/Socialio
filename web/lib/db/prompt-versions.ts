@@ -4,10 +4,16 @@ import type { Database } from "@/lib/db/types";
 type PromptVersionRow =
   Database["public"]["Tables"]["prompt_versions"]["Row"];
 
+export type PromptVersionSource =
+  | "manual"
+  | "voice_profile"
+  | "voice_profile_edited";
+
 export async function createPromptVersion(
   workspaceId: string,
   systemPrompt: string,
-  createdBy: string
+  createdBy: string,
+  source: PromptVersionSource = "manual"
 ): Promise<PromptVersionRow> {
   const supabase = await createClient();
 
@@ -28,6 +34,7 @@ export async function createPromptVersion(
       version_number: nextVersion,
       system_prompt: systemPrompt,
       created_by: createdBy,
+      source,
     })
     .select()
     .single();

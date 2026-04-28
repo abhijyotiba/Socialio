@@ -48,6 +48,8 @@ export type Database = {
           industry: string | null
           tone_tags: string[]
           updated_at: string
+          voice_profile: Json | null
+          voice_profile_updated_at: string | null
           website_url: string | null
           workspace_id: string
         }
@@ -59,6 +61,8 @@ export type Database = {
           industry?: string | null
           tone_tags?: string[]
           updated_at?: string
+          voice_profile?: Json | null
+          voice_profile_updated_at?: string | null
           website_url?: string | null
           workspace_id: string
         }
@@ -70,6 +74,8 @@ export type Database = {
           industry?: string | null
           tone_tags?: string[]
           updated_at?: string
+          voice_profile?: Json | null
+          voice_profile_updated_at?: string | null
           website_url?: string | null
           workspace_id?: string
         }
@@ -327,6 +333,51 @@ export type Database = {
           },
         ]
       }
+      post_variant_revisions: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          instruction: string | null
+          post_variant_id: string
+          revision_number: number
+          workspace_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          instruction?: string | null
+          post_variant_id: string
+          revision_number: number
+          workspace_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          instruction?: string | null
+          post_variant_id?: string
+          revision_number?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_variant_revisions_post_variant_id_fkey"
+            columns: ["post_variant_id"]
+            isOneToOne: false
+            referencedRelation: "post_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_variant_revisions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_variants: {
         Row: {
           body: string
@@ -479,6 +530,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          source: string
           system_prompt: string
           version_number: number
           workspace_id: string
@@ -487,6 +539,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          source?: string
           system_prompt: string
           version_number: number
           workspace_id: string
@@ -495,6 +548,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          source?: string
           system_prompt?: string
           version_number?: number
           workspace_id?: string
