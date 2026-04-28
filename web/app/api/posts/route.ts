@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getIngestionJob, updateIngestionJob } from "@/lib/db/ingestion";
 import { getBrandConfig } from "@/lib/db/brand-configs";
+import { getSocialConnection } from "@/lib/db/social-connections";
 import {
   createContentItem,
   updateContentItem,
@@ -63,9 +64,20 @@ export async function POST(request: Request) {
   const brand = await getBrandConfig(workspaceId);
   if (!brand || !brand.custom_system_prompt) {
     return NextResponse.json(
+      { error: "Brand config with system prompt is required before generating" },
+      { status: 409 }
+    );
+  }
+
+  // Reject any platform the workspace hasn't connected yet.
+  const connectionChecks = await Promise.all(
+    platforms.map((p) => getSocialConnection(workspaceId, p))
+  );
+  const disconnected = platforms.filter((_, i) => !connectionChecks[i]);
+  if (disconnected.length > 0) {
+    return NextResponse.json(
       {
-        error:
-          "Brand config with system prompt is required before generating",
+        error: `No connected account for: ${disconnected.join(", ")}. Connect it in Settings → Connections before generating.`,
       },
       { status: 409 }
     );

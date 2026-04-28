@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, ChevronDown, ChevronUp, Image } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, Image, Link2 } from "lucide-react";
 import { AiMessage } from "./AiMessage";
 
 type Media = { cloudinary_url: string; cloudinary_id: string };
@@ -11,6 +11,7 @@ type Props = {
   text: string;
   media: Media[];
   platforms: ("linkedin" | "x")[];
+  connectedPlatforms: ("linkedin" | "x")[];
   onTogglePlatform: (p: "linkedin" | "x") => void;
   onGenerate: () => void;
   generationError?: string;
@@ -45,6 +46,7 @@ export function ExtractionCard({
   text,
   media,
   platforms,
+  connectedPlatforms,
   onTogglePlatform,
   onGenerate,
   generationError,
@@ -107,34 +109,62 @@ export function ExtractionCard({
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
             Generate for
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            {(["linkedin", "x"] as const).map((p) => {
-              const cfg = PLATFORM_CONFIG[p];
-              const active = platforms.includes(p);
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => onTogglePlatform(p)}
-                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition ${
-                    active ? cfg.active : cfg.inactive
-                  }`}
-                >
-                  {cfg.icon}
-                  {cfg.label}
-                </button>
-              );
-            })}
+          {connectedPlatforms.length === 0 ? (
+            <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <Link2 className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+              <p className="text-xs text-amber-700">
+                No platforms connected.{" "}
+                <a href="/settings/connections" className="font-semibold underline hover:text-amber-900">
+                  Connect LinkedIn or X
+                </a>{" "}
+                to generate posts.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {(["linkedin", "x"] as const).map((p) => {
+                const cfg = PLATFORM_CONFIG[p];
+                const connected = connectedPlatforms.includes(p);
+                const active = platforms.includes(p);
+                if (!connected) {
+                  return (
+                    <a
+                      key={p}
+                      href="/settings/connections"
+                      className="flex items-center gap-1.5 rounded-lg border border-dashed border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-400 transition hover:border-slate-400"
+                      title={`Connect ${cfg.label} to generate`}
+                    >
+                      {cfg.icon}
+                      {cfg.label}
+                      <span className="text-[10px] font-normal">· not connected</span>
+                    </a>
+                  );
+                }
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => onTogglePlatform(p)}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition ${
+                      active ? cfg.active : cfg.inactive
+                    }`}
+                  >
+                    {cfg.icon}
+                    {cfg.label}
+                  </button>
+                );
+              })}
 
-            <button
-              onClick={onGenerate}
-              disabled={platforms.length === 0}
-              className="ml-auto flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-40"
-            >
-              <Sparkles className="h-3 w-3" />
-              Generate
-            </button>
-          </div>
+              <button
+                onClick={onGenerate}
+                disabled={platforms.length === 0}
+                className="ml-auto flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-40"
+              >
+                <Sparkles className="h-3 w-3" />
+                Generate
+              </button>
+            </div>
+          )}
           {generationError && (
             <p className="mt-2 text-xs text-red-500">{generationError}</p>
           )}

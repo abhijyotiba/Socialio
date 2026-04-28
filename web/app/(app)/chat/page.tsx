@@ -44,7 +44,8 @@ function uid() {
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [platforms, setPlatforms] = useState<("linkedin" | "x")[]>(["linkedin"]);
+  const [platforms, setPlatforms] = useState<("linkedin" | "x")[]>([]);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<("linkedin" | "x")[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -53,6 +54,19 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    fetch("/api/connections")
+      .then((r) => r.json())
+      .then((data: { connections: { platform: string }[] }) => {
+        const connected = (data.connections ?? [])
+          .map((c) => c.platform)
+          .filter((p): p is "linkedin" | "x" => p === "linkedin" || p === "x");
+        setConnectedPlatforms(connected);
+        setPlatforms(connected);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!activeJobId || !isGenerating) return;
@@ -277,6 +291,7 @@ export default function ChatPage() {
                     text={msg.text}
                     media={msg.media}
                     platforms={platforms}
+                    connectedPlatforms={connectedPlatforms}
                     onTogglePlatform={togglePlatform}
                     onGenerate={() => handleGenerate(msg.jobId)}
                     generationError={msg.generationError}
