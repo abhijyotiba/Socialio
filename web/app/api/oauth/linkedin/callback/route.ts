@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
   if (!savedState || savedState !== state) {
     return NextResponse.json({ error: "Invalid state" }, { status: 400 });
   }
-  cookieStore.delete("linkedin_oauth_state");
 
   const workspace = await getWorkspaceForUser(user.id);
   if (!workspace) {
@@ -49,6 +48,9 @@ export async function GET(request: NextRequest) {
       { status: 502 }
     );
   }
+
+  // Delete only after successful exchange so the user can retry on failure
+  cookieStore.delete("linkedin_oauth_state");
 
   const admin = createAdminClient();
   const accessVaultId = await createSecret(

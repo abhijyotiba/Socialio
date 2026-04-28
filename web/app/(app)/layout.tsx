@@ -20,7 +20,7 @@ export default async function AppLayout({
   }
 
   const headersList = await headers();
-  // x-pathname is set by proxy.ts via NextResponse.next({ request: { headers } }).
+  // x-pathname is set by middleware.ts via NextResponse.next({ request: { headers } }).
   // Fall back to a non-onboarding sentinel only if truly missing so we don't
   // accidentally skip the brand-config check for existing users.
   const pathname = headersList.get("x-pathname") ?? "";

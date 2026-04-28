@@ -48,9 +48,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid state" }, { status: 400 });
   }
 
-  cookieStore.delete("x_oauth_state");
-  cookieStore.delete("x_code_verifier");
-
   const workspace = await getWorkspaceForUser(user.id);
   if (!workspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
@@ -66,6 +63,10 @@ export async function GET(request: NextRequest) {
       { status: 502 }
     );
   }
+
+  // Delete only after successful exchange so the user can retry on failure
+  cookieStore.delete("x_oauth_state");
+  cookieStore.delete("x_code_verifier");
 
   const admin = createAdminClient();
   const accessVaultId = await createSecret(

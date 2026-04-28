@@ -96,7 +96,7 @@ export async function POST(
 
   // Snapshot current body before overwriting it. The instruction string makes
   // the audit trail readable: "reverted to revision N".
-  await snapshotVariantBody({
+  const newRevision = await snapshotVariantBody({
     variantId: variant.id,
     workspaceId: workspace.workspace_id,
     body: variant.body,
@@ -105,5 +105,5 @@ export async function POST(
 
   await updatePostVariant(variant.id, { body: target.body });
 
-  return NextResponse.json({ body: target.body });
+  return NextResponse.json({ body: target.body, revision_number: newRevision.revision_number });
 }
