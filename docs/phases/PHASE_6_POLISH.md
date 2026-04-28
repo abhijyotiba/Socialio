@@ -1,23 +1,10 @@
-# Phase 6 — Polish
+# Phase 6 ï¿½ Polish
 
-The goal of Phase 6 is to add analytics/engagement metrics pull-back, upgrade the queue dashboard, and resolve critical backlog items (Google OAuth and the `google-genai` SDK migration). This is the final polish pass for V1.
 
-If by the end of this phase a user can view engagement metrics for their published posts, see an overview of their queue and analytics on a dashboard, log in with Google, and AI generation uses the modern Google Gen AI SDK — Phase 6 is done.
 
 ---
 
-## Goal
-
-After this phase, a user can:
-
-1. Click "Continue with Google" on the `/login` and `/signup` pages to authenticate.
-2. View a real Queue Dashboard showing upcoming scheduled posts and historical published posts with filtering capabilities.
-3. View basic engagement metrics (impressions, likes, comments) for successfully published posts, which are automatically synced by a new daily background cron.
-4. Have confidence that the worker is using the supported, up-to-date `google-genai` SDK.
-
----
-
-## Scope — what IS in this phase
+## Scope ï¿½ what IS in this phase
 
 - **Analytics & Metrics Sync:**
   - `post_metrics` data model (or columns on `post_variants`).
@@ -31,7 +18,7 @@ After this phase, a user can:
   - Update `worker/pyproject.toml` to replace `google-generativeai` with `google-genai`.
   - Rewrite `worker/adapters/gemini.py` to use the new Google Gen AI SDK.
 
-## Scope — what is NOT in this phase
+## Scope ï¿½ what is NOT in this phase
 
 - AI-powered "best time" recommendations (V2)
 - Multi-user / Team collaboration workflows (V2)
@@ -67,21 +54,21 @@ If creating a new table `post_metrics`:
 ```
 web/
 +-- app/
-¦   +-- api/
-¦   ¦   +-- cron/
-¦   ¦       +-- pull-metrics/route.ts   # New cron job
-¦   +-- (auth)/
-¦   ¦   +-- login/page.tsx              # Add Google OAuth button
-¦   ¦   +-- signup/page.tsx             # Add Google OAuth button
-¦   +-- (app)/
-¦   ¦   +-- dashboard/page.tsx          # High-level analytics and summary
-¦   ¦   +-- queue/page.tsx              # Full queue management
+ï¿½   +-- api/
+ï¿½   ï¿½   +-- cron/
+ï¿½   ï¿½       +-- pull-metrics/route.ts   # New cron job
+ï¿½   +-- (auth)/
+ï¿½   ï¿½   +-- login/page.tsx              # Add Google OAuth button
+ï¿½   ï¿½   +-- signup/page.tsx             # Add Google OAuth button
+ï¿½   +-- (app)/
+ï¿½   ï¿½   +-- dashboard/page.tsx          # High-level analytics and summary
+ï¿½   ï¿½   +-- queue/page.tsx              # Full queue management
 +-- lib/
-¦   +-- adapters/
-¦   ¦   +-- linkedin.ts                 # Add getPostMetrics()
-¦   ¦   +-- x.ts                        # Add getPostMetrics()
-¦   +-- db/
-¦       +-- metrics.ts                  # Helpers for metrics CRUD
+ï¿½   +-- adapters/
+ï¿½   ï¿½   +-- linkedin.ts                 # Add getPostMetrics()
+ï¿½   ï¿½   +-- x.ts                        # Add getPostMetrics()
+ï¿½   +-- db/
+ï¿½       +-- metrics.ts                  # Helpers for metrics CRUD
 
 worker/
 +-- pyproject.toml                      # Swap generativeai for genai

@@ -2,10 +2,10 @@ import time
 from typing import Literal
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import verify_hmac
-from pipeline import analyze
+from pipeline import analyze, regenerate
 from pipeline import generate as gen_pipeline
 
 router = APIRouter()
@@ -58,4 +58,45 @@ async def generate(req: GenerateRequest, request: Request) -> GenerateResponse:
             "analyzing": t1 - t0,
             "generating": t2 - t1,
         },
+    )
+
+
+# ─── Regenerate (Phase 7) ────────────────────────────────────────────────────
+
+
+class RegenerateRequest(BaseModel):
+    workspace_id: str
+    variant_id: str
+    platform: Literal["linkedin", "x"]
+    current_body: str = Field(min_length=1)
+    instruction: str = Field(min_length=1, max_length=500)
+    brand_system_prompt: str = Field(min_length=1)
+    summary: str | None = None
+
+
+class RegenerateResponse(BaseModel):
+    body: str
+    stage_timings: dict[str, int]
+
+
+@router.post("/generate/regenerate", response_model=RegenerateResponse)
+async def regenerate_route(
+    req: RegenerateRequest, request: Request
+) -> RegenerateResponse:
+    body = await request.body()
+    await verify_hmac(request, body)
+
+    t0 = _ms()
+    new_body = await regenerate.regenerate_variant(
+        platform=req.platform,
+        current_body=req.current_body,
+        instruction=req.instruction,
+        brand_system_prompt=req.brand_system_prompt,
+        summary=req.summary,
+    )
+    t1 = _ms()
+
+    return RegenerateResponse(
+        body=new_body,
+        stage_timings={"regenerating": t1 - t0},
     )

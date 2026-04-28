@@ -15,6 +15,8 @@ describe("brand_configs table types", () => {
       tone_tags: ["professional"],
       custom_system_prompt: null,
       current_prompt_version_id: null,
+      voice_profile: null,
+      voice_profile_updated_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -42,6 +44,7 @@ describe("prompt_versions table types", () => {
       version_number: 1,
       system_prompt: "You are a helpful assistant.",
       created_by: "00000000-0000-0000-0000-000000000000",
+      source: "manual",
       created_at: new Date().toISOString(),
     };
     expect(row.version_number).toBe(1);

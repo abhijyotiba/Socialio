@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { Sparkles, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceSamplesPanel } from "@/components/voice/VoiceSamplesPanel";
 
 const DEFAULT_PROMPT =
   "You are a professional content writer helping create engaging social media posts. " +
@@ -15,7 +17,10 @@ interface BrandStepProps {
   onComplete: () => void;
 }
 
+type Path = "choose" | "voice" | "manual";
+
 export function BrandStep({ onComplete }: BrandStepProps) {
+  const [path, setPath] = useState<Path>("choose");
   const [brandName, setBrandName] = useState("");
   const [industry, setIndustry] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
@@ -37,35 +42,47 @@ export function BrandStep({ onComplete }: BrandStepProps) {
     setToneTags((prev) => prev.filter((t) => t !== tag));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  /**
+   * Save the brand row. Used by both paths once basic brand details are filled.
+   * The voice path passes its own system prompt (the one rendered by the worker);
+   * the manual path passes whatever the user typed.
+   */
+  async function saveBrand(promptToSave: string) {
     setError(null);
     setLoading(true);
-
-    const res = await fetch("/api/brand/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        brand_name: brandName,
-        industry: industry || undefined,
-        website_url: websiteUrl || undefined,
-        tone_tags: toneTags,
-        system_prompt: systemPrompt,
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Something went wrong. Please try again.");
+    try {
+      const res = await fetch("/api/brand/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brand_name: brandName,
+          industry: industry || undefined,
+          website_url: websiteUrl || undefined,
+          tone_tags: toneTags,
+          system_prompt: promptToSave,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error ?? "Something went wrong. Please try again.");
+        return false;
+      }
+      return true;
+    } finally {
       setLoading(false);
-      return;
     }
-
-    onComplete();
   }
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+  async function handleManualSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (await saveBrand(systemPrompt)) onComplete();
+  }
+
+  // ─── Brand details (shared between both paths) ──────────────────────────
+  const brandDetailsValid = brandName.trim().length > 0;
+
+  const brandDetailsForm = (
+    <div className="space-y-5">
       {error && (
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
@@ -140,25 +157,147 @@ export function BrandStep({ onComplete }: BrandStepProps) {
           </div>
         )}
       </div>
+    </div>
+  );
+
+  // ─── Path: choose ───────────────────────────────────────────────────────
+  if (path === "choose") {
+    return (
+      <div className="space-y-5">
+        {brandDetailsForm}
+
+        <div className="space-y-2 pt-2">
+          <p className="text-sm font-medium">How should we learn your voice?</p>
+          <div className="grid gap-2">
+            <button
+              type="button"
+              disabled={!brandDetailsValid}
+              onClick={() => setPath("voice")}
+              className="group flex items-start gap-3 rounded-xl border-2 border-indigo-200 bg-indigo-50/50 p-4 text-left transition hover:border-indigo-400 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
+              <div>
+                <p className="text-sm font-bold text-slate-900">
+                  Paste 3–15 of my recent posts{" "}
+                  <span className="ml-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    Recommended
+                  </span>
+                </p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  We&apos;ll learn your voice from how you actually write — not
+                  a generic template.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={!brandDetailsValid}
+              onClick={() => setPath("manual")}
+              className="group flex items-start gap-3 rounded-xl border-2 border-slate-200 bg-white p-4 text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Pencil className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" />
+              <div>
+                <p className="text-sm font-bold text-slate-900">
+                  I&apos;ll write the system prompt myself
+                </p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  Skip voice learning and use a default prompt you can edit.
+                </p>
+              </div>
+            </button>
+          </div>
+          {!brandDetailsValid && (
+            <p className="text-xs text-slate-500">
+              Enter a brand name to continue.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Path: voice ────────────────────────────────────────────────────────
+  if (path === "voice") {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          Brand: <span className="font-semibold">{brandName}</span>
+          {toneTags.length > 0 && <> · {toneTags.join(", ")}</>}
+          <button
+            type="button"
+            onClick={() => setPath("choose")}
+            className="ml-2 font-semibold text-indigo-600 hover:underline"
+          >
+            Edit
+          </button>
+        </div>
+
+        <VoiceSamplesPanel
+          ctaLabel="Analyze voice"
+          successLabel="Use this voice & continue"
+          brandDetails={{
+            brand_name: brandName,
+            industry: industry || undefined,
+            website_url: websiteUrl || undefined,
+            tone_tags: toneTags,
+          }}
+          onSuccess={() => {
+            // The voice-profile route already wrote brand_configs +
+            // prompt_versions in one round trip. Nothing else to save.
+            onComplete();
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={() => setPath("choose")}
+          className="text-xs font-medium text-slate-500 hover:text-slate-800"
+        >
+          ← Back
+        </button>
+      </div>
+    );
+  }
+
+  // ─── Path: manual ───────────────────────────────────────────────────────
+  return (
+    <form onSubmit={handleManualSubmit} className="space-y-5">
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        Brand: <span className="font-semibold">{brandName}</span>
+        <button
+          type="button"
+          onClick={() => setPath("choose")}
+          className="ml-2 font-semibold text-indigo-600 hover:underline"
+        >
+          Edit
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="system_prompt">Brand system prompt *</Label>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          This is the AI instruction your posts are generated from. You can
-          refine it anytime in Settings.
+          The AI instruction your posts are generated from. You can refine it
+          anytime in Settings.
         </p>
         <Textarea
           id="system_prompt"
-          rows={5}
+          rows={7}
           required
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Saving…" : "Save brand & continue"}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" className="flex-1" disabled={loading}>
+          {loading ? "Saving…" : "Save brand & continue"}
+        </Button>
+      </div>
     </form>
   );
 }

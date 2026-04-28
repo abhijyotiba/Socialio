@@ -89,3 +89,94 @@ export async function workerGenerate(
   }
   return res.json() as Promise<WorkerGenerateResponse>;
 }
+
+// ─── Phase 7: voice analyze + regenerate ────────────────────────────────────
+
+export interface WorkerVoiceAnalyzeRequest {
+  workspace_id: string;
+  brand_name: string;
+  samples: string[];
+  tone_tags?: string[];
+  platform_mix?: Record<string, number>;
+}
+
+export interface WorkerVoiceAnalyzeResponse {
+  /** Opaque structured profile; the worker is the schema-of-record. */
+  profile: Record<string, unknown>;
+  system_prompt: string;
+  stage_timings: Record<string, number>;
+}
+
+export class WorkerError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly detail?: string
+  ) {
+    super(message);
+  }
+}
+
+export async function workerAnalyzeVoice(
+  req: WorkerVoiceAnalyzeRequest
+): Promise<WorkerVoiceAnalyzeResponse> {
+  const body = JSON.stringify(req);
+  const res = await fetch(`${process.env.WORKER_URL}/voice/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Worker-Signature": signBody(body),
+    },
+    body,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new WorkerError(
+      res.status,
+      `Worker /voice/analyze responded ${res.status}`,
+      detail
+    );
+  }
+  return res.json() as Promise<WorkerVoiceAnalyzeResponse>;
+}
+
+export interface WorkerRegenerateRequest {
+  workspace_id: string;
+  variant_id: string;
+  platform: "linkedin" | "x";
+  current_body: string;
+  instruction: string;
+  brand_system_prompt: string;
+  summary?: string | null;
+}
+
+export interface WorkerRegenerateResponse {
+  body: string;
+  stage_timings: Record<string, number>;
+}
+
+export async function workerRegenerate(
+  req: WorkerRegenerateRequest
+): Promise<WorkerRegenerateResponse> {
+  const body = JSON.stringify({
+    ...req,
+    summary: req.summary ?? null,
+  });
+  const res = await fetch(`${process.env.WORKER_URL}/generate/regenerate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Worker-Signature": signBody(body),
+    },
+    body,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new WorkerError(
+      res.status,
+      `Worker /generate/regenerate responded ${res.status}`,
+      detail
+    );
+  }
+  return res.json() as Promise<WorkerRegenerateResponse>;
+}

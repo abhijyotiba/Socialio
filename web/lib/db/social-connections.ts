@@ -21,6 +21,19 @@ export async function getSocialConnection(
   return data;
 }
 
+export async function getActiveSocialConnections(
+  workspaceId: string
+): Promise<SocialConnectionRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("social_connections")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("needs_reauth", false);
+  if (error) return [];
+  return data ?? [];
+}
+
 export async function upsertSocialConnection(
   values: SocialConnectionInsert,
   // Accepts a pre-created client so the OAuth callback can pass its admin client.
