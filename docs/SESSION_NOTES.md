@@ -13,6 +13,55 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-04-28 — Phase 7: Voice Profile + Inline Regeneration (complete)
+
+### What got built
+
+**Half A — Voice profiling**
+- **Migrations 0012/0013** — `voice_profile JSONB` + `voice_profile_updated_at` on `brand_configs`; `source` column on `prompt_versions`; new append-only `post_variant_revisions` table with RLS
+- **`worker/pipeline/voice_profile.py`** — Pydantic `VoiceProfile` schema + `analyze_samples()` LLM call + `render_system_prompt()` pure-Python renderer (split so renderer is re-runnable without LLM)
+- **`worker/routes/voice.py`** — `POST /voice/analyze` (HMAC-guarded, 422 on schema failure)
+- **`web/lib/db/brand-configs.ts`** — `setVoiceProfile`, `getVoiceProfile`
+- **`web/lib/db/prompt-versions.ts`** — `PromptVersionSource` type; optional `source` param on `createPromptVersion`
+- **`web/app/api/brand/voice-profile/route.ts`** — calls worker → writes voice profile → mints prompt_versions row → upserts brand_configs in one round trip; accepts `brand_details` for onboarding
+- **`web/components/voice/VoiceSamplesPanel.tsx`** — 3–15 textarea samples, ProfileSummary prose, generated prompt preview, raw JSON toggle
+- **`web/app/(app)/onboarding/_components/BrandStep.tsx`** — 3-state machine (choose → voice → manual); voice path forwards `brand_details` so no second save needed
+- **`web/app/(app)/settings/brand/page.tsx`** — Voice Profile card with refresh flow
+
+**Half B — Inline regeneration**
+- **`worker/pipeline/regenerate.py`** — instruction-driven variant rewrite with anti-hallucination guardrail
+- **`worker/routes/generate.py`** — `POST /generate/regenerate` added
+- **`web/lib/worker-client.ts`** — `WorkerError` class; `workerAnalyzeVoice`, `workerRegenerate`
+- **`web/lib/db/post-variant-revisions.ts`** — `snapshotVariantBody`, `listVariantRevisions`
+- **`web/app/api/posts/[id]/regenerate/route.ts`** — snapshot → worker rewrite → update variant
+- **`web/app/api/posts/[id]/revisions/route.ts`** — GET history, POST revert
+- **`web/app/(app)/chat/_components/VariantCard.tsx`** — Refine button, quick-action chips, free-text instruction, revision badge, history panel with per-revision revert
+
+**Tests:** 53 worker tests green; web typecheck clean
+
+### What's left in Phase 7
+
+Nothing — Phase 7 is complete. Deferred items remain in BACKLOG.md.
+
+### Decisions made
+
+- `VoiceProfile.tone.tone_register` in Python aliased to `"register"` in JSON via Pydantic `Field(alias=...)` — avoids shadowing `BaseModel.register`
+- `analyze_samples` (LLM, stochastic) split from `render_system_prompt` (pure Python, deterministic) so prompt template improvements don't require re-running LLM
+- `brand_details` forwarded to `/api/brand/voice-profile` so onboarding can finalize `brand_configs` in one round trip, avoiding a duplicate `prompt_versions` row
+- JSONB for `voice_profile` — schema evolves without migrations; Pydantic model is schema-of-record
+
+### Gotchas
+
+- Pydantic v2 `BaseModel.register` conflict — always use `tone_register` as the Python attr; tests assert `.tone.tone_register` not `.tone.register`
+- Stale `.next/dev/types/routes.d.ts` + `validator.ts` caused typecheck failures — deleted them; they are Next.js build artifacts and not source files
+- Migration numbering: 0010 = post_metrics, 0011 = post_variant_media; 0012/0013 are Phase 7
+
+### Next session first action
+
+Start Phase 8 (Analytics / `post_metrics` population). Read `docs/BACKLOG.md` for the deferred performance-based learning item. Run `git status` to confirm clean tree.
+
+---
+
 ## 2026-04-24 — Phase 6: Media Attachments (complete)
 
 ### What got built
