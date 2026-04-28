@@ -15,6 +15,48 @@ Format:
 
 ---
 
+## 2026-04-28: Voice profile via user-pasted samples, never scraped
+
+**Decision:** Voice learning ingests samples the user **pastes** into a textarea. We never fetch their LinkedIn or X posts on their behalf — even when a connected OAuth token would technically allow it.
+
+**Why:** Two reasons stack. First, the LinkedIn ToS / risk position from 2026-04-22 still holds — even an authenticated read could become a liability if scoped beyond what we negotiated. Second, copy-paste is a one-time onboarding action and the friction is real but small; a much worse failure mode is a user who later objects to us having ingested their post history without an explicit, in-the-moment consent gesture.
+
+**Alternatives considered:** (a) Pull last 20 posts via the platform APIs after OAuth — rejected for the reasons above; we may revisit with explicit, per-action consent in V2. (b) Scrape public profiles via Playwright — rejected, same ToS/legal risk as Phase 1's "no LinkedIn scraping" decision.
+
+**Trade-off:** Onboarding takes a few minutes longer. Some users will skip the paste step and fall back to the manual prompt path.
+
+**Reversibility:** Cheap on the engineering side; the worker route would just accept richer input. The decision itself is risk/policy, so we'd revisit with legal context, not as a refactor.
+
+---
+
+## 2026-04-28: Voice profile stored as JSONB on brand_configs, not a new table
+
+**Decision:** Phase 7's voice profile lives in a `voice_profile JSONB` column on `brand_configs`, plus a `voice_profile_updated_at` timestamp. There is no `voice_profiles` table. The Pydantic model in `worker/pipeline/voice_profile.py` is the schema-of-record; the DB blob is opaque.
+
+**Why:** There is exactly one current profile per workspace (cardinality 1:1). A separate table would force a join for every read with no benefit. Versioning of the rendered prompt is already handled by `prompt_versions` — adding a `source` column there is enough to distinguish "manual" vs. "voice_profile" provenance. JSONB lets the analyzer's schema evolve (add `signature_phrases`, etc.) without a migration per field.
+
+**Alternatives considered:** (a) Dedicated `voice_profiles` table with typed columns — rejected, premature normalization. (b) Embed voice fields directly into `brand_configs` as columns — rejected, the schema is going to churn. (c) Store the profile inline on each `prompt_versions` row — rejected, the profile is logically separate from the prompt rendering and we re-use it across renders.
+
+**Trade-off:** No SQL-level type checking on profile fields; the Pydantic model is the only guard. Acceptable because the profile is only written by our own worker, never by the client.
+
+**Reversibility:** Cheap. Migrating to a typed table later is a backfill from existing JSONB.
+
+---
+
+## 2026-04-28: post_variant_revisions is append-only history, body still lives on post_variants
+
+**Decision:** Inline regeneration writes the prior `post_variants.body` into a new `post_variant_revisions` row, then updates `post_variants.body` in place. The current body is always on `post_variants`; revisions are history.
+
+**Why:** Every existing query (`getPostVariant`, `getContentItemWithVariants`, publish path, scheduling path) reads `post_variants.body`. Moving the current body into the revisions table would break all of them. Snapshot-on-write is the smallest change that gives us revert and history without touching the read path.
+
+**Alternatives considered:** (a) Add `revision_number` and `previous_body` columns to `post_variants` — rejected, supports only one-step undo and loses regeneration instructions. (b) Move current body into revisions and read latest via join — rejected, requires changes to every read site.
+
+**Trade-off:** Two writes per regeneration (insert revision, update variant). Tiny.
+
+**Reversibility:** Cheap. The schema is additive.
+
+---
+
 ## 2026-04-23: Prompt provenance stored on both content_items and post_variants
 
 **Decision:** `post_variants` now stores `prompt_version_id` in addition to `content_items.prompt_version_id`. Generation writes both so each variant carries explicit prompt provenance.

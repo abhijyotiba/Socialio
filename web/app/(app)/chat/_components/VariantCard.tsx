@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, CheckCheck, ExternalLink, Loader2, Zap, CalendarClock, X } from "lucide-react";
+import { Copy, CheckCheck, ExternalLink, Loader2, Zap, CalendarClock, X, Sparkles, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { MediaPicker } from "./MediaPicker";
 
 type Variant = {
@@ -54,10 +54,41 @@ const PLATFORM_CONFIG: Record<string, {
   },
 };
 
+const QUICK_ACTIONS = [
+  "Shorter",
+  "Longer",
+  "More personal",
+  "Less corporate",
+  "Change hook",
+  "Add CTA",
+  "Add question",
+];
+
+interface Revision {
+  revision_number: number;
+  body: string;
+  instruction: string | null;
+  created_at: string;
+}
+
 export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: string }) {
   const [state, setState] = useState<ActionState>({ kind: "idle" });
   const [scheduledAt, setScheduledAt] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Inline regeneration state
+  const [currentBody, setCurrentBody] = useState(variant.body);
+  const [showRefine, setShowRefine] = useState(false);
+  const [instruction, setInstruction] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
+  const [revisionNumber, setRevisionNumber] = useState<number | null>(null);
+
+  // Revision history state
+  const [showHistory, setShowHistory] = useState(false);
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
+  const [reverting, setReverting] = useState<number | null>(null);
 
   const plt = PLATFORM_CONFIG[variant.platform] ?? {
     label: variant.platform,
@@ -68,7 +99,7 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
   };
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(variant.body);
+    await navigator.clipboard.writeText(currentBody);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -142,6 +173,79 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
     }
   }
 
+  async function handleRegenerate(instr: string) {
+    if (!instr.trim()) return;
+    setRegenError(null);
+    setRegenerating(true);
+    try {
+      const res = await fetch(`/api/posts/${variant.id}/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: instr.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRegenError(data.error ?? "Regeneration failed. Please try again.");
+        return;
+      }
+      setCurrentBody(data.body);
+      setRevisionNumber(data.revision_number);
+      setInstruction("");
+      setShowRefine(false);
+      // Invalidate cached revisions so history reloads fresh
+      setRevisions([]);
+      setShowHistory(false);
+    } catch {
+      setRegenError("Network error. Please try again.");
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  async function handleQuickAction(action: string) {
+    await handleRegenerate(action);
+  }
+
+  async function loadRevisions() {
+    if (loadingRevisions) return;
+    setLoadingRevisions(true);
+    try {
+      const res = await fetch(`/api/posts/${variant.id}/revisions`);
+      const data = await res.json();
+      if (res.ok) setRevisions(data.revisions ?? []);
+    } finally {
+      setLoadingRevisions(false);
+    }
+  }
+
+  async function toggleHistory() {
+    const next = !showHistory;
+    setShowHistory(next);
+    if (next && revisions.length === 0) await loadRevisions();
+  }
+
+  async function handleRevert(revNum: number) {
+    setReverting(revNum);
+    try {
+      const res = await fetch(`/api/posts/${variant.id}/revisions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision_number: revNum }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRegenError(data.error ?? "Revert failed.");
+        return;
+      }
+      setCurrentBody(data.body);
+      setRevisionNumber(data.revision_number);
+      setRevisions([]);
+      setShowHistory(false);
+    } finally {
+      setReverting(null);
+    }
+  }
+
   const isBusy = ["publishing", "loadingSlots", "scheduling", "cancelling"].includes(state.kind);
   const isTerminal = ["published", "scheduled", "cancelled"].includes(state.kind);
   const showIdleActions = !isTerminal && state.kind !== "pickingSlot" && state.kind !== "pickingTime";
@@ -157,6 +261,11 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
           <span className={`text-[11px] font-bold uppercase tracking-[0.12em] ${plt.badgeText}`}>
             {plt.label}
           </span>
+          {revisionNumber !== null && (
+            <span className="rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-500 ring-1 ring-inset ring-indigo-200">
+              v{revisionNumber}
+            </span>
+          )}
         </div>
         <button
           onClick={handleCopy}
@@ -173,9 +282,108 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
       {/* Body */}
       <div className="px-4 py-3.5">
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-          {variant.body}
+          {currentBody}
         </p>
       </div>
+
+      {/* Inline refine panel — quick chips + free-text input */}
+      {showIdleActions && showRefine && (
+        <div className="border-t border-slate-100 px-4 py-3 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action}
+                type="button"
+                disabled={regenerating}
+                onClick={() => handleQuickAction(action)}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-40"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleRegenerate(instruction);
+                }
+              }}
+              placeholder="Describe what to change…"
+              disabled={regenerating}
+              className="h-9 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onClick={() => handleRegenerate(instruction)}
+              disabled={!instruction.trim() || regenerating}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-indigo-600 px-4 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-40"
+            >
+              {regenerating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {regenerating ? "Rewriting…" : "Rewrite"}
+            </button>
+          </div>
+          {regenError && (
+            <p className="text-xs text-red-500">{regenError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Revision history panel */}
+      {revisionNumber !== null && showHistory && (
+        <div className="border-t border-slate-100 px-4 py-3">
+          {loadingRevisions ? (
+            <p className="flex items-center gap-1.5 text-xs text-slate-400">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading history…
+            </p>
+          ) : revisions.length === 0 ? (
+            <p className="text-xs text-slate-400">No revision history yet.</p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Revision history</p>
+              <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                {revisions.map((rev) => (
+                  <div
+                    key={rev.revision_number}
+                    className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-600">
+                        v{rev.revision_number}
+                        {rev.instruction && (
+                          <span className="ml-1.5 font-normal text-slate-400">— {rev.instruction}</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={reverting !== null}
+                        onClick={() => handleRevert(rev.revision_number)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40"
+                      >
+                        {reverting === rev.revision_number ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-3 w-3" />
+                        )}
+                        Revert
+                      </button>
+                    </div>
+                    <p className="line-clamp-2 leading-relaxed text-slate-500">{rev.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Media picker */}
       {showIdleActions && (
@@ -287,19 +495,50 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
 
         {/* Idle actions */}
         {showIdleActions && (
-          <div className="flex gap-2">
-            <button onClick={handlePublishNow} disabled={isBusy}
-              className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-700 disabled:opacity-40">
-              {state.kind === "publishing"
-                ? <><Loader2 className="h-3 w-3 animate-spin" /> Publishing…</>
-                : <><Zap className="h-3 w-3" /> Publish now</>}
-            </button>
-            <button onClick={handleScheduleClick} disabled={isBusy}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40">
-              {state.kind === "loadingSlots"
-                ? <><Loader2 className="h-3 w-3 animate-spin" /> Loading…</>
-                : <><CalendarClock className="h-3 w-3" /> Schedule</>}
-            </button>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex gap-2">
+              <button onClick={handlePublishNow} disabled={isBusy || regenerating}
+                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-700 disabled:opacity-40">
+                {state.kind === "publishing"
+                  ? <><Loader2 className="h-3 w-3 animate-spin" /> Publishing…</>
+                  : <><Zap className="h-3 w-3" /> Publish now</>}
+              </button>
+              <button onClick={handleScheduleClick} disabled={isBusy || regenerating}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40">
+                {state.kind === "loadingSlots"
+                  ? <><Loader2 className="h-3 w-3 animate-spin" /> Loading…</>
+                  : <><CalendarClock className="h-3 w-3" /> Schedule</>}
+              </button>
+            </div>
+
+            {/* Refine + history controls */}
+            <div className="flex items-center gap-1.5">
+              {revisionNumber !== null && (
+                <button
+                  type="button"
+                  onClick={toggleHistory}
+                  disabled={regenerating}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40"
+                  title="Revision history"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  {showHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => { setShowRefine((v) => !v); setRegenError(null); }}
+                disabled={regenerating}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold transition disabled:opacity-40 ${
+                  showRefine
+                    ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
+                }`}
+              >
+                <Sparkles className="h-3 w-3" />
+                Refine
+              </button>
+            </div>
           </div>
         )}
       </div>

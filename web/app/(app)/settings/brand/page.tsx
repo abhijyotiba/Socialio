@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, CheckCheck, AlertCircle, X, Palette } from "lucide-react";
+import { Loader2, CheckCheck, AlertCircle, X, Palette, Sparkles } from "lucide-react";
+import { VoiceSamplesPanel } from "@/components/voice/VoiceSamplesPanel";
 
 interface BrandFormData {
   brand_name: string;
@@ -34,6 +35,9 @@ export default function BrandSettingsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [voiceUpdatedAt, setVoiceUpdatedAt] = useState<string | null>(null);
+  const [hasVoiceProfile, setHasVoiceProfile] = useState(false);
+  const [showVoicePanel, setShowVoicePanel] = useState(false);
 
   useEffect(() => {
     fetch("/api/brand/config")
@@ -47,6 +51,8 @@ export default function BrandSettingsPage() {
           tone_tags: data.tone_tags ?? [],
           system_prompt: data.custom_system_prompt ?? "",
         });
+        setVoiceUpdatedAt(data.voice_profile_updated_at ?? null);
+        setHasVoiceProfile(Boolean(data.voice_profile));
       })
       .catch(() => setFetchError("Failed to load brand settings."))
       .finally(() => setFetching(false));
@@ -216,6 +222,79 @@ export default function BrandSettingsPage() {
           )}
           {form.tone_tags.length === 0 && (
             <p className="mt-2 text-xs text-slate-400">No tags yet. Type a tag and press Enter or comma.</p>
+          )}
+        </div>
+
+        {/* Voice profile */}
+        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                Voice Profile
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-400">
+                {hasVoiceProfile
+                  ? "Your generated prompt below was rendered from posts you pasted. Refresh to teach SocialOS your latest writing style."
+                  : "Paste a few of your recent posts and we'll learn your voice automatically."}
+              </p>
+              {voiceUpdatedAt && (
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Last analyzed{" "}
+                  {new Date(voiceUpdatedAt).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </p>
+              )}
+            </div>
+            {!showVoicePanel && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowVoicePanel(true);
+                }}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-xs font-bold text-indigo-700 transition hover:border-indigo-400"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {hasVoiceProfile ? "Refresh voice" : "Learn my voice"}
+              </button>
+            )}
+          </div>
+
+          {showVoicePanel && (
+            <div className="space-y-3">
+              <VoiceSamplesPanel
+                ctaLabel={hasVoiceProfile ? "Re-analyze voice" : "Analyze voice"}
+                successLabel="Done"
+                onSuccess={() => {
+                  // Voice route already updated brand_configs; reload from server.
+                  setShowVoicePanel(false);
+                  fetch("/api/brand/config")
+                    .then((r) => r.json())
+                    .then((data) => {
+                      if (data.error) return;
+                      setForm((p) => ({
+                        ...p,
+                        system_prompt: data.custom_system_prompt ?? "",
+                      }));
+                      setVoiceUpdatedAt(data.voice_profile_updated_at ?? null);
+                      setHasVoiceProfile(Boolean(data.voice_profile));
+                    });
+                }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setShowVoicePanel(false);
+                }}
+                className="text-[11px] font-medium text-slate-400 hover:text-slate-700"
+              >
+                ← Cancel
+              </button>
+            </div>
           )}
         </div>
 
