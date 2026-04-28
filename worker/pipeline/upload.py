@@ -1,3 +1,4 @@
+import asyncio
 import structlog
 
 import cloudinary
@@ -18,7 +19,8 @@ async def to_cloudinary(media_urls: list[str], workspace_id: str) -> list[dict]:
     results = []
     for url in media_urls:
         try:
-            r = cloudinary.uploader.upload(
+            r = await asyncio.to_thread(
+                cloudinary.uploader.upload,
                 url,
                 folder=f"socialos/{workspace_id}/",
                 resource_type="auto",

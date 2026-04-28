@@ -72,9 +72,7 @@ export async function GET(
   });
 }
 
-const patchSchema = z.object({
-  body: z.string().min(1).max(3000),
-});
+const PLATFORM_CHAR_LIMITS: Record<string, number> = { linkedin: 3000, x: 280 };
 
 export async function PATCH(
   request: Request,
@@ -94,6 +92,9 @@ export async function PATCH(
   if (!variant) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (variant.workspace_id !== workspace.workspace_id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const charLimit = PLATFORM_CHAR_LIMITS[variant.platform] ?? 3000;
+  const patchSchema = z.object({ body: z.string().min(1).max(charLimit) });
 
   const parsed = patchSchema.safeParse(await request.json());
   if (!parsed.success)

@@ -58,7 +58,6 @@ export interface WorkerVariantOutput {
 }
 
 export interface WorkerGenerateRequest {
-  job_id: string;
   workspace_id: string;
   extracted_title: string;
   extracted_text: string;

@@ -12,7 +12,6 @@ router = APIRouter()
 
 
 class GenerateRequest(BaseModel):
-    job_id: str
     workspace_id: str
     extracted_title: str
     extracted_text: str

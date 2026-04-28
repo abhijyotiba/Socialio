@@ -90,13 +90,9 @@ export async function POST(request: Request) {
       prompt_version_id: brand.current_prompt_version_id ?? null,
     });
 
-    await updateIngestionJob(ingestion_job_id, { stage: "analyzing" });
-
-    // Ensure we transition to generating before the worker call, or let worker handle it
     await updateIngestionJob(ingestion_job_id, { stage: "generating" });
 
     const result = await workerGenerate({
-      job_id: ingestion_job_id,
       workspace_id: workspaceId,
       extracted_title: job.extracted_title ?? "",
       extracted_text: job.extracted_text ?? "",

@@ -12,6 +12,7 @@ async def gemini_generate(system_prompt: str, user_message: str) -> str:
         contents=user_message,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
+            http_options=types.HttpOptions(timeout=30000),
         )
     )
     return response.text
