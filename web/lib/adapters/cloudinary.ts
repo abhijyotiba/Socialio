@@ -1,6 +1,38 @@
 import crypto from "crypto";
 import { z } from "zod";
 
+const DeleteResponseSchema = z.object({
+  result: z.string(),
+});
+
+export async function deleteFromCloudinary(publicId: string): Promise<void> {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
+  const apiKey = process.env.CLOUDINARY_API_KEY!;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET!;
+
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const params: Record<string, string> = { public_id: publicId, timestamp };
+  const signature = buildSignature(params, apiSecret);
+
+  const form = new FormData();
+  form.append("public_id", publicId);
+  form.append("api_key", apiKey);
+  form.append("timestamp", timestamp);
+  form.append("signature", signature);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`,
+    { method: "POST", body: form }
+  );
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Cloudinary delete failed: ${response.status} ${text}`);
+  }
+
+  DeleteResponseSchema.parse(await response.json());
+}
+
 const UploadResponseSchema = z.object({
   public_id: z.string(),
   secure_url: z.string(),
