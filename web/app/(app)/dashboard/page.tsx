@@ -3,7 +3,6 @@
 import { useEffect, useState, useId } from "react";
 import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
-  Loader2,
   Plus,
   TrendingUp,
   Zap,
@@ -14,6 +13,7 @@ import {
   LayoutDashboard,
   CalendarClock,
 } from "lucide-react";
+import { SkeletonDashboard } from "@/components/app/SkeletonDashboard";
 import Link from "next/link";
 
 type PostMetrics = {
@@ -214,11 +214,7 @@ export default function DashboardPage() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
-      </div>
-    );
+    return <SkeletonDashboard />;
   }
 
   if (error) {
@@ -246,7 +242,7 @@ export default function DashboardPage() {
   const queueCount = (queue ?? []).length;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5 pb-10">
+    <div className="mx-auto w-full max-w-6xl space-y-5 pb-10 page-enter">
 
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
@@ -255,7 +251,7 @@ export default function DashboardPage() {
             <LayoutDashboard className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Overview</h1>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Overview</h1>
             <p className="text-xs text-slate-400">
               {format(new Date(), "EEEE, MMMM d")} · last 7 days
             </p>
@@ -270,10 +266,10 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Stat cards ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 stagger-children">
 
         {/* Posts published */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-5 text-white shadow-lg shadow-indigo-200/50">
+        <div className="animate-fade-up card-lift relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-5 text-white shadow-lg shadow-indigo-200/50">
           <div className="pointer-events-none absolute right-2 top-1 opacity-[0.10]">
             <Zap className="h-16 w-16" fill="currentColor" />
           </div>
@@ -294,7 +290,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Impressions */}
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="animate-fade-up card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
@@ -321,7 +317,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Likes */}
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
@@ -352,7 +348,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
 
         {/* Engagement chart — takes 3 cols */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm lg:col-span-3">
+        <div className="card-lift overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm lg:col-span-3">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div>
               <h2 className="text-sm font-bold text-slate-900">Engagement Performance</h2>
@@ -370,7 +366,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Queue preview — takes 2 cols */}
-        <div className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm lg:col-span-2">
+        <div className="card-lift flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm lg:col-span-2">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-indigo-500" />
@@ -383,15 +379,18 @@ export default function DashboardPage() {
 
           {queueItems.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center px-5 py-10 text-center">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-300">
-                <CalendarClock className="h-5 w-5" />
+              <div className="relative mb-4">
+                <div className="absolute inset-0 rounded-2xl bg-indigo-400/15 blur-xl scale-150" />
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-400/30">
+                  <CalendarClock className="h-6 w-6 text-white" />
+                </div>
               </div>
-              <p className="text-xs font-semibold text-slate-600">No posts scheduled</p>
+              <p className="text-xs font-bold text-slate-700">Queue is empty</p>
               <p className="mt-1 text-[11px] text-slate-400">
-                Create content to fill your queue.
+                Generate content to fill your pipeline.
               </p>
               <Link href="/chat">
-                <button className="mt-4 rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700">
+                <button className="mt-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.97]">
                   Create post
                 </button>
               </Link>

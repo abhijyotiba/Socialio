@@ -101,21 +101,25 @@ export default function BrandSettingsPage() {
 
   if (fetching) {
     return (
-      <div className="flex h-48 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
+      <div className="space-y-4">
+        <div className="skeleton h-12 w-64 rounded-xl" />
+        <div className="skeleton h-40 rounded-2xl" />
+        <div className="skeleton h-28 rounded-2xl" />
+        <div className="skeleton h-52 rounded-2xl" />
+        <div className="skeleton h-48 rounded-2xl" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 page-enter">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
           <Palette className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Brand Settings</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Brand Settings</h1>
           <p className="text-xs text-slate-400">
             Changes to the system prompt create a new version — old posts keep their original.
           </p>
@@ -131,7 +135,7 @@ export default function BrandSettingsPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Brand profile */}
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <SectionHeader label="Brand Profile" description="Basic info used to tailor AI-generated content." />
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -178,7 +182,7 @@ export default function BrandSettingsPage() {
         </div>
 
         {/* Tone tags */}
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <SectionHeader label="Tone Tags" description="Keywords that shape the voice of generated content." />
           <div className="flex gap-2">
             <input
@@ -226,7 +230,7 @@ export default function BrandSettingsPage() {
         </div>
 
         {/* Voice profile */}
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800">
@@ -299,7 +303,7 @@ export default function BrandSettingsPage() {
         </div>
 
         {/* System prompt */}
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <SectionHeader
             label="System Prompt"
             description="Instructions that guide every AI-generated post. Saving creates a new version."

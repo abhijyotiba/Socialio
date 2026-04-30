@@ -44,7 +44,7 @@ export default function LoginPage() {
             Welcome back
           </p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
-          Welcome back
+            Sign in to SocialOS
           </h1>
           <p className="mt-1.5 text-sm text-slate-500">
             Sign in to manage your brand content pipeline.

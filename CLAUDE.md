@@ -201,3 +201,9 @@ If tempted, stop and ask. Writing "I noticed X should probably be refactored, wa
 3. Append to `docs/SESSION_NOTES.md` (newest entry at top): date, what got done, what's next, any gotchas encountered.
 4. If a non-obvious decision was made, append to `docs/DECISIONS.md`.
 5. Commit and push.
+
+
+
+
+Backend Run command : uv run fastapi dev
+Frontend Run command : pnpm dev

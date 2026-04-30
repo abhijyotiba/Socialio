@@ -14,7 +14,7 @@ export default function AuthLayout({
             <span className="text-lg font-extrabold tracking-tight text-white">S</span>
           </div>
           <div>
-            <p className="text-xl font-extrabold tracking-tight text-white">SocialOS</p>
+            <p className="font-display text-xl font-extrabold tracking-tight text-white">SocialOS</p>
             <p className="text-xs text-white/60">AI-first social publishing</p>
           </div>
         </div>
@@ -23,7 +23,7 @@ export default function AuthLayout({
           <p className="text-sm uppercase tracking-[0.24em] text-indigo-200/70">
             Professional publishing workflow
           </p>
-          <h1 className="text-4xl font-black leading-tight text-white">
+          <h1 className="font-display text-4xl font-black leading-tight text-white">
             Plan, generate, and publish in one polished workspace.
           </h1>
           <p className="text-sm leading-relaxed text-slate-300">

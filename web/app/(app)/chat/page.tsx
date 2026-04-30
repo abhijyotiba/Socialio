@@ -218,16 +218,16 @@ export default function ChatPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 shadow-sm shadow-indigo-500/30">
-            <svg className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+      <div className="shrink-0 flex items-center justify-between pb-5 border-b border-slate-100/80">
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-md shadow-indigo-500/30">
+            <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
               <path d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900 leading-tight">Content Studio</h1>
-            <p className="text-[11px] text-slate-400 leading-tight">Paste a URL or share an idea to generate posts</p>
+            <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 leading-tight">Content Studio</h1>
+            <p className="text-xs text-slate-400 leading-tight mt-0.5">Paste a URL or share an idea to generate posts</p>
           </div>
         </div>
       </div>
@@ -235,30 +235,35 @@ export default function ChatPage() {
       {/* Messages */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center px-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-md shadow-indigo-500/30">
-              <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+          <div className="flex h-full flex-col items-center justify-center text-center px-4 animate-fade-in">
+            {/* Ambient glow ring */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 rounded-3xl bg-indigo-500/20 blur-2xl scale-150" />
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 shadow-xl shadow-indigo-500/40">
+                <svg className="h-9 w-9 text-white drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
             </div>
-            <p className="mt-4 text-base font-bold text-slate-800">
+            <p className="text-xl font-bold tracking-tight text-slate-900">
               What would you like to post about?
             </p>
-            <p className="mt-1 max-w-xs text-sm text-slate-400">
-              Paste a URL or share an idea. SocialOS will draft platform-ready posts in seconds.
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-400">
+              Paste a URL or share an idea — SocialOS drafts platform-ready posts in seconds.
             </p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
               {[
-                "Paste a blog URL",
-                "Share a product launch idea",
-                "Summarise a YouTube video",
-              ].map((hint) => (
+                { label: "Paste a blog URL", icon: "🔗" },
+                { label: "Share a product launch idea", icon: "🚀" },
+                { label: "Summarise a YouTube video", icon: "▶️" },
+              ].map(({ label, icon }) => (
                 <button
-                  key={hint}
-                  onClick={() => setInput(hint)}
-                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600"
+                  key={label}
+                  onClick={() => setInput(label)}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 hover:shadow-md active:scale-[0.97]"
                 >
-                  {hint}
+                  <span>{icon}</span>
+                  {label}
                 </button>
               ))}
             </div>
