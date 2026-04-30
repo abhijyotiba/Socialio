@@ -8,6 +8,7 @@ import {
   CheckCheck, Edit2, LogOut, ExternalLink, Wifi, WifiOff,
   RefreshCw, ArrowRight, ShieldCheck, Sparkles,
 } from "lucide-react";
+import { SkeletonProfile } from "@/components/app/SkeletonDashboard";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -84,11 +85,7 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
-      </div>
-    );
+    return <SkeletonProfile />;
   }
   if (error || !data) {
     return (
@@ -109,7 +106,7 @@ export default function ProfilePage() {
   const totalPosts = stats.published + stats.scheduled + stats.drafts;
 
   return (
-    <div className="mx-auto w-full max-w-3xl pb-12">
+    <div className="mx-auto w-full max-w-3xl pb-12 page-enter">
 
       {/* ── Hero banner ─────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-700 p-6 shadow-xl shadow-indigo-200/40">
@@ -155,7 +152,7 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold capitalize text-white">
+                  <h1 className="font-display text-xl font-bold capitalize text-white">
                     {displayName || getDisplayName(user.email)}
                   </h1>
                   <button onClick={() => setEditingName(true)}
@@ -234,7 +231,7 @@ export default function ProfilePage() {
 
           {/* Brand identity */}
           {brand && (
-            <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
+            <div className="card-lift rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
                 <div className="flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-50 text-indigo-600">
@@ -290,7 +287,7 @@ export default function ProfilePage() {
           )}
 
           {/* Content activity */}
-          <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
+          <div className="card-lift rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
               <div className="flex items-center gap-2">
                 <div className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-50 text-violet-600">
@@ -354,7 +351,7 @@ export default function ProfilePage() {
         <div className="space-y-4 lg:col-span-2">
 
           {/* Workspace */}
-          <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
+          <div className="card-lift rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
             <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3.5">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-600">
                 <Building2 className="h-3.5 w-3.5" />
@@ -386,7 +383,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Connected platforms */}
-          <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
+          <div className="card-lift rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
               <div className="flex items-center gap-2">
                 <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-600">
@@ -462,7 +459,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Quick links */}
-          <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
+          <div className="card-lift rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
             <div className="border-b border-slate-100 px-5 py-3.5">
               <h2 className="text-sm font-bold text-slate-900">Quick Links</h2>
             </div>

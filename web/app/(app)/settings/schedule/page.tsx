@@ -183,7 +183,7 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
   const isLinkedIn = platform === "linkedin";
 
   return (
-    <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+    <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
       {/* Section header */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
@@ -226,12 +226,18 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
           <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
         </div>
       ) : slots.length === 0 && !showForm ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-8 text-center">
-          <Clock className="mb-2 h-5 w-5 text-slate-300" />
-          <p className="text-xs font-medium text-slate-500">No time slots configured</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-indigo-200/60 bg-gradient-to-b from-white to-indigo-50/20 py-10 text-center">
+          <div className="relative mb-4">
+            <div className="absolute inset-0 rounded-xl bg-indigo-400/15 blur-lg scale-[2]" />
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-400/30">
+              <Clock className="h-5 w-5 text-white" />
+            </div>
+          </div>
+          <p className="text-xs font-semibold text-slate-700">No time slots yet</p>
+          <p className="mt-1 text-[11px] text-slate-400">Add slots for one-click scheduling.</p>
           <button
             onClick={() => setShowForm(true)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
           >
             <Plus className="h-3 w-3" />
             Add first slot
@@ -318,14 +324,14 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
 
 export default function PostingSchedulePage() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 page-enter">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
           <CalendarClock className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Posting Schedule</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Posting Schedule</h1>
           <p className="text-xs text-slate-400">
             Define preferred posting times — these appear as one-click options when scheduling.
           </p>

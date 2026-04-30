@@ -32,14 +32,14 @@ export default async function ConnectionsPage({
   const xActive = Boolean(xConnection && !xConnection.needs_reauth);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 page-enter">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
           <Link2 className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Connected Accounts</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Connected Accounts</h1>
           <p className="text-xs text-slate-400">
             Manage the social accounts SocialOS can publish to.
           </p>
@@ -75,7 +75,7 @@ export default async function ConnectionsPage({
       )}
 
       {/* LinkedIn card */}
-      <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+      <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {/* Platform logo */}
@@ -129,7 +129,7 @@ export default async function ConnectionsPage({
       </div>
 
       {/* X / Twitter card */}
-      <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+      <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {/* Platform logo */}

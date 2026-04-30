@@ -251,7 +251,7 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
   const showIdleActions = !isTerminal && state.kind !== "pickingSlot" && state.kind !== "pickingTime";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md hover:border-indigo-200/60">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
         <div className="flex items-center gap-2">

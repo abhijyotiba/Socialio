@@ -46,7 +46,7 @@ export function Sidebar({ email }: { email: string }) {
               <Zap size={20} fill="currentColor" />
             </div>
             <div>
-              <p className="text-xl font-bold leading-tight tracking-tight text-white">SocialOS</p>
+              <p className="font-display text-xl font-bold leading-tight tracking-tight text-white">SocialOS</p>
               <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-indigo-300/85">
                 Content Engine
               </p>
