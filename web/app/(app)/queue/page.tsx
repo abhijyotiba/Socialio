@@ -11,8 +11,9 @@ import {
   ChevronRight,
   Zap,
 } from "lucide-react";
+import { SkeletonQueue } from "@/components/app/SkeletonDashboard";
 import Link from "next/link";
-import { PostDetailDrawer } from "./_components/PostDetailDrawer";
+import { PostPreviewModal, type QueueItem } from "./_components/PostPreviewModal";
 
 type ScheduledVariant = {
   id: string;
@@ -112,6 +113,7 @@ export default function QueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<QueueItem | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("all");
 
   const fetchQueue = useCallback(() => {
@@ -135,11 +137,7 @@ export default function QueuePage() {
   }, [fetchQueue]);
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-indigo-400" />
-      </div>
-    );
+    return <SkeletonQueue />;
   }
 
   if (error) {
@@ -173,7 +171,7 @@ export default function QueuePage() {
 
   return (
     <>
-      <div className="mx-auto w-full max-w-3xl space-y-5 pb-12">
+      <div className="mx-auto w-full max-w-3xl space-y-5 pb-12 page-enter">
 
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-4">
@@ -182,7 +180,7 @@ export default function QueuePage() {
               <Calendar className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
                 Post Queue
               </h1>
               <p className="text-xs text-slate-400">
@@ -202,7 +200,7 @@ export default function QueuePage() {
         {/* ── Stat Cards ──────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-4">
           {/* Upcoming count */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-5 text-white shadow-lg shadow-indigo-200/50">
+          <div className="card-lift animate-fade-up relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-5 text-white shadow-lg shadow-indigo-200/50">
             <div className="pointer-events-none absolute right-2 top-1 opacity-[0.12]">
               <Zap className="h-16 w-16" fill="currentColor" />
             </div>
@@ -226,7 +224,7 @@ export default function QueuePage() {
           </div>
 
           {/* Platform breakdown */}
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+          <div className="card-lift animate-fade-up rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm" style={{ animationDelay: "60ms" }}>
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
               By Platform
             </p>
@@ -304,22 +302,25 @@ export default function QueuePage() {
         </div>
 
         {/* ── Queue Cards ─────────────────────────────────────── */}
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 stagger-children">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-14 text-center">
-              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-300">
-                <CalendarClock className="h-5 w-5" />
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-200/60 bg-gradient-to-b from-white to-indigo-50/30 px-6 py-16 text-center">
+              <div className="relative mb-5">
+                <div className="absolute inset-0 rounded-2xl bg-indigo-400/15 blur-xl scale-[2]" />
+                <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-xl shadow-indigo-400/30">
+                  <CalendarClock className="h-7 w-7 text-white" />
+                </div>
               </div>
-              <h3 className="text-sm font-semibold text-slate-700">
+              <h3 className="text-sm font-bold text-slate-800">
                 {activeTab === "all"
                   ? "Your queue is empty"
                   : `No ${activeTab === "linkedin" ? "LinkedIn" : "X / Twitter"} posts scheduled`}
               </h3>
-              <p className="mt-1 text-xs text-slate-400">
-                Generate content in the studio to get started.
+              <p className="mt-1.5 max-w-[22ch] text-xs leading-relaxed text-slate-400">
+                Generate content in the studio and schedule it to fill your pipeline.
               </p>
               <Link href="/chat">
-                <button className="mt-4 rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700">
+                <button className="mt-5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-300/40 transition hover:opacity-90 active:scale-[0.97]">
                   Open Content Studio
                 </button>
               </Link>
@@ -334,8 +335,18 @@ export default function QueuePage() {
               return (
                 <button
                   key={variant.id}
-                  onClick={() => setSelectedId(variant.id)}
-                  className={`group flex w-full items-center gap-4 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm transition-all hover:shadow-md ${
+                  onClick={() => {
+                    setSelectedId(variant.id);
+                    setSelectedItem({
+                      id: variant.id,
+                      platform: variant.platform,
+                      body: variant.content,
+                      status: variant.status,
+                      scheduled_at: variant.scheduled_at,
+                      created_at: variant.created_at,
+                    });
+                  }}
+                  className={`animate-fade-up group flex w-full items-center gap-4 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 ${
                     isSelected
                       ? "border-indigo-300 ring-2 ring-indigo-100"
                       : "border-slate-200/70 hover:border-indigo-200"
@@ -387,10 +398,11 @@ export default function QueuePage() {
         </div>
       </div>
 
-      {/* ── Post detail drawer ─────────────────────────────── */}
-      <PostDetailDrawer
+      {/* ── Post preview modal ─────────────────────────────── */}
+      <PostPreviewModal
         variantId={selectedId}
-        onClose={() => setSelectedId(null)}
+        initialData={selectedItem}
+        onClose={() => { setSelectedId(null); setSelectedItem(null); }}
         onUpdated={fetchQueue}
       />
     </>
