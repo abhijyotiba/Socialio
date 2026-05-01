@@ -29,7 +29,7 @@ async function publishVariant(
   const idempotencyKey = variant.id;
 
   // Skip variants that were already successfully published
-  if (await hasSuccessfulAttempt(idempotencyKey)) {
+  if (await hasSuccessfulAttempt(idempotencyKey, admin)) {
     await updatePostVariant(variant.id, { status: "published" });
     return { succeeded: true };
   }
@@ -64,7 +64,7 @@ async function publishVariant(
     idempotency_key: idempotencyKey,
     attempt_number: attemptNumber,
     status: "attempting",
-  });
+  }, admin);
 
   try {
     let result: { platformPostId: string; platformPostUrl: string };
@@ -114,7 +114,7 @@ async function publishVariant(
       platform_post_id: result.platformPostId,
       platform_post_url: result.platformPostUrl,
       completed_at: new Date().toISOString(),
-    });
+    }, admin);
 
     await updatePostVariant(variant.id, {
       status: "published",
@@ -133,7 +133,7 @@ async function publishVariant(
       error_code: errorCode,
       error_detail: errorDetail,
       completed_at: new Date().toISOString(),
-    });
+    }, admin);
 
     await updatePostVariant(variant.id, {
       status: "failed",

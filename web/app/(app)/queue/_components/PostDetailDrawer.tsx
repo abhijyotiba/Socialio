@@ -155,6 +155,11 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
     setTimeout(() => setSuccessMsg(null), 3000);
   }
 
+  function showError(msg: string) {
+    setActionError(msg);
+    setSuccessMsg(null);
+  }
+
   const plt = detail
     ? (PLATFORM[detail.platform] ?? {
         label: detail.platform,
@@ -187,14 +192,14 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
       });
       if (!res.ok) {
         const d = await res.json();
-        setActionError(d.error ?? "Save failed.");
+        showError(d.error ?? "Save failed.");
         return;
       }
       setDetail((p) => (p ? { ...p, body } : p));
       flash("Content saved.");
       onUpdated();
     } catch {
-      setActionError("Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -212,14 +217,14 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
       });
       if (!res.ok) {
         const d = await res.json();
-        setActionError(d.error ?? "Save failed.");
+        showError(d.error ?? "Save failed.");
         return;
       }
       setDetail((p) => (p ? { ...p, media } : p));
       flash("Media updated.");
       onUpdated();
     } catch {
-      setActionError("Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setSavingMedia(false);
     }
@@ -229,7 +234,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
     if (!detail || !scheduledAt) return;
     const utcIso = new Date(scheduledAt).toISOString();
     if (new Date(utcIso) <= new Date()) {
-      setActionError("Scheduled time must be in the future.");
+      showError("Scheduled time must be in the future.");
       return;
     }
     setRescheduling(true);
@@ -242,7 +247,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
       });
       const d = await res.json();
       if (!res.ok) {
-        setActionError(d.error ?? "Reschedule failed.");
+        showError(d.error ?? "Reschedule failed.");
         return;
       }
       setDetail((p) => (p ? { ...p, scheduled_at: d.scheduled_at } : p));
@@ -250,7 +255,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
       flash("Rescheduled successfully.");
       onUpdated();
     } catch {
-      setActionError("Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setRescheduling(false);
     }
@@ -266,14 +271,14 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
       });
       if (!res.ok) {
         const d = await res.json();
-        setActionError(d.error ?? "Cancel failed.");
+        showError(d.error ?? "Cancel failed.");
         return;
       }
       flash("Post cancelled and moved to drafts.");
       onUpdated();
       setTimeout(onClose, 1400);
     } catch {
-      setActionError("Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setCancelling(false);
     }
@@ -289,14 +294,14 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
       });
       const d = await res.json();
       if (!res.ok) {
-        setActionError(d.error ?? "Publish failed.");
+        showError(d.error ?? "Publish failed.");
         return;
       }
       flash("Published! 🎉");
       onUpdated();
       setTimeout(onClose, 1500);
     } catch {
-      setActionError("Network error. Please try again.");
+      showError("Network error. Please try again.");
     } finally {
       setPublishing(false);
     }

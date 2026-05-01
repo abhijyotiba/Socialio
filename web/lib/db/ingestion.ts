@@ -54,6 +54,6 @@ export async function countRecentJobs(
     .select("*", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
     .gte("created_at", since);
-  if (error) return 0;
+  if (error) throw error;
   return count ?? 0;
 }
