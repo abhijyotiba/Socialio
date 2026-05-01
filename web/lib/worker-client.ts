@@ -45,6 +45,7 @@ export async function workerIngest(
       "X-Worker-Signature": signBody(body),
     },
     body,
+    signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) {
     throw new Error(`Worker /ingest responded ${res.status}`);
@@ -82,6 +83,7 @@ export async function workerGenerate(
       "X-Worker-Signature": signBody(body),
     },
     body,
+    signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) {
     throw new Error(`Worker /generate responded ${res.status}`);
@@ -127,6 +129,7 @@ export async function workerAnalyzeVoice(
       "X-Worker-Signature": signBody(body),
     },
     body,
+    signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
@@ -168,6 +171,7 @@ export async function workerRegenerate(
       "X-Worker-Signature": signBody(body),
     },
     body,
+    signal: AbortSignal.timeout(25_000),
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");

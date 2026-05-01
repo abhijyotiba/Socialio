@@ -27,6 +27,13 @@ export function MediaPicker({
   // Debounce save timer
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // Clear pending debounce on unmount so a stale fetch never fires.
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
+
   // Load selection first
   useEffect(() => {
     fetch(`/api/posts/${variantId}/media`)

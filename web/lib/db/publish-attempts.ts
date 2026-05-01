@@ -1,15 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/db/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type PublishAttemptRow =
   Database["public"]["Tables"]["publish_attempts"]["Row"];
 type PublishAttemptInsert =
   Database["public"]["Tables"]["publish_attempts"]["Insert"];
 
+type AnyClient = SupabaseClient<Database>;
+
 export async function createPublishAttempt(
-  values: PublishAttemptInsert
+  values: PublishAttemptInsert,
+  client?: AnyClient
 ): Promise<PublishAttemptRow> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
   const { data, error } = await supabase
     .from("publish_attempts")
     .insert(values)
@@ -21,9 +25,10 @@ export async function createPublishAttempt(
 
 export async function updatePublishAttempt(
   id: string,
-  patch: Partial<PublishAttemptRow>
+  patch: Partial<PublishAttemptRow>,
+  client?: AnyClient
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
   const { error } = await supabase
     .from("publish_attempts")
     .update(patch)
@@ -32,9 +37,10 @@ export async function updatePublishAttempt(
 }
 
 export async function getLatestAttempt(
-  postVariantId: string
+  postVariantId: string,
+  client?: AnyClient
 ): Promise<PublishAttemptRow | null> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
   const { data, error } = await supabase
     .from("publish_attempts")
     .select("*")
@@ -48,9 +54,10 @@ export async function getLatestAttempt(
 
 // Idempotency guard: has this variant already been successfully published?
 export async function hasSuccessfulAttempt(
-  idempotencyKey: string
+  idempotencyKey: string,
+  client?: AnyClient
 ): Promise<boolean> {
-  const supabase = await createClient();
+  const supabase = client ?? (await createClient());
   const { count, error } = await supabase
     .from("publish_attempts")
     .select("*", { count: "exact", head: true })

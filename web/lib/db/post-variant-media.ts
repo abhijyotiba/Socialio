@@ -41,8 +41,9 @@ export async function getVariantMedia(
   });
 }
 
-// Replaces the full media selection for a variant atomically.
-// mediaAssetIds: ordered array of asset IDs (index = position). Max 4.
+// Replaces the full media selection for a variant.
+// Upserts new rows first (so old data is never deleted before new rows land),
+// then removes any rows not in the new set. Max 4 assets.
 export async function setVariantMedia(
   postVariantId: string,
   mediaAssetIds: string[]
@@ -52,26 +53,37 @@ export async function setVariantMedia(
   }
   const supabase = await createClient();
 
-  // Delete existing selection first, then insert new one.
-  const { error: deleteError } = await supabase
+  if (mediaAssetIds.length > 0) {
+    const rows: Database["public"]["Tables"]["post_variant_media"]["Insert"][] =
+      mediaAssetIds.map((id, index) => ({
+        post_variant_id: postVariantId,
+        media_asset_id: id,
+        position: index,
+      }));
+
+    // Upsert first — if this fails, existing rows are still intact (no data loss).
+    const { error: upsertError } = await supabase
+      .from("post_variant_media")
+      .upsert(rows, { onConflict: "post_variant_id,media_asset_id" });
+    if (upsertError) throw upsertError;
+  }
+
+  // Remove rows whose asset IDs are no longer in the selection.
+  let deleteQuery = supabase
     .from("post_variant_media")
     .delete()
     .eq("post_variant_id", postVariantId);
+
+  if (mediaAssetIds.length > 0) {
+    deleteQuery = deleteQuery.not(
+      "media_asset_id",
+      "in",
+      `(${mediaAssetIds.join(",")})`
+    );
+  }
+
+  const { error: deleteError } = await deleteQuery;
   if (deleteError) throw deleteError;
-
-  if (mediaAssetIds.length === 0) return;
-
-  const rows: Database["public"]["Tables"]["post_variant_media"]["Insert"][] =
-    mediaAssetIds.map((id, index) => ({
-      post_variant_id: postVariantId,
-      media_asset_id: id,
-      position: index,
-    }));
-
-  const { error: insertError } = await supabase
-    .from("post_variant_media")
-    .insert(rows);
-  if (insertError) throw insertError;
 }
 
 // Returns just the raw rows — used by publish engine (no join needed, just cloudinary_url).
