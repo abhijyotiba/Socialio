@@ -39,6 +39,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_events: {
+        Row: {
+          actor_external_id: string | null
+          actor_user_id: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          persona_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          actor_external_id?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          persona_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          actor_external_id?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          persona_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_events_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_events_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_sessions: {
+        Row: {
+          channel: string
+          created_at: string
+          current_campaign_id: string | null
+          external_user_id: string
+          id: string
+          last_active_at: string
+          state: string
+          state_data: Json | null
+          workspace_id: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          current_campaign_id?: string | null
+          external_user_id: string
+          id?: string
+          last_active_at?: string
+          state?: string
+          state_data?: Json | null
+          workspace_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          current_campaign_id?: string | null
+          external_user_id?: string
+          id?: string
+          last_active_at?: string
+          state?: string
+          state_data?: Json | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_sessions_current_campaign_id_fkey"
+            columns: ["current_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_sessions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_configs: {
         Row: {
           brand_name: string
@@ -46,6 +151,7 @@ export type Database = {
           current_prompt_version_id: string | null
           custom_system_prompt: string | null
           industry: string | null
+          persona_id: string
           tone_tags: string[]
           updated_at: string
           voice_profile: Json | null
@@ -59,6 +165,7 @@ export type Database = {
           current_prompt_version_id?: string | null
           custom_system_prompt?: string | null
           industry?: string | null
+          persona_id: string
           tone_tags?: string[]
           updated_at?: string
           voice_profile?: Json | null
@@ -72,6 +179,7 @@ export type Database = {
           current_prompt_version_id?: string | null
           custom_system_prompt?: string | null
           industry?: string | null
+          persona_id?: string
           tone_tags?: string[]
           updated_at?: string
           voice_profile?: Json | null
@@ -88,9 +196,151 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "brand_configs_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "brand_configs_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_persona_variants: {
+        Row: {
+          campaign_persona_id: string
+          created_at: string
+          id: string
+          platform: string
+          post_variant_id: string
+        }
+        Insert: {
+          campaign_persona_id: string
+          created_at?: string
+          id?: string
+          platform: string
+          post_variant_id: string
+        }
+        Update: {
+          campaign_persona_id?: string
+          created_at?: string
+          id?: string
+          platform?: string
+          post_variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_persona_variants_campaign_persona_id_fkey"
+            columns: ["campaign_persona_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_persona_variants_post_variant_id_fkey"
+            columns: ["post_variant_id"]
+            isOneToOne: false
+            referencedRelation: "post_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_personas: {
+        Row: {
+          approval_status: string
+          approved_at: string | null
+          campaign_id: string
+          created_at: string
+          generation_error: string | null
+          id: string
+          persona_id: string
+          updated_at: string
+        }
+        Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          campaign_id: string
+          created_at?: string
+          generation_error?: string | null
+          id?: string
+          persona_id: string
+          updated_at?: string
+        }
+        Update: {
+          approval_status?: string
+          approved_at?: string | null
+          campaign_id?: string
+          created_at?: string
+          generation_error?: string | null
+          id?: string
+          persona_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_personas_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_personas_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          created_at: string
+          generation_started_at: string | null
+          id: string
+          ingestion_job_id: string
+          status: string
+          title: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          generation_started_at?: string | null
+          id?: string
+          ingestion_job_id: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          generation_started_at?: string | null
+          id?: string
+          ingestion_job_id?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_ingestion_job_id_fkey"
+            columns: ["ingestion_job_id"]
+            isOneToOne: false
+            referencedRelation: "ingestion_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -252,6 +502,85 @@ export type Database = {
           },
         ]
       }
+      persona_rate_limits: {
+        Row: {
+          day_reset_at: string
+          id: string
+          last_post_at: string | null
+          persona_id: string
+          platform: string
+          posts_today: number
+          updated_at: string
+        }
+        Insert: {
+          day_reset_at?: string
+          id?: string
+          last_post_at?: string | null
+          persona_id: string
+          platform: string
+          posts_today?: number
+          updated_at?: string
+        }
+        Update: {
+          day_reset_at?: string
+          id?: string
+          last_post_at?: string | null
+          persona_id?: string
+          platform?: string
+          posts_today?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "persona_rate_limits_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      personas: {
+        Row: {
+          avatar_color: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          slug: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          avatar_color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          avatar_color?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personas_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_metrics: {
         Row: {
           comments: number | null
@@ -387,6 +716,7 @@ export type Database = {
           error: string | null
           error_code: string | null
           id: string
+          persona_id: string | null
           platform: string
           platform_post_id: string | null
           platform_post_url: string | null
@@ -406,6 +736,7 @@ export type Database = {
           error?: string | null
           error_code?: string | null
           id?: string
+          persona_id?: string | null
           platform: string
           platform_post_id?: string | null
           platform_post_url?: string | null
@@ -425,6 +756,7 @@ export type Database = {
           error?: string | null
           error_code?: string | null
           id?: string
+          persona_id?: string | null
           platform?: string
           platform_post_id?: string | null
           platform_post_url?: string | null
@@ -442,6 +774,13 @@ export type Database = {
             columns: ["content_item_id"]
             isOneToOne: false
             referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_variants_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
             referencedColumns: ["id"]
           },
           {
@@ -468,6 +807,7 @@ export type Database = {
           id: string
           is_active: boolean
           minute: number
+          persona_id: string
           platform: string
           timezone: string
           workspace_id: string
@@ -479,6 +819,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           minute: number
+          persona_id: string
           platform: string
           timezone?: string
           workspace_id: string
@@ -490,11 +831,19 @@ export type Database = {
           id?: string
           is_active?: boolean
           minute?: number
+          persona_id?: string
           platform?: string
           timezone?: string
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "posting_schedules_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "posting_schedules_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -629,6 +978,7 @@ export type Database = {
           connected_at: string
           id: string
           needs_reauth: boolean
+          persona_id: string
           platform: string
           platform_user_id: string | null
           platform_username: string | null
@@ -642,6 +992,7 @@ export type Database = {
           connected_at?: string
           id?: string
           needs_reauth?: boolean
+          persona_id: string
           platform: string
           platform_user_id?: string | null
           platform_username?: string | null
@@ -655,6 +1006,7 @@ export type Database = {
           connected_at?: string
           id?: string
           needs_reauth?: boolean
+          persona_id?: string
           platform?: string
           platform_user_id?: string | null
           platform_username?: string | null
@@ -664,6 +1016,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "social_connections_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "social_connections_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -735,6 +1094,7 @@ export type Database = {
           error: string | null
           error_code: string | null
           id: string
+          persona_id: string | null
           platform: string
           platform_post_id: string | null
           platform_post_url: string | null

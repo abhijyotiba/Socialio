@@ -7,6 +7,7 @@ function makeSchedule(
   return {
     id: "test-id",
     workspace_id: "ws-1",
+    persona_id: "00000000-0000-0000-0000-000000000001",
     platform: "linkedin",
     hour: 9,
     minute: 0,

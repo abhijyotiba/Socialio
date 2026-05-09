@@ -9,6 +9,7 @@ describe("brand_configs table types", () => {
     type Row = Database["public"]["Tables"]["brand_configs"]["Row"];
     const row: Row = {
       workspace_id: "00000000-0000-0000-0000-000000000000",
+      persona_id: "00000000-0000-0000-0000-000000000001",
       brand_name: "Acme Corp",
       industry: null,
       website_url: null,
@@ -28,6 +29,7 @@ describe("brand_configs table types", () => {
     type Insert = Database["public"]["Tables"]["brand_configs"]["Insert"];
     const insert: Insert = {
       workspace_id: "00000000-0000-0000-0000-000000000000",
+      persona_id: "00000000-0000-0000-0000-000000000001",
       brand_name: "Acme Corp",
       tone_tags: [],
     };
@@ -58,6 +60,7 @@ describe("social_connections table types", () => {
     const row: Row = {
       id: "00000000-0000-0000-0000-000000000000",
       workspace_id: "00000000-0000-0000-0000-000000000000",
+      persona_id: "00000000-0000-0000-0000-000000000001",
       platform: "linkedin",
       platform_user_id: null,
       platform_username: null,
