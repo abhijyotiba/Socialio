@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getBrandConfig, upsertBrandConfig } from "@/lib/db/brand-configs";
+import { getDefaultPersona } from "@/lib/db/personas";
 import { createPromptVersion } from "@/lib/db/prompt-versions";
 
 export async function GET() {
@@ -33,6 +34,7 @@ const bodySchema = z.object({
   website_url: z.string().url().optional().or(z.literal("")).optional(),
   tone_tags: z.array(z.string()),
   system_prompt: z.string().min(1),
+  persona_id: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {
@@ -61,6 +63,12 @@ export async function POST(request: Request) {
     parsed.data;
   const workspaceId = workspace.workspace_id;
 
+  const personaId =
+    parsed.data.persona_id ?? (await getDefaultPersona(workspaceId))?.id;
+  if (!personaId) {
+    return NextResponse.json({ error: "No persona found" }, { status: 400 });
+  }
+
   const promptVersion = await createPromptVersion(
     workspaceId,
     system_prompt,
@@ -69,6 +77,7 @@ export async function POST(request: Request) {
 
   const brandConfig = await upsertBrandConfig({
     workspace_id: workspaceId,
+    persona_id: personaId,
     brand_name,
     industry: industry ?? null,
     website_url: website_url || null,

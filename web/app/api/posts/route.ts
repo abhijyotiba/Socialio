@@ -120,8 +120,35 @@ export async function POST(request: Request) {
       completed_at: new Date().toISOString(),
     });
 
+    // [B6] Campaign side-effect: make all posts traceable via the campaign model.
+    // Purely additive — never breaks the main flow.
+    let campaignId: string | undefined
+    try {
+      const { getDefaultPersona } = await import('@/lib/db/personas')
+      const defaultPersona = await getDefaultPersona(workspaceId)
+      if (defaultPersona) {
+        const { createCampaign, createCampaignPersonas, createCampaignPersonaVariants } =
+          await import('@/lib/db/campaigns')
+        const campaign = await createCampaign({
+          workspace_id: workspaceId,
+          ingestion_job_id,
+          title: job.extracted_title ?? undefined,
+          status: 'completed',
+        })
+        const [campaignPersonaRow] = await createCampaignPersonas(campaign.id, [defaultPersona.id])
+        await createCampaignPersonaVariants(
+          campaignPersonaRow.id,
+          variants.map(v => ({ post_variant_id: v.id, platform: v.platform }))
+        )
+        campaignId = campaign.id
+      }
+    } catch {
+      // Campaign side-effect must never break the main flow
+    }
+
     return NextResponse.json({
       content_item_id: contentItem.id,
+      campaign_id: campaignId,
       variants: variants.map((v) => ({
         id: v.id,
         platform: v.platform,

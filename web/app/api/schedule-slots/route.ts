@@ -7,6 +7,7 @@ import {
   createScheduleSlot,
   getNextSlotsForWorkspace,
 } from "@/lib/db/posting-schedules";
+import { getPersona } from "@/lib/db/personas";
 
 const platformSchema = z.enum(["linkedin", "x"]);
 
@@ -16,6 +17,7 @@ const createSchema = z.object({
   minute: z.union([z.literal(0), z.literal(30)]),
   days_of_week: z.array(z.number().int().min(0).max(6)).min(1),
   timezone: z.string().min(1),
+  persona_id: z.string().uuid().optional(),
 });
 
 export async function GET(request: Request) {
@@ -35,6 +37,14 @@ export async function GET(request: Request) {
       { error: "platform query param must be 'linkedin' or 'x'" },
       { status: 400 }
     );
+  }
+
+  const personaId = searchParams.get("persona_id");
+  if (personaId) {
+    const persona = await getPersona(personaId);
+    if (!persona || persona.workspace_id !== workspace.workspace_id) {
+      return NextResponse.json({ error: "Persona not found" }, { status: 404 });
+    }
   }
 
   const platform = platformParsed.data;
@@ -59,6 +69,13 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  if (parsed.data.persona_id) {
+    const persona = await getPersona(parsed.data.persona_id);
+    if (!persona || persona.workspace_id !== workspace.workspace_id) {
+      return NextResponse.json({ error: "Persona not found" }, { status: 404 });
+    }
   }
 
   const slot = await createScheduleSlot({

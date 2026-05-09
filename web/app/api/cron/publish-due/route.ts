@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readSecret } from "@/lib/security/vault";
-import { getSocialConnection } from "@/lib/db/social-connections";
+import { getSocialConnection, getSocialConnectionForPersona } from "@/lib/db/social-connections";
 import {
   createPublishAttempt,
   updatePublishAttempt,
@@ -35,7 +35,9 @@ async function publishVariant(
   }
 
   const platform = variant.platform as "linkedin" | "x";
-  const connection = await getSocialConnection(variant.workspace_id, platform);
+  const connection = variant.persona_id
+    ? await getSocialConnectionForPersona(variant.persona_id, platform)
+    : await getSocialConnection(variant.workspace_id, platform);
   if (!connection || connection.needs_reauth || !connection.access_token_vault_id) {
     await updatePostVariant(variant.id, {
       status: "failed",
@@ -152,6 +154,22 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const workerId = crypto.randomUUID();
+
+  // Zombie campaign cleanup: campaigns stuck in 'generating' > 3 minutes → failed
+  const { data: zombieCampaigns } = await admin
+    .from('campaigns')
+    .update({ status: 'failed' })
+    .eq('status', 'generating')
+    .lt('generation_started_at', new Date(Date.now() - 3 * 60 * 1000).toISOString())
+    .select('id')
+
+  if (zombieCampaigns?.length) {
+    await admin
+      .from('campaign_personas')
+      .update({ approval_status: 'rejected' })
+      .eq('approval_status', 'pending')
+      .in('campaign_id', zombieCampaigns.map((c: { id: string }) => c.id))
+  }
 
   // Sweeper: reset rows stuck in 'publishing' for > 10 minutes
   const { data: sweptRows } = await admin

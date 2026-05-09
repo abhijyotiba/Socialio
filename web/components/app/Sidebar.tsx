@@ -17,7 +17,7 @@ const nav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Chat", href: "/chat", icon: PenLine },
   { name: "Queue", href: "/queue", icon: CalendarClock },
-  { name: "Settings", href: "/settings/brand", icon: SlidersHorizontal },
+  { name: "Settings", href: "/settings/personas", icon: SlidersHorizontal },
 ];
 
 export function Sidebar({ email }: { email: string }) {
@@ -60,7 +60,7 @@ export function Sidebar({ email }: { email: string }) {
             const active =
               pathname === href ||
               (href !== "/chat" && pathname.startsWith(href + "/")) ||
-              (href === "/settings/brand" && pathname.startsWith("/settings"));
+              (href === "/settings/personas" && pathname.startsWith("/settings"));
             return (
               <Link
                 key={href}

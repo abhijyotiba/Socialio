@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getWorkspaceForUser } from "@/lib/db/workspaces";
+import { getPersona } from "@/lib/db/personas";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
 
   const {
@@ -12,8 +14,22 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get scheduled variants
-  const { data: variants, error } = await supabase
+  const workspace = await getWorkspaceForUser(user.id);
+  if (!workspace) {
+    return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const personaId = searchParams.get("persona_id");
+
+  if (personaId) {
+    const persona = await getPersona(personaId);
+    if (!persona || persona.workspace_id !== workspace.workspace_id) {
+      return NextResponse.json({ error: "Persona not found" }, { status: 404 });
+    }
+  }
+
+  let query = supabase
     .from("post_variants")
     .select(`
       id,
@@ -21,18 +37,25 @@ export async function GET() {
       status,
       scheduled_at,
       body,
-      created_at
+      created_at,
+      persona_id
     `)
     .eq("status", "scheduled")
-    .order("scheduled_at", { ascending: true }); // Soonest first
+    .order("scheduled_at", { ascending: true });
+
+  if (personaId) {
+    query = query.eq("persona_id", personaId);
+  }
+
+  const { data: variants, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const formattedVariants = variants.map(v => ({
+  const formattedVariants = (variants ?? []).map((v) => ({
     ...v,
-    content: v.body
+    content: v.body,
   }));
 
   return NextResponse.json(formattedVariants);

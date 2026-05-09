@@ -8,6 +8,7 @@ import {
   setVoiceProfile,
   upsertBrandConfig,
 } from "@/lib/db/brand-configs";
+import { getDefaultPersona } from "@/lib/db/personas";
 import { createPromptVersion } from "@/lib/db/prompt-versions";
 import {
   WorkerError,
@@ -31,6 +32,7 @@ const bodySchema = z.object({
       message: "Total samples exceed 30 KB",
     }),
   platform_mix: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  persona_id: z.string().uuid().optional(),
   brand_details: z
     .object({
       brand_name: z.string().min(1),
@@ -63,10 +65,17 @@ export async function POST(request: Request) {
     );
   }
 
+  const workspaceId = workspace.workspace_id;
+  const personaId =
+    parsed.data.persona_id ?? (await getDefaultPersona(workspaceId))?.id;
+  if (!personaId) {
+    return NextResponse.json({ error: "No persona found" }, { status: 400 });
+  }
+
   // Brand name is required for the rendered prompt. Onboarding will pass it
   // in `brand_details`; Settings refresh will not (and we'll read the existing
   // brand_configs row).
-  const existing = await getBrandConfig(workspace.workspace_id);
+  const existing = await getBrandConfig(workspaceId);
   const details = parsed.data.brand_details;
   const brandName =
     details?.brand_name?.trim() ||
@@ -77,7 +86,7 @@ export async function POST(request: Request) {
   let workerResp;
   try {
     workerResp = await workerAnalyzeVoice({
-      workspace_id: workspace.workspace_id,
+      workspace_id: workspaceId,
       brand_name: brandName,
       samples: parsed.data.samples,
       tone_tags: toneTags,
@@ -105,11 +114,11 @@ export async function POST(request: Request) {
   const { profile, system_prompt } = workerResp;
 
   // 1) Persist the structured profile.
-  await setVoiceProfile(workspace.workspace_id, profile as Json);
+  await setVoiceProfile(workspaceId, profile as Json);
 
   // 2) Mint a new prompt_versions row, sourced from the voice profile.
   const promptVersion = await createPromptVersion(
-    workspace.workspace_id,
+    workspaceId,
     system_prompt,
     user.id,
     "voice_profile"
@@ -120,7 +129,8 @@ export async function POST(request: Request) {
   //    the new prompt immediately. Insert a brand_configs row if the user
   //    hasn't created one yet (onboarding) — we have brand_name from details.
   await upsertBrandConfig({
-    workspace_id: workspace.workspace_id,
+    workspace_id: workspaceId,
+    persona_id: personaId,
     brand_name: details?.brand_name ?? existing?.brand_name ?? brandName,
     industry:
       details?.industry !== undefined

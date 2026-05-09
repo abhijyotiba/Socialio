@@ -73,7 +73,8 @@ export interface WorkerGenerateResponse {
 }
 
 export async function workerGenerate(
-  req: WorkerGenerateRequest
+  req: WorkerGenerateRequest,
+  signal?: AbortSignal  // [B3] optional — pass to fetch so timeout actually cancels the connection
 ): Promise<WorkerGenerateResponse> {
   const body = JSON.stringify(req);
   const res = await fetch(`${process.env.WORKER_URL}/generate`, {
@@ -83,7 +84,7 @@ export async function workerGenerate(
       "X-Worker-Signature": signBody(body),
     },
     body,
-    signal: AbortSignal.timeout(25_000),
+    signal: signal ?? AbortSignal.timeout(25_000),  // caller's signal takes precedence
   });
   if (!res.ok) {
     throw new Error(`Worker /generate responded ${res.status}`);

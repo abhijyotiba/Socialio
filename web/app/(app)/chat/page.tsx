@@ -8,7 +8,10 @@ import { UserBubble } from "./_components/UserBubble";
 import { AiMessage } from "./_components/AiMessage";
 import { ExtractionCard } from "./_components/ExtractionCard";
 import { ChatInput } from "./_components/ChatInput";
+import { CampaignBatchCard } from "./_components/CampaignBatchCard";
+import type { Database } from "@/lib/db/types";
 
+type PersonaRow = Database["public"]["Tables"]["personas"]["Row"];
 type Media = { cloudinary_url: string; cloudinary_id: string };
 type Variant = { id: string; platform: string; body: string };
 
@@ -27,6 +30,7 @@ type ChatMessage =
     }
   | { id: string; type: "ai-generating"; jobId: string; stage: string }
   | { id: string; type: "ai-variants"; variants: Variant[]; jobId: string }
+  | { id: string; type: "ai-campaign"; campaignId: string }
   | { id: string; type: "ai-error"; message: string };
 
 const STAGE_LABELS: Record<string, string> = {
@@ -46,6 +50,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [platforms, setPlatforms] = useState<("linkedin" | "x")[]>([]);
   const [connectedPlatforms, setConnectedPlatforms] = useState<("linkedin" | "x")[]>([]);
+  const [personas, setPersonas] = useState<PersonaRow[]>([]);
+  const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -64,6 +70,17 @@ export default function ChatPage() {
           .filter((p): p is "linkedin" | "x" => p === "linkedin" || p === "x");
         setConnectedPlatforms(connected);
         setPlatforms(connected);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/personas")
+      .then((r) => r.json())
+      .then((data: { personas: PersonaRow[] }) => {
+        const list = data.personas ?? [];
+        setPersonas(list);
+        setSelectedPersonaIds(list.map((p) => p.id));
       })
       .catch(() => {});
   }, []);
@@ -104,6 +121,12 @@ export default function ChatPage() {
 
   function replaceMessage(id: string, msg: ChatMessage) {
     setMessages((prev) => prev.map((m) => (m.id === id ? msg : m)));
+  }
+
+  function togglePersona(id: string) {
+    setSelectedPersonaIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
   }
 
   async function handleSubmit() {
@@ -160,6 +183,61 @@ export default function ChatPage() {
     if (platforms.length === 0 || isGenerating) return;
     setIsGenerating(true);
 
+    const isMultiPersona = selectedPersonaIds.length > 1;
+
+    if (isMultiPersona) {
+      const generatingId = uid();
+      addMessage({ id: generatingId, type: "ai-typing", label: "Generating for all personas…" });
+
+      try {
+        const res = await fetch("/api/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ingestion_job_id: jobId,
+            persona_ids: selectedPersonaIds,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setMessages((prev) =>
+            prev
+              .filter((m) => m.id !== generatingId)
+              .map((m) =>
+                m.type === "ai-extracted" && m.jobId === jobId
+                  ? { ...m, generationError: data.error ?? "Campaign generation failed." }
+                  : m
+              )
+          );
+          return;
+        }
+        setMessages((prev) =>
+          prev
+            .map((m) =>
+              m.id === generatingId
+                ? ({ id: generatingId, type: "ai-campaign", campaignId: data.campaign_id } as ChatMessage)
+                : m.type === "ai-extracted" && m.jobId === jobId
+                  ? { ...m, generated: true }
+                  : m
+            )
+        );
+      } catch {
+        setMessages((prev) =>
+          prev
+            .filter((m) => m.id !== generatingId)
+            .map((m) =>
+              m.type === "ai-extracted" && m.jobId === jobId
+                ? { ...m, generationError: "Network error. Please try again." }
+                : m
+            )
+        );
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
+
+    // Single persona — use the existing POST /api/posts path
     const generatingId = uid();
     addMessage({ id: generatingId, type: "ai-generating", jobId, stage: "analyzing" });
 
@@ -236,7 +314,6 @@ export default function ChatPage() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center px-4 animate-fade-in">
-            {/* Ambient glow ring */}
             <div className="relative mb-6">
               <div className="absolute inset-0 rounded-3xl bg-indigo-500/20 blur-2xl scale-150" />
               <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 shadow-xl shadow-indigo-500/40">
@@ -272,14 +349,10 @@ export default function ChatPage() {
           <div className="space-y-4 py-2 pr-1">
             {messages.map((msg) => {
               if (msg.type === "user") {
-                return (
-                  <UserBubble key={msg.id} text={msg.text} isUrl={msg.isUrl} />
-                );
+                return <UserBubble key={msg.id} text={msg.text} isUrl={msg.isUrl} />;
               }
               if (msg.type === "ai-typing") {
-                return (
-                  <TypingIndicator key={msg.id} label={msg.label} />
-                );
+                return <TypingIndicator key={msg.id} label={msg.label} />;
               }
               if (msg.type === "ai-error") {
                 return (
@@ -301,6 +374,9 @@ export default function ChatPage() {
                     onGenerate={() => handleGenerate(msg.jobId)}
                     generationError={msg.generationError}
                     generated={msg.generated}
+                    personas={personas}
+                    selectedPersonaIds={selectedPersonaIds}
+                    onTogglePersona={togglePersona}
                   />
                 );
               }
@@ -329,6 +405,13 @@ export default function ChatPage() {
                         <VariantCard variant={v} jobId={msg.jobId} />
                       </div>
                     ))}
+                  </div>
+                );
+              }
+              if (msg.type === "ai-campaign") {
+                return (
+                  <div key={msg.id} className="pl-11 animate-message-in">
+                    <CampaignBatchCard campaignId={msg.campaignId} />
                   </div>
                 );
               }

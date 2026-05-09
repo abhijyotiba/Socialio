@@ -2,9 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, Link2, Palette, Settings2 } from "lucide-react";
+import { CalendarClock, Link2, Palette, Settings2, Users } from "lucide-react";
 
 const navItems = [
+  {
+    href: "/settings/personas",
+    label: "Personas",
+    description: "Manage brand personas",
+    icon: Users,
+  },
   {
     href: "/settings/brand",
     label: "Brand",
@@ -50,7 +56,7 @@ export default function SettingsLayout({
           </div>
           <ul className="space-y-0.5">
             {navItems.map((item) => {
-              const active = pathname === item.href;
+              const active = pathname === item.href || pathname.startsWith(item.href + "/");
               const Icon = item.icon;
               return (
                 <li key={item.href}>

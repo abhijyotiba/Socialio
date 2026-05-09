@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Sparkles, ChevronDown, ChevronUp, Image, Link2 } from "lucide-react";
 import { AiMessage } from "./AiMessage";
+import { PersonaSelector } from "./PersonaSelector";
+import type { Database } from "@/lib/db/types";
 
+type PersonaRow = Database["public"]["Tables"]["personas"]["Row"];
 type Media = { cloudinary_url: string; cloudinary_id: string };
 
 type Props = {
@@ -16,6 +19,9 @@ type Props = {
   onGenerate: () => void;
   generationError?: string;
   generated?: boolean;
+  personas?: PersonaRow[];
+  selectedPersonaIds?: string[];
+  onTogglePersona?: (id: string) => void;
 };
 
 const PLATFORM_CONFIG = {
@@ -51,6 +57,9 @@ export function ExtractionCard({
   onGenerate,
   generationError,
   generated,
+  personas,
+  selectedPersonaIds,
+  onTogglePersona,
 }: Props) {
   const [showMore, setShowMore] = useState(false);
   const truncated = text.length > 320;
@@ -109,6 +118,14 @@ export function ExtractionCard({
           <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
             Generate for
           </p>
+          {personas && personas.length > 1 && selectedPersonaIds && onTogglePersona && (
+            <PersonaSelector
+              personas={personas}
+              selectedIds={selectedPersonaIds}
+              onToggle={onTogglePersona}
+            />
+          )}
+
           {connectedPlatforms.length === 0 ? (
             <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
               <Link2 className="h-3.5 w-3.5 shrink-0 text-amber-500" />
