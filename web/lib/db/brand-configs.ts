@@ -22,26 +22,27 @@ export async function getBrandConfig(
 }
 
 export async function upsertBrandConfig(
-  values: Omit<BrandConfigInsert, "persona_id"> & { persona_id?: string }
+  values: BrandConfigInsert
 ): Promise<BrandConfigRow> {
   const supabase = await createClient();
-  let personaId = values.persona_id;
-  if (!personaId) {
-    const { data: persona } = await supabase
-      .from("personas")
-      .select("id")
-      .eq("workspace_id", values.workspace_id)
-      .eq("is_default", true)
-      .single();
-    if (!persona) throw new Error("No default persona found for workspace");
-    personaId = persona.id;
-  }
   const { data, error } = await supabase
     .from("brand_configs")
-    .upsert({ ...values, persona_id: personaId }, { onConflict: "persona_id" })
+    .upsert(values, { onConflict: "persona_id" })
     .select()
     .single();
   if (error) throw error;
+  return data;
+}
+
+export async function getBrandConfigForPersona(
+  personaId: string
+): Promise<BrandConfigRow | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("brand_configs")
+    .select("*")
+    .eq("persona_id", personaId)
+    .single();
   return data;
 }
 
