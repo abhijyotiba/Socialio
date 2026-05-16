@@ -270,12 +270,12 @@ This is the part of the system that should have been built first. Once it lands,
 
 ---
 
-## 10. Decisions deferred to user
+## 10. Decisions (locked)
 
-Before writing code I need a yes/no on each:
+Resolved before code:
 
-1. **Delete `POST /api/posts` outright, or keep it as a thin wrapper** that internally creates a campaign with `persona_ids: [defaultPersonaId]`?
-2. **Connections page consolidation:** redirect to default persona's connections, or render a persona picker?
-3. **Campaign approval UI scope:** approve-per-persona only, or include per-platform-within-persona approval (more granular)?
-4. **`platform_limits` table:** add it now (migration `0016`), or defer and just add a CI test that asserts TS constants match the SQL `CASE`?
-5. **Persona switcher in sidebar:** in scope for this round, or punt to a later UI polish round?
+1. **`POST /api/posts` is deleted outright.** The chat UI is updated to call `/api/campaigns` directly. No thin-wrapper layer. Any external caller (none known) gets a 404.
+2. **`/settings/connections` redirects to `/settings/personas/[defaultPersonaId]/connections`.** No persona-picker UI in this round.
+3. **Approval is per-persona only.** Matches the `campaign_personas` grain. Per-platform approval is explicitly out of scope; if someone wants to publish LinkedIn but not X for a persona, they approve the persona and then manually cancel the X variant from the existing variant card.
+4. **Migration `0016` (`platform_limits` table) lands this round.** Refactor `claim_due_variants` to JOIN it; `web/lib/constants/platforms.ts` becomes a thin re-export validated by a CI test.
+5. **Persona switcher in sidebar is punted to a later UI polish round.** Not required for correctness.
