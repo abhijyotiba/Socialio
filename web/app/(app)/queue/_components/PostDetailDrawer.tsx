@@ -16,6 +16,7 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useNowPlusMinutes } from "@/lib/hooks/useNowPlusMinutes";
 
 const CHAR_LIMITS: Record<string, number> = {
   linkedin: 3000,
@@ -74,6 +75,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
   const [detail, setDetail] = useState<PostDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const minScheduleTime = useNowPlusMinutes(1);
 
   // Editable local state
   const [body, setBody] = useState("");
@@ -95,9 +97,13 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isOpen = variantId !== null;
 
-  // Load details whenever a new variantId comes in
+  // Load details whenever a new variantId comes in.
+  // The series of setState calls below resets the form when the prop changes;
+  // the alternative (a `key={variantId}` remount in the parent) would be a
+  // wider refactor for the same effect, so we keep this and silence the rule.
   useEffect(() => {
     if (!variantId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- form reset on prop change
       setDetail(null);
       setBody("");
       setScheduledAt("");
@@ -471,9 +477,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                       type="datetime-local"
                       value={scheduledAt}
                       onChange={(e) => setScheduledAt(e.target.value)}
-                      min={new Date(Date.now() + 60_000)
-                        .toISOString()
-                        .slice(0, 16)}
+                      min={minScheduleTime}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                     />
                     <div className="flex items-center gap-2">

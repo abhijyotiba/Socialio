@@ -48,6 +48,10 @@ export function MediaPicker({
   // Let's load when opened to save network.
   useEffect(() => {
     if (!isOpen || available.length > 0 || !jobId) return;
+    // Showing a spinner before fetch is the intended UX; the React Compiler
+    // rule treats this as a cascading-render risk but in practice it's one
+    // extra render when the picker opens, which is negligible.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional loading flag before fetch
     setLoading(true);
     fetch(`/api/media?job_id=${jobId}`)
       .then((r) => r.json())

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Copy, CheckCheck, ExternalLink, Loader2, Zap, CalendarClock, X, Sparkles, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { MediaPicker } from "./MediaPicker";
+import { useNowPlusMinutes } from "@/lib/hooks/useNowPlusMinutes";
 
 type Variant = {
   id: string;
@@ -75,6 +76,7 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
   const [state, setState] = useState<ActionState>({ kind: "idle" });
   const [scheduledAt, setScheduledAt] = useState("");
   const [copied, setCopied] = useState(false);
+  const minScheduleTime = useNowPlusMinutes(1);
 
   // Inline regeneration state
   const [currentBody, setCurrentBody] = useState(variant.body);
@@ -473,7 +475,7 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
                 type="datetime-local"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                min={minScheduleTime}
                 className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               />
               <button onClick={handleScheduleConfirm} disabled={!scheduledAt}
