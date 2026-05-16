@@ -161,7 +161,11 @@ export async function POST(request: Request) {
   // Zombie campaign cleanup: campaigns stuck in 'generating' > 3 minutes → failed
   const { data: zombieCampaigns } = await admin
     .from('campaigns')
-    .update({ status: 'failed' })
+    .update({
+      status: 'failed',
+      failure_code: 'GENERATION_TIMEOUT',
+      failure_reason: 'Generation exceeded the 3-minute window.',
+    })
     .eq('status', 'generating')
     .lt('generation_started_at', new Date(Date.now() - 3 * 60 * 1000).toISOString())
     .select('id, workspace_id')

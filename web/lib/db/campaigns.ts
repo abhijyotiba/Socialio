@@ -69,7 +69,11 @@ export async function createCampaignPersonas(
 
 export async function createCampaignPersonaVariants(
   campaignPersonaId: string,
-  variants: Array<{ post_variant_id: string; platform: string }>
+  variants: Array<{
+    post_variant_id: string
+    platform: string
+    prompt_version_id?: string | null
+  }>
 ): Promise<CampaignPersonaVariantRow[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -79,6 +83,7 @@ export async function createCampaignPersonaVariants(
         campaign_persona_id: campaignPersonaId,
         post_variant_id: v.post_variant_id,
         platform: v.platform,
+        prompt_version_id: v.prompt_version_id ?? null,
       }))
     )
     .select()

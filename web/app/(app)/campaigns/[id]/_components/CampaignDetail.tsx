@@ -144,6 +144,16 @@ export function CampaignDetail({ initial }: Props) {
         )}
       </div>
 
+      {campaign.failure_reason && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-xs font-semibold text-red-700">
+            Campaign failed
+            {campaign.failure_code ? ` · ${campaign.failure_code}` : ""}
+          </p>
+          <p className="mt-1 text-xs text-red-600">{campaign.failure_reason}</p>
+        </div>
+      )}
+
       <ul className="space-y-3">
         {campaign.campaign_personas.map((cp) => {
           const approveBusy = pendingAction === `approve-${cp.persona.id}`;

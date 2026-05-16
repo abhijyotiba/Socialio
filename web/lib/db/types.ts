@@ -218,6 +218,7 @@ export type Database = {
           id: string
           platform: string
           post_variant_id: string
+          prompt_version_id: string | null
         }
         Insert: {
           campaign_persona_id: string
@@ -225,6 +226,7 @@ export type Database = {
           id?: string
           platform: string
           post_variant_id: string
+          prompt_version_id?: string | null
         }
         Update: {
           campaign_persona_id?: string
@@ -232,6 +234,7 @@ export type Database = {
           id?: string
           platform?: string
           post_variant_id?: string
+          prompt_version_id?: string | null
         }
         Relationships: [
           {
@@ -246,6 +249,13 @@ export type Database = {
             columns: ["post_variant_id"]
             isOneToOne: false
             referencedRelation: "post_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_persona_variants_prompt_version_id_fkey"
+            columns: ["prompt_version_id"]
+            isOneToOne: false
+            referencedRelation: "prompt_versions"
             referencedColumns: ["id"]
           },
         ]
@@ -301,6 +311,8 @@ export type Database = {
       campaigns: {
         Row: {
           created_at: string
+          failure_code: string | null
+          failure_reason: string | null
           generation_started_at: string | null
           id: string
           ingestion_job_id: string
@@ -311,6 +323,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          failure_code?: string | null
+          failure_reason?: string | null
           generation_started_at?: string | null
           id?: string
           ingestion_job_id: string
@@ -321,6 +335,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          failure_code?: string | null
+          failure_reason?: string | null
           generation_started_at?: string | null
           id?: string
           ingestion_job_id?: string
@@ -539,6 +555,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_limits: {
+        Row: {
+          daily_post_limit: number
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          daily_post_limit: number
+          platform: string
+          updated_at?: string
+        }
+        Update: {
+          daily_post_limit?: number
+          platform?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       personas: {
         Row: {

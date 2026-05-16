@@ -50,7 +50,11 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     rules: {
-      "no-restricted-imports": ["warn", restrictedImports],
+      // Flipped from warn to error in Phase V2.2 Step E. The only legitimate
+      // legacy imports left are the explicit fallback callers in the cron and
+      // publish/regenerate routes, each disabling the rule on a single line
+      // with a comment explaining why.
+      "no-restricted-imports": ["error", restrictedImports],
     },
   },
   {
