@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getBrandConfig } from "@/lib/db/brand-configs";
-import { getSocialConnection } from "@/lib/db/social-connections";
+import { getDefaultPersona } from "@/lib/db/personas";
+import { getBrandConfigForPersona } from "@/lib/db/brand-configs";
+import { getSocialConnectionForPersona } from "@/lib/db/social-connections";
 
 export async function GET() {
   const supabase = await createClient();
@@ -11,11 +12,14 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const workspace = await getWorkspaceForUser(user.id);
-  const [brandConfig, linkedin, xConn] = workspace
+  const defaultPersona = workspace
+    ? await getDefaultPersona(workspace.workspace_id)
+    : null;
+  const [brandConfig, linkedin, xConn] = defaultPersona
     ? await Promise.all([
-        getBrandConfig(workspace.workspace_id),
-        getSocialConnection(workspace.workspace_id, "linkedin"),
-        getSocialConnection(workspace.workspace_id, "x"),
+        getBrandConfigForPersona(defaultPersona.id),
+        getSocialConnectionForPersona(defaultPersona.id, "linkedin"),
+        getSocialConnectionForPersona(defaultPersona.id, "x"),
       ])
     : [null, null, null];
 

@@ -9,7 +9,7 @@ import { getConnectionsForPersona } from '@/lib/db/social-connections'
 import { createContentItem, createPostVariants } from '@/lib/db/posts'
 import {
   createCampaign, updateCampaign, createCampaignPersonas, createCampaignPersonaVariants,
-  countRecentCampaigns,
+  countRecentCampaigns, listCampaignsForWorkspace,
 } from '@/lib/db/campaigns'
 import { insertAuditEvent } from '@/lib/db/audit-events'
 import { workerGenerate, type WorkerGenerateResponse } from '@/lib/worker-client'
@@ -167,10 +167,12 @@ export async function POST(request: Request) {
     }
 
     // [B2] ONE content_item per persona (not per variant/platform)
+    const promptVersionId =
+      brandConfigs[persona_ids.indexOf(personaId)]?.current_prompt_version_id ?? null
     const contentItem = await createContentItem({
       workspace_id: workspaceId,
       ingestion_job_id,
-      prompt_version_id: brandConfigs[persona_ids.indexOf(personaId)]?.current_prompt_version_id ?? null,
+      prompt_version_id: promptVersionId,
     })
 
     const postVariants = await createPostVariants(
@@ -184,10 +186,16 @@ export async function POST(request: Request) {
       }))
     )
 
-    // [B1] Link all variants to campaign_persona via join table
+    // [B1] Link all variants to campaign_persona via join table.
+    // prompt_version_id is snapshotted here so a later voice refresh
+    // doesn't silently desync the variant's voice-of-origin.
     await createCampaignPersonaVariants(
       campaignPersona.id,
-      postVariants.map(v => ({ post_variant_id: v.id, platform: v.platform }))
+      postVariants.map(v => ({
+        post_variant_id: v.id,
+        platform: v.platform,
+        prompt_version_id: promptVersionId,
+      }))
     )
 
     postVariants.forEach(v => allVariants.push({
@@ -203,7 +211,16 @@ export async function POST(request: Request) {
     ? 'generation_partial'
     : 'pending_approval'
 
-  await updateCampaign(campaign.id, { status: finalStatus })
+  await updateCampaign(
+    campaign.id,
+    successCount === 0
+      ? {
+          status: finalStatus,
+          failure_code: 'ALL_PERSONAS_FAILED',
+          failure_reason: 'Every persona generation attempt failed. Check that each persona has a connected platform and a voice profile.',
+        }
+      : { status: finalStatus }
+  )
   await insertAuditEvent({
     workspace_id: workspaceId,
     event_type: 'campaign.created',
@@ -234,4 +251,16 @@ export async function POST(request: Request) {
       body: v.body,
     })),
   })
+}
+
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const workspace = await getWorkspaceForUser(user.id)
+  if (!workspace) return NextResponse.json({ error: 'Workspace not found' }, { status: 403 })
+
+  const campaigns = await listCampaignsForWorkspace(workspace.workspace_id)
+  return NextResponse.json({ campaigns })
 }

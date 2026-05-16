@@ -183,69 +183,38 @@ export default function ChatPage() {
     if (platforms.length === 0 || isGenerating) return;
     setIsGenerating(true);
 
-    const isMultiPersona = selectedPersonaIds.length > 1;
+    // All generation goes through /api/campaigns (Phase V2.2). For single-
+    // persona use the response's variants array drives the inline VariantCards;
+    // multi-persona renders a CampaignBatchCard pointing at the campaign id.
+    const personaIds =
+      selectedPersonaIds.length > 0
+        ? selectedPersonaIds
+        : personas[0]
+          ? [personas[0].id]
+          : [];
 
-    if (isMultiPersona) {
-      const generatingId = uid();
-      addMessage({ id: generatingId, type: "ai-typing", label: "Generating for all personas…" });
-
-      try {
-        const res = await fetch("/api/campaigns", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ingestion_job_id: jobId,
-            persona_ids: selectedPersonaIds,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setMessages((prev) =>
-            prev
-              .filter((m) => m.id !== generatingId)
-              .map((m) =>
-                m.type === "ai-extracted" && m.jobId === jobId
-                  ? { ...m, generationError: data.error ?? "Campaign generation failed." }
-                  : m
-              )
-          );
-          return;
-        }
-        setMessages((prev) =>
-          prev
-            .map((m) =>
-              m.id === generatingId
-                ? ({ id: generatingId, type: "ai-campaign", campaignId: data.campaign_id } as ChatMessage)
-                : m.type === "ai-extracted" && m.jobId === jobId
-                  ? { ...m, generated: true }
-                  : m
-            )
-        );
-      } catch {
-        setMessages((prev) =>
-          prev
-            .filter((m) => m.id !== generatingId)
-            .map((m) =>
-              m.type === "ai-extracted" && m.jobId === jobId
-                ? { ...m, generationError: "Network error. Please try again." }
-                : m
-            )
-        );
-      } finally {
-        setIsGenerating(false);
-      }
+    if (personaIds.length === 0) {
+      setIsGenerating(false);
       return;
     }
 
-    // Single persona — use the existing POST /api/posts path
+    const isMultiPersona = personaIds.length > 1;
     const generatingId = uid();
-    addMessage({ id: generatingId, type: "ai-generating", jobId, stage: "analyzing" });
+    addMessage(
+      isMultiPersona
+        ? { id: generatingId, type: "ai-typing", label: "Generating for all personas…" }
+        : { id: generatingId, type: "ai-generating", jobId, stage: "analyzing" }
+    );
 
     try {
-      const res = await fetch("/api/posts", {
+      const res = await fetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingestion_job_id: jobId, platforms }),
+        body: JSON.stringify({
+          ingestion_job_id: jobId,
+          persona_ids: personaIds,
+          platforms,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -260,15 +229,30 @@ export default function ChatPage() {
         );
         return;
       }
+
+      const replacement: ChatMessage = isMultiPersona
+        ? { id: generatingId, type: "ai-campaign", campaignId: data.campaign_id }
+        : {
+            id: generatingId,
+            type: "ai-variants",
+            jobId,
+            variants: (data.variants ?? []).map(
+              (v: { variant_id: string; platform: string; body: string }) => ({
+                id: v.variant_id,
+                platform: v.platform,
+                body: v.body,
+              })
+            ),
+          };
+
       setMessages((prev) =>
-        prev
-          .map((m) =>
-            m.id === generatingId
-              ? ({ id: generatingId, type: "ai-variants", variants: data.variants, jobId } as ChatMessage)
-              : m.type === "ai-extracted" && m.jobId === jobId
-                ? { ...m, generated: true }
-                : m
-          )
+        prev.map((m) =>
+          m.id === generatingId
+            ? replacement
+            : m.type === "ai-extracted" && m.jobId === jobId
+              ? { ...m, generated: true }
+              : m
+        )
       );
     } catch {
       setMessages((prev) =>

@@ -8,7 +8,10 @@ import {
   updatePostVariant,
 } from "@/lib/db/posts";
 import { snapshotVariantBody } from "@/lib/db/post-variant-revisions";
-import { getBrandConfig } from "@/lib/db/brand-configs";
+import { getBrandConfigForPersona } from "@/lib/db/brand-configs";
+// Legacy fallback for pre-persona variants that still carry NULL persona_id.
+// eslint-disable-next-line no-restricted-imports -- intentional fallback for legacy variants; remove once all variants are persona-scoped
+import { getBrandConfig } from "@/lib/db/_legacy/brand-configs";
 import {
   WorkerError,
   workerRegenerate,
@@ -64,7 +67,11 @@ export async function POST(
     );
   }
 
-  const brand = await getBrandConfig(workspace.workspace_id);
+  // Persona-scoped brand is the new contract; fall back to workspace-default
+  // for pre-persona variants that still carry NULL persona_id.
+  const brand = variant.persona_id
+    ? await getBrandConfigForPersona(variant.persona_id)
+    : await getBrandConfig(workspace.workspace_id);
   if (!brand?.custom_system_prompt) {
     return NextResponse.json(
       {

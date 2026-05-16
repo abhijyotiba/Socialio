@@ -56,7 +56,10 @@ export async function GET(request: NextRequest) {
     )
   }
   const personaId = savedState.slice(colonIdx + 1)
-  if (!personaId) {
+  // Reject malformed persona ids before they hit the DB — keeps error messages
+  // crisp and prevents wasted lookups on garbage input.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!personaId || !UUID_RE.test(personaId)) {
     return NextResponse.redirect(
       new URL('/settings/connections?x_error=invalid_state', request.url)
     )

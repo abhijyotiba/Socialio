@@ -4,8 +4,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import {
-  getBrandConfig,
-  setVoiceProfile,
+  getBrandConfigForPersona,
+  setVoiceProfileForPersona,
   upsertBrandConfig,
 } from "@/lib/db/brand-configs";
 import { getDefaultPersona } from "@/lib/db/personas";
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   // Brand name is required for the rendered prompt. Onboarding will pass it
   // in `brand_details`; Settings refresh will not (and we'll read the existing
   // brand_configs row).
-  const existing = await getBrandConfig(workspaceId);
+  const existing = await getBrandConfigForPersona(personaId);
   const details = parsed.data.brand_details;
   const brandName =
     details?.brand_name?.trim() ||
@@ -113,8 +113,9 @@ export async function POST(request: Request) {
 
   const { profile, system_prompt } = workerResp;
 
-  // 1) Persist the structured profile.
-  await setVoiceProfile(workspaceId, profile as Json);
+  // 1) Persist the structured profile on this persona's brand_configs row.
+  //    The workspace-scoped variant would clobber every persona's profile.
+  await setVoiceProfileForPersona(personaId, profile as Json);
 
   // 2) Mint a new prompt_versions row, sourced from the voice profile.
   const promptVersion = await createPromptVersion(

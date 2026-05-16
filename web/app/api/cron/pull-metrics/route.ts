@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readSecret } from "@/lib/security/vault";
-import { getSocialConnection } from "@/lib/db/social-connections";
+import { getSocialConnectionForPersona } from "@/lib/db/social-connections";
+// Legacy fallback for pre-persona variants that still carry NULL persona_id.
+// eslint-disable-next-line no-restricted-imports -- intentional fallback for legacy variants; remove once all variants are persona-scoped
+import { getSocialConnection } from "@/lib/db/_legacy/social-connections";
 import { upsertPostMetrics } from "@/lib/db/metrics";
 import { getPostMetrics as getXMetrics } from "@/lib/adapters/x";
 import { getPostMetrics as getLinkedInMetrics } from "@/lib/adapters/linkedin";
@@ -44,8 +47,10 @@ export async function POST(request: Request) {
   for (const variant of variants) {
     checked++;
     try {
-      const platform = variant.platform;
-      const connection = await getSocialConnection(variant.workspace_id, platform as "linkedin" | "x");
+      const platform = variant.platform as "linkedin" | "x";
+      const connection = variant.persona_id
+        ? await getSocialConnectionForPersona(variant.persona_id, platform)
+        : await getSocialConnection(variant.workspace_id, platform);
 
       if (!connection || connection.needs_reauth || !connection.access_token_vault_id) {
         throw new Error("Missing valid connection");

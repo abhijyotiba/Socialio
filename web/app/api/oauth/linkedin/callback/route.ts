@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid state format' }, { status: 400 })
   }
   const personaId = savedState.slice(colonIdx + 1)
-  if (!personaId) {
+  // Reject malformed persona ids before they hit the DB — keeps error messages
+  // crisp and prevents wasted lookups on garbage input.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!personaId || !UUID_RE.test(personaId)) {
     return NextResponse.json({ error: 'Invalid state format' }, { status: 400 })
   }
 

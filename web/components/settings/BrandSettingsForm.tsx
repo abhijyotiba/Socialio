@@ -42,7 +42,7 @@ export function BrandSettingsForm({ personaId }: Props) {
   const [showVoicePanel, setShowVoicePanel] = useState(false);
 
   useEffect(() => {
-    fetch("/api/brand/config")
+    fetch(`/api/brand/config?persona_id=${encodeURIComponent(personaId)}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) return;
@@ -273,11 +273,12 @@ export function BrandSettingsForm({ personaId }: Props) {
           {showVoicePanel && (
             <div className="space-y-3">
               <VoiceSamplesPanel
+                personaId={personaId}
                 ctaLabel={hasVoiceProfile ? "Re-analyze voice" : "Analyze voice"}
                 successLabel="Done"
                 onSuccess={() => {
                   setShowVoicePanel(false);
-                  fetch("/api/brand/config")
+                  fetch(`/api/brand/config?persona_id=${encodeURIComponent(personaId)}`)
                     .then((r) => r.json())
                     .then((data) => {
                       if (data.error) return;

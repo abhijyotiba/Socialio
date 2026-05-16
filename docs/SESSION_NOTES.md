@@ -13,6 +13,145 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-16 — Phase V2.2: Multi-Persona Redesign (Round 2)
+
+Branch: `claude/review-multi-persona-arch-CwGpD`
+
+### What got built
+
+**Round 1 (`019444d`) — surgical fixes**
+- `/api/posts/[id]/publish` now uses `getSocialConnectionForPersona` when
+  `variant.persona_id` is set, falling back to the workspace-default
+  connection only for pre-persona variants.
+- `/api/posts/[id]/regenerate` same treatment — persona-scoped brand fetch.
+- Both OAuth callbacks (linkedin, x) validate the persona id extracted from
+  signed state matches a UUID format before hitting the DB.
+- Cron zombie-campaign cleanup emits a `campaign.zombie_timeout` audit event
+  per failed campaign.
+
+**Design doc (`ff72d48`)**
+- `docs/phases/PHASE_V2_2_MULTIPERSONA_REDESIGN.md` — target architecture,
+  file-by-file plan, data-model additions, migration plan A→E, acceptance
+  criteria, decisions locked.
+
+**Step A (`c06ba40`) — foundation modules + legacy quarantine**
+- `lib/auth/persona-guard.ts` — `assertPersonaInWorkspace` with typed
+  `PersonaGuardError` (NOT_FOUND / WORKSPACE_MISMATCH).
+- `lib/policy/rate-limits.ts` — `canGenerateCampaign` and
+  `consumePublishBudget` policy decisions.
+- `lib/generation/context.ts` — `buildGenerationContext` bundles persona
+  + brand + connected platforms + `prompt_version_id` snapshot.
+- `lib/db/_legacy/{brand-configs,social-connections}.ts` — workspace-scoped
+  helpers quarantined with `@deprecated`. Original files re-export so
+  callers don't break.
+- ESLint `no-restricted-imports` rule, initially `warn`.
+
+**Step B (`ef556d1`) — caller migration + legacy POST deleted**
+- 10 caller files moved to persona-scoped helpers.
+- `POST /api/posts` deleted; chat page now always calls `/api/campaigns`.
+- 3 fallback callers (cron/publish-due, posts/[id]/publish,
+  posts/[id]/regenerate) import directly from `_legacy/` with a per-line
+  `eslint-disable-next-line` and a comment explaining the legitimate
+  pre-persona-variant fallback.
+- Latent bug fixed: `setVoiceProfile(workspaceId)` updated EVERY persona's
+  brand_configs row. New `setVoiceProfileForPersona(personaId)` writes to
+  the intended persona only.
+
+**Step C (`38d137f`) — UI surfaces**
+- Campaign approval inbox: `/campaigns` (list with status pills and
+  pending counts) and `/campaigns/[id]` (per-persona cards, variant
+  bodies, approve/reject, Realtime subscription).
+- Sidebar entry for Campaigns between Chat and Queue.
+- `GET /api/campaigns` returns the workspace list with persona +
+  pending counts.
+- Latent bug fixed: `BrandSettingsForm` accepted `personaId` but didn't
+  pass it on GET, so every per-persona voice page silently displayed the
+  default persona's data. `GET /api/brand/config?persona_id=` accepts the
+  query param now (guarded by `assertPersonaInWorkspace`), and
+  `VoiceSamplesPanel` forwards `personaId` to `/api/brand/voice-profile`.
+- `/settings/brand` and `/settings/connections` are now redirects to the
+  default persona's per-persona pages.
+
+**Step D — data-model migrations + drift guard**
+- `0015_campaigns_error_and_prompt_snapshot.sql` — `failure_reason` and
+  `failure_code` on `campaigns`; `prompt_version_id` snapshot on
+  `campaign_persona_variants` (with partial index).
+- `0016_platform_limits_table.sql` — single source of truth for daily
+  caps. `claim_due_variants` RPC refactored to JOIN the table.
+- `lib/db/types.ts` updated by hand to reflect the schema additions
+  (no `supabase gen types` run in this environment).
+- Cron zombie cleanup writes `failure_code='GENERATION_TIMEOUT'`.
+- Campaign route writes `failure_code='ALL_PERSONAS_FAILED'` when every
+  persona fails, and snapshots `prompt_version_id` on each variant.
+- Campaign detail page surfaces `failure_reason` in a red banner.
+- New test `tests/constants.platform-limits.test.ts` parses the migration
+  seed and asserts it matches `PLATFORM_DAILY_LIMITS`.
+
+**Step E — lockdown**
+- ESLint `no-restricted-imports` flipped from `warn` to `error`.
+
+### Test/lint/typecheck
+
+74/74 tests pass. Typecheck clean. Lint baseline unchanged at 17 (6
+pre-existing React Compiler errors, 11 pre-existing unused-vars). Zero
+new lint issues from any step.
+
+### Decisions made
+
+Recorded in the design doc §10 (now locked):
+1. `POST /api/posts` deleted outright. Chat UI always calls `/api/campaigns`.
+2. `/settings/connections` redirects to the default persona's connections.
+3. Approval is per-persona only (no per-platform-within-persona granularity).
+4. Migration 0016 (`platform_limits`) lands now; TS constants validated by
+   a CI test against the SQL seed.
+5. Persona switcher in sidebar punted to a later UI polish round.
+
+### Gotchas to watch
+
+- **Type generation:** `lib/db/types.ts` was edited by hand. Re-running
+  `supabase gen types typescript` will produce a different formatting and
+  ordering. Run it once and commit the diff to align.
+- **Legacy fallback callers:** The 3 routes with `eslint-disable-next-line`
+  comments are intentionally allowed. Don't delete those lines without
+  also removing the `_legacy/` import.
+- **CampaignDetail variant body:** The PostgREST embedded shape for
+  `post_variants` under `campaign_persona_variants` may return either
+  flat `body` or nested `post_variants.body`. The detail component
+  tolerates both. If you ever normalize the join, you can simplify.
+- **Pre-persona variants:** Production may still have `post_variants`
+  rows with NULL `persona_id`. The cron + publish + regenerate paths all
+  fall back to the workspace-default connection/brand for these. Once
+  they age out, the `_legacy/` imports + their per-line disables can be
+  deleted (this is what tips the system into a truly persona-only state).
+- **Brand drift on pending variants:** Voice refresh between generation
+  and approval no longer silently changes a variant's voice-of-origin —
+  the `prompt_version_id` is now snapshotted on `campaign_persona_variants`.
+  The UI doesn't yet surface "voice has changed since this was generated";
+  add it when meaningful.
+
+### What's left
+
+Punted from this round (already in BACKLOG conceptually, not yet written):
+- Per-persona analytics filtering on `/dashboard`.
+- Persona switcher in the sidebar.
+- Worker-side persona awareness beyond the system prompt string.
+- "Voice has changed since this was generated" hint on approval cards.
+- Deleting the `_legacy/` fallback once all pre-persona variants are gone.
+
+### Next-step command
+
+Smoke-test the end-to-end multi-persona flow against a real Supabase
+project: run `supabase db push` to apply migrations 0015 and 0016, run
+`pnpm --dir web dev`, and confirm:
+1. Generating a campaign with 2 personas writes 2 content_items with
+   `prompt_version_id` snapshotted.
+2. Publishing a variant whose `persona_id` ≠ workspace-default uses that
+   persona's tokens.
+3. Failing a campaign (e.g. disconnect both platforms first) shows the
+   red banner with `failure_reason` on the detail page.
+
+---
+
 ## 2026-04-28 — Phase 7: Voice Profile + Inline Regeneration (complete)
 
 ### What got built
