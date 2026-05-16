@@ -55,6 +55,18 @@ const eslintConfig = defineConfig([
       // publish/regenerate routes, each disabling the rule on a single line
       // with a comment explaining why.
       "no-restricted-imports": ["error", restrictedImports],
+      // Honor the underscore-prefix convention for intentionally unused
+      // bindings — `_p`, `_body`, etc. The default config flags them as
+      // dead code, but the prefix is the explicit signal that they are not.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+        },
+      ],
     },
   },
   {

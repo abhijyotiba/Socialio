@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { ImagePlus, Loader2, UploadCloud, X } from "lucide-react";
+import { ImagePlus, Loader2, UploadCloud } from "lucide-react";
 
 type Asset = {
   id: string;
@@ -62,7 +62,7 @@ export function MediaPicker({
           setAvailable(data.assets);
         }
       })
-      .catch((e) => setError("Failed to load available media"))
+      .catch(() => setError("Failed to load available media"))
       .finally(() => setLoading(false));
   }, [isOpen, jobId, available.length]);
 
@@ -198,6 +198,7 @@ export function MediaPicker({
                       : "border-transparent opacity-80 hover:opacity-100"
                   } ${disabled ? "cursor-not-allowed opacity-40 hover:opacity-40" : ""}`}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnails in a modal; not LCP-critical, dynamic sizes */}
                   <img
                     src={asset.cloudinary_url}
                     alt="Thumbnail"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, ChevronDown, ChevronUp, Image, Link2 } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, Image as ImageIcon, Link2 } from "lucide-react";
 import { AiMessage } from "./AiMessage";
 import { PersonaSelector } from "./PersonaSelector";
 import type { Database } from "@/lib/db/types";
@@ -94,7 +94,7 @@ export function ExtractionCard({
         )}
         {media.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <Image className="h-3 w-3 text-slate-400" />
+            <ImageIcon className="h-3 w-3 text-slate-400" />
             <span className="text-[11px] text-slate-400">{media.length} image{media.length !== 1 ? "s" : ""}</span>
             <div className="flex gap-1.5 ml-1">
               {media.slice(0, 3).map((m) => (
