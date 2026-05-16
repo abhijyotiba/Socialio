@@ -8,7 +8,10 @@ import {
   updatePostVariant,
 } from "@/lib/db/posts";
 import { snapshotVariantBody } from "@/lib/db/post-variant-revisions";
-import { getBrandConfig } from "@/lib/db/brand-configs";
+import {
+  getBrandConfig,
+  getBrandConfigForPersona,
+} from "@/lib/db/brand-configs";
 import {
   WorkerError,
   workerRegenerate,
@@ -64,7 +67,11 @@ export async function POST(
     );
   }
 
-  const brand = await getBrandConfig(workspace.workspace_id);
+  // Persona-scoped brand is the new contract; fall back to workspace-default
+  // for pre-persona variants that still carry NULL persona_id.
+  const brand = variant.persona_id
+    ? await getBrandConfigForPersona(variant.persona_id)
+    : await getBrandConfig(workspace.workspace_id);
   if (!brand?.custom_system_prompt) {
     return NextResponse.json(
       {

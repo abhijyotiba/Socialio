@@ -9,7 +9,10 @@ import {
   hasSuccessfulAttempt,
   getLatestAttempt,
 } from "@/lib/db/publish-attempts";
-import { getSocialConnection } from "@/lib/db/social-connections";
+import {
+  getSocialConnection,
+  getSocialConnectionForPersona,
+} from "@/lib/db/social-connections";
 import { readSecret } from "@/lib/security/vault";
 import { publishLinkedInPost } from "@/lib/adapters/linkedin";
 import { publishTweet } from "@/lib/adapters/x";
@@ -58,10 +61,12 @@ export async function POST(
     );
   }
 
-  const connection = await getSocialConnection(
-    workspaceId,
-    variant.platform as "linkedin" | "x"
-  );
+  const platform = variant.platform as "linkedin" | "x";
+  // Persona-scoped tokens are the new contract; fall back to workspace-default
+  // for pre-persona variants that still carry NULL persona_id.
+  const connection = variant.persona_id
+    ? await getSocialConnectionForPersona(variant.persona_id, platform)
+    : await getSocialConnection(workspaceId, platform);
   if (!connection) {
     return NextResponse.json(
       { error: `No ${variant.platform} account connected` },
@@ -101,7 +106,6 @@ export async function POST(
 
     // Fetch and upload any attached media assets before publishing
     const mediaAssets = await getVariantMedia(id);
-    const platform = variant.platform as "linkedin" | "x";
     const authorUrn =
       platform === "linkedin"
         ? `urn:li:person:${connection.platform_user_id}`
