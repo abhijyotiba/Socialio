@@ -3,7 +3,7 @@ import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getPersona } from "@/lib/db/personas";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { Mic2, Link2, Clock, ChevronRight } from "lucide-react";
+import { Mic2, Link2, ChevronRight } from "lucide-react";
 import { DeletePersonaButton } from "./_components/DeletePersonaButton";
 
 export default async function PersonaHubPage({
@@ -24,6 +24,9 @@ export default async function PersonaHubPage({
   const persona = await getPersona(id);
   if (!persona || persona.workspace_id !== workspace.workspace_id) notFound();
 
+  // Per-persona posting schedule is intentionally absent — the schedule page
+  // is workspace-level today and lives in the sidebar. Add a per-persona entry
+  // here when the schedule data model and UI become persona-scoped.
   const sections = [
     {
       href: `/settings/personas/${id}/voice`,
@@ -36,12 +39,6 @@ export default async function PersonaHubPage({
       icon: Link2,
       label: "Connected Accounts",
       description: "LinkedIn and X connections",
-    },
-    {
-      href: `/settings/personas/${id}/schedule`,
-      icon: Clock,
-      label: "Posting Schedule",
-      description: "When to post for this persona",
     },
   ];
 

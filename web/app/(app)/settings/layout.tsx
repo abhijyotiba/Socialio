@@ -2,26 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, Link2, Palette, Settings2, Users } from "lucide-react";
+import { CalendarClock, Settings2, Users } from "lucide-react";
 
 const navItems = [
   {
     href: "/settings/personas",
     label: "Personas",
-    description: "Manage brand personas",
+    description: "Voice, connections & brand per persona",
     icon: Users,
-  },
-  {
-    href: "/settings/brand",
-    label: "Brand",
-    description: "Voice, profile & prompt",
-    icon: Palette,
-  },
-  {
-    href: "/settings/connections",
-    label: "Connections",
-    description: "LinkedIn and X auth",
-    icon: Link2,
   },
   {
     href: "/settings/schedule",

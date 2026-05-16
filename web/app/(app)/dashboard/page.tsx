@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useId } from "react";
 import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
   Plus,
-  TrendingUp,
   Zap,
   Eye,
   Heart,
@@ -49,7 +48,6 @@ type QueueItem = {
   created_at: string;
 };
 
-const FALLBACK = [22, 35, 28, 42, 30, 38, 45];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function getMetric(m: PostMetrics[] | PostMetrics | null): PostMetrics | null {
@@ -262,12 +260,12 @@ export default function DashboardPage() {
   const totalLikes = metrics?.reduce((acc, v) => acc + (getMetric(v.post_metrics)?.likes ?? 0), 0) ?? 0;
 
   const hasRealData = totalImpressions > 0 || totalLikes > 0;
-  const impressionVals = hasRealData
-    ? (metrics ?? []).slice(0, 7).map((v) => getMetric(v.post_metrics)?.impressions ?? 0)
-    : FALLBACK;
-  const likeVals = hasRealData
-    ? (metrics ?? []).slice(0, 7).map((v) => getMetric(v.post_metrics)?.likes ?? 0)
-    : FALLBACK;
+  const impressionVals = (metrics ?? [])
+    .slice(0, 7)
+    .map((v) => getMetric(v.post_metrics)?.impressions ?? 0);
+  const likeVals = (metrics ?? [])
+    .slice(0, 7)
+    .map((v) => getMetric(v.post_metrics)?.likes ?? 0);
 
   const queueItems = (queue ?? []).slice(0, 4);
   const queueCount = (queue ?? []).length;
@@ -351,11 +349,6 @@ export default function DashboardPage() {
           </p>
           <div className="mt-3 flex items-end gap-2">
             <p className="text-4xl font-bold leading-none tracking-tight">{publishedCount}</p>
-            {publishedCount > 0 && (
-              <span className="mb-0.5 inline-flex items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-[10px] font-bold">
-                <TrendingUp className="h-2.5 w-2.5" strokeWidth={3} /> +12%
-              </span>
-            )}
           </div>
           <p className="mt-3 text-[11px] text-indigo-200/70">
             {publishedCount > 0 ? "All-time total across platforms" : "No posts yet — create your first"}
@@ -373,11 +366,6 @@ export default function DashboardPage() {
                 <p className="text-4xl font-bold leading-none tracking-tight text-slate-900">
                   {fmtNum(totalImpressions)}
                 </p>
-                {totalImpressions > 0 && (
-                  <span className="mb-0.5 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
-                    <TrendingUp className="h-2.5 w-2.5" strokeWidth={3} /> +24%
-                  </span>
-                )}
               </div>
             </div>
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500">
@@ -400,11 +388,6 @@ export default function DashboardPage() {
                 <p className="text-4xl font-bold leading-none tracking-tight text-slate-900">
                   {fmtNum(totalLikes)}
                 </p>
-                {totalLikes > 0 && (
-                  <span className="mb-0.5 inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
-                    <TrendingUp className="h-2.5 w-2.5" strokeWidth={3} /> +8%
-                  </span>
-                )}
               </div>
             </div>
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-500">
@@ -425,16 +408,23 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <div>
               <h2 className="text-sm font-bold text-slate-900">Engagement Performance</h2>
-              <p className="mt-0.5 text-[11px] text-slate-400">Impressions over the last 7 days</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                Impressions across your last published posts
+              </p>
             </div>
-            {!hasRealData && (
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-400">
-                Sample data
-              </span>
-            )}
           </div>
           <div className="h-[200px] px-3 pb-3 pt-2">
-            <LineChart data={impressionVals} />
+            {hasRealData ? (
+              <LineChart data={impressionVals} />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <p className="text-xs font-semibold text-slate-700">No metrics yet</p>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Publish a post and platform metrics will appear here after
+                  the next sync.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
