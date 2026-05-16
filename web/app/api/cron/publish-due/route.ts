@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readSecret } from "@/lib/security/vault";
-import { getSocialConnection, getSocialConnectionForPersona } from "@/lib/db/social-connections";
+import { getSocialConnectionForPersona } from "@/lib/db/social-connections";
+// Legacy fallback for pre-persona variants that still carry NULL persona_id.
+// eslint-disable-next-line no-restricted-imports -- intentional fallback for legacy variants; remove once all variants are persona-scoped
+import { getSocialConnection } from "@/lib/db/_legacy/social-connections";
 import {
   createPublishAttempt,
   updatePublishAttempt,

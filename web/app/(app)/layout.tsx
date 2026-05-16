@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getBrandConfig } from "@/lib/db/brand-configs";
+import { getDefaultPersona } from "@/lib/db/personas";
+import { getBrandConfigForPersona } from "@/lib/db/brand-configs";
 import { Sidebar } from "@/components/app/Sidebar";
 
 export default async function AppLayout({
@@ -30,7 +31,10 @@ export default async function AppLayout({
   if (!onOnboarding) {
     const workspace = await getWorkspaceForUser(user.id);
     if (workspace) {
-      const brandConfig = await getBrandConfig(workspace.workspace_id);
+      const defaultPersona = await getDefaultPersona(workspace.workspace_id);
+      const brandConfig = defaultPersona
+        ? await getBrandConfigForPersona(defaultPersona.id)
+        : null;
       if (!brandConfig) {
         redirect("/onboarding");
       }

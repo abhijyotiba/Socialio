@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getBrandConfig, upsertBrandConfig } from "@/lib/db/brand-configs";
+import { getBrandConfigForPersona, upsertBrandConfig } from "@/lib/db/brand-configs";
 import { getDefaultPersona } from "@/lib/db/personas";
 import { createPromptVersion } from "@/lib/db/prompt-versions";
 
@@ -20,7 +20,10 @@ export async function GET() {
     return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
   }
 
-  const brandConfig = await getBrandConfig(workspace.workspace_id);
+  const defaultPersona = await getDefaultPersona(workspace.workspace_id);
+  const brandConfig = defaultPersona
+    ? await getBrandConfigForPersona(defaultPersona.id)
+    : null;
   if (!brandConfig) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

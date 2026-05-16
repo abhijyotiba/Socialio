@@ -9,10 +9,10 @@ import {
   hasSuccessfulAttempt,
   getLatestAttempt,
 } from "@/lib/db/publish-attempts";
-import {
-  getSocialConnection,
-  getSocialConnectionForPersona,
-} from "@/lib/db/social-connections";
+import { getSocialConnectionForPersona } from "@/lib/db/social-connections";
+// Legacy fallback for pre-persona variants that still carry NULL persona_id.
+// eslint-disable-next-line no-restricted-imports -- intentional fallback for legacy variants; remove once all variants are persona-scoped
+import { getSocialConnection } from "@/lib/db/_legacy/social-connections";
 import { readSecret } from "@/lib/security/vault";
 import { publishLinkedInPost } from "@/lib/adapters/linkedin";
 import { publishTweet } from "@/lib/adapters/x";
