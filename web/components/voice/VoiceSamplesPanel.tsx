@@ -59,6 +59,7 @@ export function VoiceSamplesPanel({
   ctaLabel = "Analyze voice",
   successLabel = "Use this voice & continue",
   brandDetails,
+  personaId,
 }: {
   onSuccess?: (result: AnalyzeResult) => void;
   initialResult?: AnalyzeResult | null;
@@ -70,6 +71,12 @@ export function VoiceSamplesPanel({
    * where brand_configs may not exist yet.
    */
   brandDetails?: BrandDetails;
+  /**
+   * Target persona for the voice profile. Omitting it falls back to the
+   * workspace default — only safe during onboarding when there's only one
+   * persona. From the per-persona settings page, always pass this.
+   */
+  personaId?: string;
 }) {
   const [samples, setSamples] = useState<string[]>(["", "", ""]);
   const [submitting, setSubmitting] = useState(false);
@@ -118,6 +125,7 @@ export function VoiceSamplesPanel({
         body: JSON.stringify({
           samples: cleaned,
           brand_details: brandDetails,
+          persona_id: personaId,
         }),
       });
       const data = await res.json();

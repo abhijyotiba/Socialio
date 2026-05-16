@@ -125,3 +125,35 @@ export async function countRecentCampaigns(
     .gte('created_at', since)
   return count ?? 0
 }
+
+export type CampaignListRow = CampaignRow & {
+  persona_count: number
+  pending_count: number
+}
+
+export async function listCampaignsForWorkspace(
+  workspaceId: string,
+  limit = 50
+): Promise<CampaignListRow[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select('*, campaign_personas(approval_status)')
+    .eq('workspace_id', workspaceId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return ((data ?? []) as Array<
+    CampaignRow & {
+      campaign_personas: Array<{ approval_status: string }>
+    }
+  >).map(row => {
+    const { campaign_personas, ...rest } = row
+    const personas = campaign_personas ?? []
+    return {
+      ...rest,
+      persona_count: personas.length,
+      pending_count: personas.filter(p => p.approval_status === 'pending').length,
+    }
+  })
+}

@@ -4,9 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getBrandConfigForPersona, upsertBrandConfig } from "@/lib/db/brand-configs";
 import { getDefaultPersona } from "@/lib/db/personas";
+import {
+  assertPersonaInWorkspace,
+  PersonaGuardError,
+} from "@/lib/auth/persona-guard";
 import { createPromptVersion } from "@/lib/db/prompt-versions";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -20,9 +24,29 @@ export async function GET() {
     return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
   }
 
-  const defaultPersona = await getDefaultPersona(workspace.workspace_id);
-  const brandConfig = defaultPersona
-    ? await getBrandConfigForPersona(defaultPersona.id)
+  const { searchParams } = new URL(request.url);
+  const requestedPersonaId = searchParams.get("persona_id");
+
+  // When a persona_id is supplied, validate ownership and use it; otherwise
+  // fall back to the workspace's default persona for backward compat.
+  let personaId: string | null = null;
+  if (requestedPersonaId) {
+    try {
+      await assertPersonaInWorkspace(requestedPersonaId, workspace.workspace_id);
+    } catch (err) {
+      if (err instanceof PersonaGuardError) {
+        return NextResponse.json({ error: "Persona not found" }, { status: 404 });
+      }
+      throw err;
+    }
+    personaId = requestedPersonaId;
+  } else {
+    const defaultPersona = await getDefaultPersona(workspace.workspace_id);
+    personaId = defaultPersona?.id ?? null;
+  }
+
+  const brandConfig = personaId
+    ? await getBrandConfigForPersona(personaId)
     : null;
   if (!brandConfig) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -1,9 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getDefaultPersona } from "@/lib/db/personas";
-import { BrandSettingsForm } from "@/components/settings/BrandSettingsForm";
 import { redirect } from "next/navigation";
 
+// /settings/brand is retained as a deep-link target but no longer renders a
+// page of its own — brand voice is per-persona (Phase V2.2). Land users on
+// the default persona's voice page; multi-persona workspaces navigate from
+// /settings/personas.
 export default async function BrandSettingsPage() {
   const supabase = await createClient();
   const {
@@ -15,13 +18,6 @@ export default async function BrandSettingsPage() {
   if (!workspace) redirect("/login");
 
   const defaultPersona = await getDefaultPersona(workspace.workspace_id);
-  if (!defaultPersona) {
-    return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-        No persona found for this workspace. Please contact support.
-      </div>
-    );
-  }
-
-  return <BrandSettingsForm personaId={defaultPersona.id} />;
+  if (!defaultPersona) redirect("/settings/personas");
+  redirect(`/settings/personas/${defaultPersona.id}/voice`);
 }

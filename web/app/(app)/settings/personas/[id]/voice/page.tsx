@@ -22,5 +22,23 @@ export default async function PersonaVoicePage({
   const persona = await getPersona(id);
   if (!persona || persona.workspace_id !== workspace.workspace_id) notFound();
 
-  return <BrandSettingsForm personaId={id} />;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm"
+          style={{ backgroundColor: persona.avatar_color }}
+        >
+          {persona.name.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Editing voice for
+          </p>
+          <p className="text-sm font-bold text-slate-900">{persona.name}</p>
+        </div>
+      </div>
+      <BrandSettingsForm personaId={id} />
+    </div>
+  );
 }

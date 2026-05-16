@@ -9,7 +9,7 @@ import { getConnectionsForPersona } from '@/lib/db/social-connections'
 import { createContentItem, createPostVariants } from '@/lib/db/posts'
 import {
   createCampaign, updateCampaign, createCampaignPersonas, createCampaignPersonaVariants,
-  countRecentCampaigns,
+  countRecentCampaigns, listCampaignsForWorkspace,
 } from '@/lib/db/campaigns'
 import { insertAuditEvent } from '@/lib/db/audit-events'
 import { workerGenerate, type WorkerGenerateResponse } from '@/lib/worker-client'
@@ -234,4 +234,16 @@ export async function POST(request: Request) {
       body: v.body,
     })),
   })
+}
+
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const workspace = await getWorkspaceForUser(user.id)
+  if (!workspace) return NextResponse.json({ error: 'Workspace not found' }, { status: 403 })
+
+  const campaigns = await listCampaignsForWorkspace(workspace.workspace_id)
+  return NextResponse.json({ campaigns })
 }

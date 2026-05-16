@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getDefaultPersona } from "@/lib/db/personas";
-import { ConnectionsForm } from "@/components/settings/ConnectionsForm";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 
+// /settings/connections is retained as a deep-link target but no longer
+// renders a page of its own — social connections are per-persona (Phase
+// V2.2). Land users on the default persona's connections; multi-persona
+// workspaces navigate from /settings/personas.
 export default async function ConnectionsPage() {
   const supabase = await createClient();
   const {
@@ -16,17 +18,6 @@ export default async function ConnectionsPage() {
   if (!workspace) redirect("/login");
 
   const defaultPersona = await getDefaultPersona(workspace.workspace_id);
-  if (!defaultPersona) {
-    return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-        No persona found for this workspace. Please contact support.
-      </div>
-    );
-  }
-
-  return (
-    <Suspense>
-      <ConnectionsForm personaId={defaultPersona.id} />
-    </Suspense>
-  );
+  if (!defaultPersona) redirect("/settings/personas");
+  redirect(`/settings/personas/${defaultPersona.id}/connections`);
 }

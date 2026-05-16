@@ -11,11 +11,13 @@ import {
   LogOut,
   Zap,
   User,
+  Inbox,
 } from "lucide-react";
 
 const nav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Chat", href: "/chat", icon: PenLine },
+  { name: "Campaigns", href: "/campaigns", icon: Inbox },
   { name: "Queue", href: "/queue", icon: CalendarClock },
   { name: "Settings", href: "/settings/personas", icon: SlidersHorizontal },
 ];
