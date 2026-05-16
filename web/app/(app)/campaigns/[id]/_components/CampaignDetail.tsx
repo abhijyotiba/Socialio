@@ -160,6 +160,23 @@ export function CampaignDetail({ initial }: Props) {
           const rejectBusy = pendingAction === `reject-${cp.persona.id}`;
           const lockedOut = pendingAction !== null;
 
+          // PostgREST returns the brand_configs join as an array even when
+          // there's a UNIQUE constraint; tolerate either shape.
+          const bc = cp.persona.brand_configs;
+          const currentPromptVersion = Array.isArray(bc)
+            ? bc[0]?.current_prompt_version_id ?? null
+            : bc?.current_prompt_version_id ?? null;
+          // Voice has changed if every variant was generated under a prompt
+          // version that no longer matches the persona's current one.
+          const voiceChanged =
+            currentPromptVersion !== null &&
+            cp.variants.length > 0 &&
+            cp.variants.every(
+              (v) =>
+                v.prompt_version_id !== null &&
+                v.prompt_version_id !== currentPromptVersion
+            );
+
           return (
             <li
               key={cp.id}
@@ -216,6 +233,14 @@ export function CampaignDetail({ initial }: Props) {
                   <span className="text-xs text-slate-400">Rejected</span>
                 )}
               </div>
+
+              {voiceChanged && (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                  This persona&apos;s voice profile has been updated since
+                  these variants were generated. Regenerate if you want the
+                  latest voice.
+                </div>
+              )}
 
               {isGenerating && cp.variants.length === 0 && (
                 <p className="text-xs text-slate-400">Generating…</p>

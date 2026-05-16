@@ -8,13 +8,25 @@ type CampaignPersonaVariantRow = Database['public']['Tables']['campaign_persona_
 
 export type CampaignWithPersonas = CampaignRow & {
   campaign_personas: Array<CampaignPersonaRow & {
-    persona: { id: string; name: string; avatar_color: string; slug: string }
+    persona: {
+      id: string
+      name: string
+      avatar_color: string
+      slug: string
+      // brand_configs is joined to surface the persona's current voice
+      // version. Returned as an array by PostgREST even though the FK is
+      // unique; CampaignDetail picks element 0.
+      brand_configs?: Array<{ current_prompt_version_id: string | null }>
+        | { current_prompt_version_id: string | null }
+        | null
+    }
     variants: Array<{
       id: string
       platform: string
       post_variant_id: string
       body: string
       status: string
+      prompt_version_id: string | null
     }>
   }>
 }
@@ -40,11 +52,15 @@ export async function getCampaignWithPersonas(id: string): Promise<CampaignWithP
       *,
       campaign_personas (
         *,
-        persona:personas ( id, name, avatar_color, slug ),
+        persona:personas (
+          id, name, avatar_color, slug,
+          brand_configs ( current_prompt_version_id )
+        ),
         variants:campaign_persona_variants (
           id,
           platform,
           post_variant_id,
+          prompt_version_id,
           post_variants ( body, status )
         )
       )
