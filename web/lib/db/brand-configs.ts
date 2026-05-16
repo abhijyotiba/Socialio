@@ -1,83 +1,40 @@
-import { createClient } from "@/lib/supabase/server";
-import type { Database, Json } from "@/lib/db/types";
+import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/db/types'
 
-type BrandConfigRow = Database["public"]["Tables"]["brand_configs"]["Row"];
+type BrandConfigRow = Database['public']['Tables']['brand_configs']['Row']
 type BrandConfigInsert =
-  Database["public"]["Tables"]["brand_configs"]["Insert"];
-
-export async function getBrandConfig(
-  workspaceId: string
-): Promise<BrandConfigRow | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("brand_configs")
-    .select("*, personas!inner(workspace_id, is_default)")
-    .eq("personas.workspace_id", workspaceId)
-    .eq("personas.is_default", true)
-    .single();
-  if (!data) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- strip join columns before returning
-  const { personas: _p, ...row } = data as any;
-  return row as BrandConfigRow;
-}
+  Database['public']['Tables']['brand_configs']['Insert']
 
 export async function upsertBrandConfig(
   values: BrandConfigInsert
 ): Promise<BrandConfigRow> {
-  const supabase = await createClient();
+  const supabase = await createClient()
   const { data, error } = await supabase
-    .from("brand_configs")
-    .upsert(values, { onConflict: "persona_id" })
+    .from('brand_configs')
+    .upsert(values, { onConflict: 'persona_id' })
     .select()
-    .single();
-  if (error) throw error;
-  return data;
+    .single()
+  if (error) throw error
+  return data
 }
 
 export async function getBrandConfigForPersona(
   personaId: string
 ): Promise<BrandConfigRow | null> {
-  const supabase = await createClient();
+  const supabase = await createClient()
   const { data } = await supabase
-    .from("brand_configs")
-    .select("*")
-    .eq("persona_id", personaId)
-    .single();
-  return data;
+    .from('brand_configs')
+    .select('*')
+    .eq('persona_id', personaId)
+    .single()
+  return data
 }
 
-/**
- * Persist a voice profile + bump the timestamp. Caller is responsible for
- * inserting the corresponding `prompt_versions` row and updating
- * `current_prompt_version_id` (do that in the same route, not here, so they
- * stay coupled at the call site).
- */
-export async function setVoiceProfile(
-  workspaceId: string,
-  profile: Json
-): Promise<void> {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("brand_configs")
-    .update({
-      voice_profile: profile,
-      voice_profile_updated_at: new Date().toISOString(),
-    })
-    .eq("workspace_id", workspaceId);
-  if (error) throw error;
-}
-
-export async function getVoiceProfile(
-  workspaceId: string
-): Promise<{ profile: Json | null; updated_at: string | null }> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("brand_configs")
-    .select("voice_profile, voice_profile_updated_at")
-    .eq("workspace_id", workspaceId)
-    .single();
-  return {
-    profile: data?.voice_profile ?? null,
-    updated_at: data?.voice_profile_updated_at ?? null,
-  };
-}
+// Re-exports of workspace-scoped helpers retained for backward compatibility.
+// New callers are flagged by ESLint. The implementations live in
+// _legacy/brand-configs.ts and will be deleted once all callers migrate.
+export {
+  getBrandConfig,
+  setVoiceProfile,
+  getVoiceProfile,
+} from '@/lib/db/_legacy/brand-configs'
