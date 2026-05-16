@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useId } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
   Plus,
@@ -29,7 +29,15 @@ type VariantWithMetrics = {
   platform: string;
   status: string;
   published_at: string | null;
+  persona_id: string | null;
   post_metrics: PostMetrics[] | PostMetrics | null;
+};
+
+type PersonaSummary = {
+  id: string;
+  name: string;
+  avatar_color: string;
+  is_default: boolean;
 };
 
 type QueueItem = {
@@ -197,21 +205,44 @@ function PlatformIcon({ platform, size = "sm" }: { platform: string; size?: "sm"
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<VariantWithMetrics[] | null>(null);
   const [queue, setQueue] = useState<QueueItem[] | null>(null);
+  const [personas, setPersonas] = useState<PersonaSummary[]>([]);
+  // null = "All personas" filter; a string filters to that persona only.
+  const [activePersonaId, setActivePersonaId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Initial load — fetch personas alongside metrics/queue.
   useEffect(() => {
     Promise.all([
       fetch("/api/metrics").then((r) => { if (!r.ok) throw new Error("metrics"); return r.json(); }),
       fetch("/api/queue").then((r) => { if (!r.ok) throw new Error("queue"); return r.json(); }),
+      fetch("/api/personas").then((r) => (r.ok ? r.json() : { personas: [] })),
     ])
-      .then(([m, q]) => {
+      .then(([m, q, p]) => {
         setMetrics(Array.isArray(m) ? m : []);
         setQueue(Array.isArray(q) ? q : []);
+        setPersonas(p.personas ?? []);
         setLoading(false);
       })
       .catch(() => { setError("Failed to load dashboard."); setLoading(false); });
   }, []);
+
+  // Re-fetch metrics when the persona filter changes. Skipped on the very
+  // first run because the initial load already populated `metrics`.
+  const initialMount = useRef(true);
+  useEffect(() => {
+    if (initialMount.current) {
+      initialMount.current = false;
+      return;
+    }
+    const url = activePersonaId
+      ? `/api/metrics?persona_id=${encodeURIComponent(activePersonaId)}`
+      : "/api/metrics";
+    fetch(url)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((m) => setMetrics(Array.isArray(m) ? m : []))
+      .catch(() => {});
+  }, [activePersonaId]);
 
   if (loading) {
     return <SkeletonDashboard />;
@@ -264,6 +295,48 @@ export default function DashboardPage() {
           </button>
         </Link>
       </div>
+
+      {/* ── Persona filter ──────────────────────────────────── */}
+      {personas.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+            View
+          </span>
+          <button
+            type="button"
+            onClick={() => setActivePersonaId(null)}
+            className={`inline-flex h-7 items-center rounded-full px-3 text-[11px] font-semibold transition ${
+              activePersonaId === null
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            All personas
+          </button>
+          {personas.map((p) => {
+            const active = activePersonaId === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setActivePersonaId(p.id)}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold transition ${
+                  active
+                    ? "text-white shadow-sm"
+                    : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
+                }`}
+                style={active ? { backgroundColor: p.avatar_color } : undefined}
+              >
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ backgroundColor: active ? "#ffffff" : p.avatar_color }}
+                />
+                {p.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Stat cards ──────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 stagger-children">
