@@ -23,6 +23,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useNowPlusMinutes } from "@/lib/hooks/useNowPlusMinutes";
 
 const CHAR_LIMITS: Record<string, number> = {
   linkedin: 3000,
@@ -283,6 +284,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
   // tracks whether the background extras fetch is still in flight
   const [extrasLoading, setExtrasLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const minScheduleTime = useNowPlusMinutes(1);
 
   const [body, setBody] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -309,8 +311,12 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOpen = variantId !== null;
 
+  // Reset form when a new variantId comes in. Same trade-off as the drawer:
+  // a `key={variantId}` remount in the parent would be a wider refactor for
+  // the same effect.
   useEffect(() => {
     if (!variantId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- form reset on prop change
       setDetail(null);
       setBody("");
       setScheduledAt("");
@@ -826,7 +832,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                         type="datetime-local"
                         value={scheduledAt}
                         onChange={(e) => setScheduledAt(e.target.value)}
-                        min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                        min={minScheduleTime}
                         className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                       />
                       <div className="flex items-center gap-2">

@@ -10,8 +10,10 @@ import {
   getLatestAttempt,
 } from "@/lib/db/publish-attempts";
 import { getSocialConnectionForPersona } from "@/lib/db/social-connections";
-// Legacy fallback for pre-persona variants that still carry NULL persona_id.
-// eslint-disable-next-line no-restricted-imports -- intentional fallback for legacy variants; remove once all variants are persona-scoped
+// Fallback path for variants whose persona has been deleted. The FK on
+// post_variants.persona_id is ON DELETE SET NULL (migration 0014), so a
+// deleted persona leaves its variants alive but personaless.
+// eslint-disable-next-line no-restricted-imports -- intentional fallback for orphaned variants
 import { getSocialConnection } from "@/lib/db/_legacy/social-connections";
 import { readSecret } from "@/lib/security/vault";
 import { publishLinkedInPost } from "@/lib/adapters/linkedin";

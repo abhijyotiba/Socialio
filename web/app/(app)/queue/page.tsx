@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
-  Loader2,
   Calendar,
   CalendarClock,
   Clock,

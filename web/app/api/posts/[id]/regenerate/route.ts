@@ -9,8 +9,10 @@ import {
 } from "@/lib/db/posts";
 import { snapshotVariantBody } from "@/lib/db/post-variant-revisions";
 import { getBrandConfigForPersona } from "@/lib/db/brand-configs";
-// Legacy fallback for pre-persona variants that still carry NULL persona_id.
-// eslint-disable-next-line no-restricted-imports -- intentional fallback for legacy variants; remove once all variants are persona-scoped
+// Fallback path for variants whose persona has been deleted. The FK on
+// post_variants.persona_id is ON DELETE SET NULL (migration 0014), so a
+// deleted persona leaves its variants alive but personaless.
+// eslint-disable-next-line no-restricted-imports -- intentional fallback for orphaned variants
 import { getBrandConfig } from "@/lib/db/_legacy/brand-configs";
 import {
   WorkerError,

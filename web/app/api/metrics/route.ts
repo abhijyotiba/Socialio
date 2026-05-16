@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getWorkspaceForUser } from "@/lib/db/workspaces";
+import {
+  assertPersonaInWorkspace,
+  PersonaGuardError,
+} from "@/lib/auth/persona-guard";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
 
   const {
@@ -12,14 +17,32 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get metrics joined with their variants
-  const { data: variants, error } = await supabase
+  const { searchParams } = new URL(request.url);
+  const personaId = searchParams.get("persona_id");
+
+  if (personaId) {
+    const workspace = await getWorkspaceForUser(user.id);
+    if (!workspace) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
+    }
+    try {
+      await assertPersonaInWorkspace(personaId, workspace.workspace_id);
+    } catch (err) {
+      if (err instanceof PersonaGuardError) {
+        return NextResponse.json({ error: "Persona not found" }, { status: 404 });
+      }
+      throw err;
+    }
+  }
+
+  let query = supabase
     .from("post_variants")
     .select(`
       id,
       platform,
       status,
       published_at,
+      persona_id,
       post_metrics (
         impressions,
         likes,
@@ -30,6 +53,12 @@ export async function GET() {
     `)
     .eq("status", "published")
     .order("published_at", { ascending: false });
+
+  if (personaId) {
+    query = query.eq("persona_id", personaId);
+  }
+
+  const { data: variants, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

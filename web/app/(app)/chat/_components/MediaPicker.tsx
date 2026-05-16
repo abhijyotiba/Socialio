@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { ImagePlus, Loader2, UploadCloud, X } from "lucide-react";
+import { ImagePlus, Loader2, UploadCloud } from "lucide-react";
 
 type Asset = {
   id: string;
@@ -48,6 +48,10 @@ export function MediaPicker({
   // Let's load when opened to save network.
   useEffect(() => {
     if (!isOpen || available.length > 0 || !jobId) return;
+    // Showing a spinner before fetch is the intended UX; the React Compiler
+    // rule treats this as a cascading-render risk but in practice it's one
+    // extra render when the picker opens, which is negligible.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional loading flag before fetch
     setLoading(true);
     fetch(`/api/media?job_id=${jobId}`)
       .then((r) => r.json())
@@ -58,7 +62,7 @@ export function MediaPicker({
           setAvailable(data.assets);
         }
       })
-      .catch((e) => setError("Failed to load available media"))
+      .catch(() => setError("Failed to load available media"))
       .finally(() => setLoading(false));
   }, [isOpen, jobId, available.length]);
 
@@ -194,6 +198,7 @@ export function MediaPicker({
                       : "border-transparent opacity-80 hover:opacity-100"
                   } ${disabled ? "cursor-not-allowed opacity-40 hover:opacity-40" : ""}`}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary thumbnails in a modal; not LCP-critical, dynamic sizes */}
                   <img
                     src={asset.cloudinary_url}
                     alt="Thumbnail"
