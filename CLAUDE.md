@@ -205,5 +205,3 @@ If tempted, stop and ask. Writing "I noticed X should probably be refactored, wa
 
 
 
-Backend Run command : uv run fastapi dev
-Frontend Run command : pnpm dev
