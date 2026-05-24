@@ -186,7 +186,7 @@ async def ingest(req: IngestRequest) -> IngestResponse:
 
 Each step is a function. Each is independently testable. If we ever genuinely need branching (e.g. "if video found, transcribe"), we add an `if` statement — not a framework.
 
-**No direct DB access from the worker.** The worker does not have Supabase credentials. It processes a request and returns a result. The web app writes the result to the DB. This means the worker is stateless and restartable at any time without consequence.
+**DB access from the worker (migration in progress, from 2026-05-24).** Historically the worker was pure compute with no Supabase credentials — the web app did all DB writes. We are now incrementally moving backend logic into the worker (see `docs/DECISIONS.md`, 2026-05-24). For a **migrated** slice, the worker owns its DB writes through an **RLS-scoped client**: it is given the user's Supabase JWT (forwarded by the thin Next.js proxy) and builds a `supabase-py` client with the anon key + that JWT (`worker/db/client.py`), so every query runs as the user and RLS enforces tenancy. The worker remains restartable, but for migrated slices it now holds the anon Supabase creds. Slices not yet migrated still follow the old "web writes, worker is pure compute" pattern. **First migrated slice: ingestion** (`worker/routes/ingest.py`, `worker/db/`). The new worker `db/` layer mirrors `web/lib/db/` — one module per table, thin functions, nothing else calls `client.table(...)` directly.
 
 ---
 
@@ -215,6 +215,8 @@ This shape — web writes DB, worker is stateless compute, results flow back thr
 ## 5. Authentication — two layers
 
 **User auth (Supabase).** Supabase Auth handles email/password and Google OAuth. On every request, Next.js middleware calls Supabase to refresh the session cookie. Server Components and route handlers read the user via `supabase.auth.getUser()` on the server-scoped client. The JWT is forwarded automatically via the `sb-access-token` cookie; we never manually read or validate it.
+
+**Worker auth (migrated slices).** When a Next.js proxy forwards a request to the worker for a migrated slice, it sends both the HMAC signature (defense-in-depth, proves the caller is our web app) and `Authorization: Bearer <user-jwt>`. The worker validates the JWT — asymmetric projects via the Supabase JWKS endpoint (RS256/ES256), legacy projects via `SUPABASE_JWT_SECRET` (HS256) — and uses the same token to scope its DB client (`worker/auth.py`). A bad/expired/forged token is rejected with 401.
 
 **Platform OAuth (LinkedIn, X).** Separate from login. When a user clicks "Connect LinkedIn" we (a) generate a PKCE code verifier, (b) stash it in a short-lived row or in a signed cookie, (c) redirect to LinkedIn. When LinkedIn calls back to `/api/oauth/linkedin/callback`, we exchange the code for tokens, encrypt them via Supabase Vault, and store them in `social_connections`.
 

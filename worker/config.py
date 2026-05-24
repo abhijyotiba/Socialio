@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     cloudinary_api_secret: str
     playwright_timeout_ms: int = 20000
 
+    # Supabase — used by the worker's RLS-scoped DB layer. The worker talks to
+    # Postgres as the calling user (JWT forwarded from web), so the anon key is
+    # correct here; RLS does the per-tenant enforcement. supabase_jwt_secret is
+    # only needed for legacy HS256-signed projects (asymmetric projects use JWKS).
+    supabase_url: str
+    supabase_anon_key: str
+    supabase_jwt_secret: str = ""
+
     groq_api_key: str
     groq_model: str = "llama-3.3-70b-versatile"
     gemini_api_key: str

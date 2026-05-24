@@ -10,8 +10,6 @@ function signBody(body: string): string {
 }
 
 export interface WorkerIngestRequest {
-  job_id: string;
-  workspace_id: string;
   source_type: "url" | "text";
   source_url?: string;
   source_text?: string;
@@ -27,30 +25,41 @@ export interface WorkerMediaItem {
   height: number | null;
 }
 
-export interface WorkerIngestResponse {
-  extracted_title: string;
-  extracted_text: string;
-  media: WorkerMediaItem[];
-  stage_timings: Record<string, number>;
-}
-
+// The worker now owns ingestion (job creation, scraping, DB writes), scoped to
+// the calling user via their forwarded Supabase JWT + RLS. The web route is a
+// thin proxy, so these return the raw Response for status/body passthrough.
 export async function workerIngest(
-  req: WorkerIngestRequest
-): Promise<WorkerIngestResponse> {
+  req: WorkerIngestRequest,
+  accessToken: string
+): Promise<Response> {
   const body = JSON.stringify(req);
-  const res = await fetch(`${process.env.WORKER_URL}/ingest`, {
+  return fetch(`${process.env.WORKER_URL}/ingest`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Worker-Signature": signBody(body),
+      Authorization: `Bearer ${accessToken}`,
     },
     body,
     signal: AbortSignal.timeout(25_000),
   });
-  if (!res.ok) {
-    throw new Error(`Worker /ingest responded ${res.status}`);
-  }
-  return res.json() as Promise<WorkerIngestResponse>;
+}
+
+export async function workerGetIngestion(
+  jobId: string,
+  accessToken: string
+): Promise<Response> {
+  return fetch(
+    `${process.env.WORKER_URL}/ingest/${encodeURIComponent(jobId)}`,
+    {
+      method: "GET",
+      headers: {
+        "X-Worker-Signature": signBody(""),
+        Authorization: `Bearer ${accessToken}`,
+      },
+      signal: AbortSignal.timeout(15_000),
+    }
+  );
 }
 
 export interface WorkerVariantOutput {

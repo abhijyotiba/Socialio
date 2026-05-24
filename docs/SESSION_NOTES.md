@@ -13,6 +13,63 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-24 — Backend migration to Python, pilot slice: ingestion
+
+Branch: `claude/vigilant-galileo-7aCpn`
+
+### What got built
+
+Established the pattern for incrementally moving backend logic from Next.js into
+the Python worker, preserving Supabase RLS by forwarding the user's JWT (see
+`DECISIONS.md`, 2026-05-24). Migrated the **ingestion** slice end-to-end:
+
+- **Worker auth (`worker/auth.py`):** added `verify_user()` — validates the
+  forwarded Supabase JWT (JWKS/RS256 for asymmetric projects, `SUPABASE_JWT_SECRET`
+  for legacy HS256). HMAC verification still runs too (defense-in-depth).
+- **Worker DB layer (`worker/db/`):** new `client.py` (RLS-scoped `supabase-py`
+  client via anon key + user JWT), `workspaces.py`, `ingestion.py`, `media_assets.py`.
+  Mirrors `web/lib/db/`.
+- **Worker `routes/ingest.py`:** now owns the full flow — auth, validation,
+  LinkedIn guard, rate-limiting (2/min, 50/day), job creation, scrape/extract/upload,
+  and DB writes. Added `GET /ingest/{job_id}` for polling.
+- **Error shape (`worker/main.py`):** exception handlers normalize all errors to
+  `{ "error": ... }` so the frontend's `data.error` contract holds.
+- **Web side:** `app/api/ingest/route.ts` and `app/api/ingest/[job_id]/route.ts`
+  are now thin proxies (auth gate + forward JWT + pass through status/body).
+  `lib/worker-client.ts` gained `workerGetIngestion` and `workerIngest` now forwards
+  the access token. Removed the now-dead `createIngestionJob`, `updateIngestionJob`,
+  `countRecentJobs` (ingestion.ts) and `createMediaAssets` (media-assets.ts).
+- **Deps:** added `supabase>=2.0`, `pyjwt[crypto]>=2.8` to `worker/pyproject.toml`.
+  Added `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET` to `.env.example`.
+
+### Tests
+
+- Worker: 71 pass (`uv run pytest`). New `test_auth_jwt.py` (JWT verify cases) and
+  `test_ingest_route.py` (validation, LinkedIn guard, rate limit, text passthrough,
+  URL happy-path with mocked scrape/DB — no live Supabase).
+- Web: 78 pass, typecheck clean, lint clean on changed files. (Two pre-existing
+  lint errors remain in `CampaignDetail.tsx` + a clock component — untouched, not ours.)
+
+### Gotchas
+
+- The frontend uses Supabase **Realtime** on `ingestion_jobs` (chat page) and does
+  **not** poll `GET /api/ingest/{job_id}`. Worker writes under the user JWT still
+  fire Realtime correctly. The synchronous POST must keep returning the extracted
+  result inline (UI expects `job_id` + title/text/media in one response).
+- The proxy uses `getSession()` (not `getUser()`) to grab the access token; the
+  worker re-validates the JWT, so this is safe.
+- `worker/tests/conftest.py` now stubs `SUPABASE_URL`/`SUPABASE_ANON_KEY` (required
+  settings) — any new worker test needing config relies on these.
+
+### Next step
+
+Next slice per the plan: **generation / campaigns** (`/api/campaigns*`,
+`/api/posts/[id]/regenerate`) — the worker already does the LLM work; move the
+orchestration + `content_items`/`post_variants` writes using the same proxy + RLS
+pattern. Publishing and cron are deferred to last (Vault + scheduler).
+Verify the pilot live first: run `pnpm --dir web dev` + `cd worker && uv run fastapi dev`,
+paste a URL in chat, confirm extraction works unchanged.
+
 ## 2026-05-16 — Phase V2.2: Multi-Persona Redesign (Round 2)
 
 Branch: `claude/review-multi-persona-arch-CwGpD`
