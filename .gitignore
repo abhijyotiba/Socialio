@@ -67,3 +67,7 @@ supabase/.branches/
 .idea/
 *.swp
 *.swo
+
+# Local audit / scratch artifacts (not part of the source tree)
+web/audit-artifacts/
+worker/test_playwright_temp.py
