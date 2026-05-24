@@ -1,11 +1,14 @@
 import time
 from typing import Literal
 
+import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from auth import verify_hmac
 from pipeline import extract, scrape, upload
+
+log = structlog.get_logger()
 
 router = APIRouter()
 
@@ -44,7 +47,15 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
     body = await request.body()
     await verify_hmac(request, body)
 
+    bound = log.bind(
+        job_id=req.job_id,
+        workspace_id=req.workspace_id,
+        source_type=req.source_type,
+    )
+
     if req.source_type == "text":
+        text_len = len(req.source_text or "")
+        bound.info("ingest_text_passthrough", text_len=text_len)
         return IngestResponse(
             extracted_title="",
             extracted_text=req.source_text or "",
@@ -52,10 +63,18 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
             stage_timings={},
         )
 
+    bound.info("ingest_start", url=req.source_url)
+
     t0 = _ms()
     try:
         html = await scrape.fetch_html(req.source_url or "")
     except scrape.ScrapeError as exc:
+        bound.warning(
+            "ingest_scrape_failed",
+            url=req.source_url,
+            error=str(exc),
+            duration_ms=_ms() - t0,
+        )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     t1 = _ms()
 
@@ -64,6 +83,18 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
 
     media = await upload.to_cloudinary(extracted.media_urls, req.workspace_id)
     t3 = _ms()
+
+    bound.info(
+        "ingest_done",
+        url=req.source_url,
+        title_len=len(extracted.title),
+        text_len=len(extracted.text),
+        media_count=len(media),
+        scrape_ms=t1 - t0,
+        extract_ms=t2 - t1,
+        upload_ms=t3 - t2,
+        total_ms=t3 - t0,
+    )
 
     return IngestResponse(
         extracted_title=extracted.title,

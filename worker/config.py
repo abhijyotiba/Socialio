@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemini-1.5-flash"
 
+    firecrawl_api_key: str = ""
+    firecrawl_timeout_s: int = 45
+
 
 @lru_cache
 def get_settings() -> Settings:
