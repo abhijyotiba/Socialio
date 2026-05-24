@@ -129,6 +129,12 @@ export function CampaignDetail({ initial }: Props) {
               {STATUS_LABEL[campaign.status] ?? campaign.status}
             </span>
           </p>
+          {campaign.user_angle && (
+            <p className="mt-2 text-xs text-slate-500">
+              <span className="font-semibold text-slate-600">Angle:</span>{" "}
+              {campaign.user_angle}
+            </p>
+          )}
         </div>
         {pendingPersonas.length > 0 && !isGenerating && (
           <button

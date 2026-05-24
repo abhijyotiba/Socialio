@@ -319,6 +319,7 @@ export type Database = {
           status: string
           title: string | null
           updated_at: string
+          user_angle: string | null
           workspace_id: string
         }
         Insert: {
@@ -331,6 +332,7 @@ export type Database = {
           status?: string
           title?: string | null
           updated_at?: string
+          user_angle?: string | null
           workspace_id: string
         }
         Update: {
@@ -343,6 +345,7 @@ export type Database = {
           status?: string
           title?: string | null
           updated_at?: string
+          user_angle?: string | null
           workspace_id?: string
         }
         Relationships: [

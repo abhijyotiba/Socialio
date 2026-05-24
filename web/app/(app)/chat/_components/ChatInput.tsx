@@ -35,7 +35,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, isLoading }: Pr
           ref={textareaRef}
           rows={1}
           className="max-h-[160px] min-h-[22px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none"
-          placeholder="Paste a URL or describe what you want to post about…"
+          placeholder="Paste a URL, add your angle, or just describe a topic…"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}

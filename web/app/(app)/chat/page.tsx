@@ -25,6 +25,9 @@ type ChatMessage =
       title: string;
       text: string;
       media: Media[];
+      // User's angle/instruction typed alongside the URL, carried through
+      // to generation. Undefined when the user pasted only a bare URL.
+      userAngle?: string;
       generationError?: string;
       generated?: boolean;
     }
@@ -32,6 +35,16 @@ type ChatMessage =
   | { id: string; type: "ai-variants"; variants: Variant[]; jobId: string }
   | { id: string; type: "ai-campaign"; campaignId: string }
   | { id: string; type: "ai-error"; message: string };
+
+// Pulls the first URL out of free text. The remainder (URL stripped, trimmed)
+// is the user's angle/instruction. No URL → the whole text is the angle.
+function parseInput(text: string): { url: string | null; angle: string } {
+  const match = text.match(/https?:\/\/[^\s]+/);
+  if (!match) return { url: null, angle: text.trim() };
+  const url = match[0];
+  const angle = text.replace(url, "").trim();
+  return { url, angle };
+}
 
 const STAGE_LABELS: Record<string, string> = {
   analyzing: "Analyzing content…",
@@ -129,26 +142,78 @@ export default function ChatPage() {
     );
   }
 
+  // Default to all selected personas; fall back to the first persona if the
+  // user deselected everything.
+  function resolvePersonaIds(): string[] {
+    if (selectedPersonaIds.length > 0) return selectedPersonaIds;
+    return personas[0] ? [personas[0].id] : [];
+  }
+
+  async function callCampaigns(
+    jobId: string,
+    personaIds: string[],
+    userAngle: string | null
+  ): Promise<{ ok: boolean; data: { campaign_id?: string; variants?: unknown[]; error?: string } }> {
+    const res = await fetch("/api/campaigns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ingestion_job_id: jobId,
+        persona_ids: personaIds,
+        platforms,
+        ...(userAngle ? { user_angle: userAngle } : {}),
+      }),
+    });
+    return { ok: res.ok, data: await res.json() };
+  }
+
+  function buildGenerationResult(
+    id: string,
+    jobId: string,
+    isMultiPersona: boolean,
+    data: { campaign_id?: string; variants?: unknown[] }
+  ): ChatMessage {
+    if (isMultiPersona) {
+      return { id, type: "ai-campaign", campaignId: data.campaign_id ?? "" };
+    }
+    return {
+      id,
+      type: "ai-variants",
+      jobId,
+      variants: ((data.variants ?? []) as {
+        variant_id: string;
+        platform: string;
+        body: string;
+      }[]).map((v) => ({ id: v.variant_id, platform: v.platform, body: v.body })),
+    };
+  }
+
   async function handleSubmit() {
     const text = input.trim();
     if (!text || isExtracting || isGenerating) return;
-    const isUrl = text.startsWith("http://") || text.startsWith("https://");
+    const { url } = parseInput(text);
     setInput("");
-    setIsExtracting(true);
 
-    const userId = uid();
+    addMessage({ id: uid(), type: "user", text, isUrl: Boolean(url) });
+
+    // Prompt-only — nothing to scrape, generate straight from the prompt.
+    if (!url) {
+      await handlePromptOnly(text);
+      return;
+    }
+
+    // URL present — extract it. Any text alongside the URL becomes the angle,
+    // remembered on the extraction card and applied when the user generates.
+    const { angle } = parseInput(text);
+    setIsExtracting(true);
     const typingId = uid();
-    addMessage({ id: userId, type: "user", text, isUrl });
     addMessage({ id: typingId, type: "ai-typing", label: "Extracting content" });
 
     try {
       const res = await fetch("/api/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source_type: isUrl ? "url" : "text",
-          ...(isUrl ? { source_url: text } : { source_text: text }),
-        }),
+        body: JSON.stringify({ source_type: "url", source_url: url }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -167,6 +232,7 @@ export default function ChatPage() {
         title: data.extracted_title,
         text: data.extracted_text,
         media: data.media,
+        userAngle: angle || undefined,
       });
     } catch {
       replaceMessage(typingId, {
@@ -179,24 +245,68 @@ export default function ChatPage() {
     }
   }
 
-  async function handleGenerate(jobId: string) {
+  // Prompt-only flow (no URL): skip the extraction card entirely. Create a
+  // text ingestion job (no scraping — the worker echoes the text), then
+  // generate with the prompt as the angle/topic.
+  async function handlePromptOnly(prompt: string) {
     if (platforms.length === 0 || isGenerating) return;
+    const personaIds = resolvePersonaIds();
+    if (personaIds.length === 0) return;
     setIsGenerating(true);
 
-    // All generation goes through /api/campaigns (Phase V2.2). For single-
-    // persona use the response's variants array drives the inline VariantCards;
-    // multi-persona renders a CampaignBatchCard pointing at the campaign id.
-    const personaIds =
-      selectedPersonaIds.length > 0
-        ? selectedPersonaIds
-        : personas[0]
-          ? [personas[0].id]
-          : [];
+    const isMultiPersona = personaIds.length > 1;
+    const generatingId = uid();
+    addMessage(
+      isMultiPersona
+        ? { id: generatingId, type: "ai-typing", label: "Generating for all personas…" }
+        : { id: generatingId, type: "ai-generating", jobId: "prompt", stage: "generating" }
+    );
 
-    if (personaIds.length === 0) {
+    try {
+      const ingestRes = await fetch("/api/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_type: "text", source_text: prompt }),
+      });
+      const ingestData = await ingestRes.json();
+      if (!ingestRes.ok) {
+        replaceMessage(generatingId, {
+          id: generatingId,
+          type: "ai-error",
+          message: ingestData.error ?? "Couldn't start generation.",
+        });
+        return;
+      }
+
+      const { ok, data } = await callCampaigns(ingestData.job_id, personaIds, prompt);
+      if (!ok) {
+        replaceMessage(generatingId, {
+          id: generatingId,
+          type: "ai-error",
+          message: data.error ?? "Generation failed.",
+        });
+        return;
+      }
+      replaceMessage(
+        generatingId,
+        buildGenerationResult(generatingId, ingestData.job_id, isMultiPersona, data)
+      );
+    } catch {
+      replaceMessage(generatingId, {
+        id: generatingId,
+        type: "ai-error",
+        message: "Network error. Please try again.",
+      });
+    } finally {
       setIsGenerating(false);
-      return;
     }
+  }
+
+  async function handleGenerate(jobId: string, userAngle?: string) {
+    if (platforms.length === 0 || isGenerating) return;
+    const personaIds = resolvePersonaIds();
+    if (personaIds.length === 0) return;
+    setIsGenerating(true);
 
     const isMultiPersona = personaIds.length > 1;
     const generatingId = uid();
@@ -207,17 +317,8 @@ export default function ChatPage() {
     );
 
     try {
-      const res = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ingestion_job_id: jobId,
-          persona_ids: personaIds,
-          platforms,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
+      const { ok, data } = await callCampaigns(jobId, personaIds, userAngle ?? null);
+      if (!ok) {
         setMessages((prev) =>
           prev
             .filter((m) => m.id !== generatingId)
@@ -230,21 +331,7 @@ export default function ChatPage() {
         return;
       }
 
-      const replacement: ChatMessage = isMultiPersona
-        ? { id: generatingId, type: "ai-campaign", campaignId: data.campaign_id }
-        : {
-            id: generatingId,
-            type: "ai-variants",
-            jobId,
-            variants: (data.variants ?? []).map(
-              (v: { variant_id: string; platform: string; body: string }) => ({
-                id: v.variant_id,
-                platform: v.platform,
-                body: v.body,
-              })
-            ),
-          };
-
+      const replacement = buildGenerationResult(generatingId, jobId, isMultiPersona, data);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === generatingId
@@ -355,7 +442,8 @@ export default function ChatPage() {
                     platforms={platforms}
                     connectedPlatforms={connectedPlatforms}
                     onTogglePlatform={togglePlatform}
-                    onGenerate={() => handleGenerate(msg.jobId)}
+                    onGenerate={() => handleGenerate(msg.jobId, msg.userAngle)}
+                    userAngle={msg.userAngle}
                     generationError={msg.generationError}
                     generated={msg.generated}
                     personas={personas}
