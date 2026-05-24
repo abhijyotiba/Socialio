@@ -2,9 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/lib/db/types'
 
 type CampaignRow = Database['public']['Tables']['campaigns']['Row']
-type CampaignInsert = Database['public']['Tables']['campaigns']['Insert']
 type CampaignPersonaRow = Database['public']['Tables']['campaign_personas']['Row']
-type CampaignPersonaVariantRow = Database['public']['Tables']['campaign_persona_variants']['Row']
 
 export type CampaignWithPersonas = CampaignRow & {
   ingestion_job?: {
@@ -35,13 +33,6 @@ export type CampaignWithPersonas = CampaignRow & {
       prompt_version_id: string | null
     }>
   }>
-}
-
-export async function createCampaign(values: CampaignInsert): Promise<CampaignRow> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('campaigns').insert(values).select().single()
-  if (error) throw error
-  return data
 }
 
 export async function updateCampaign(id: string, patch: Partial<CampaignRow>): Promise<void> {
@@ -184,43 +175,6 @@ export async function cancelScheduledVariantsForCampaign(
     .select('id')
   if (error) throw error
   return (data ?? []).length
-}
-
-export async function createCampaignPersonas(
-  campaignId: string,
-  personaIds: string[]
-): Promise<CampaignPersonaRow[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('campaign_personas')
-    .insert(personaIds.map(personaId => ({ campaign_id: campaignId, persona_id: personaId })))
-    .select()
-  if (error) throw error
-  return data ?? []
-}
-
-export async function createCampaignPersonaVariants(
-  campaignPersonaId: string,
-  variants: Array<{
-    post_variant_id: string
-    platform: string
-    prompt_version_id?: string | null
-  }>
-): Promise<CampaignPersonaVariantRow[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('campaign_persona_variants')
-    .insert(
-      variants.map(v => ({
-        campaign_persona_id: campaignPersonaId,
-        post_variant_id: v.post_variant_id,
-        platform: v.platform,
-        prompt_version_id: v.prompt_version_id ?? null,
-      }))
-    )
-    .select()
-  if (error) throw error
-  return data ?? []
 }
 
 export async function updateCampaignPersonaApproval(

@@ -13,6 +13,67 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-24 — Backend migration to Python, slice 2: generation (campaigns + regenerate)
+
+Branch: `claude/vigilant-galileo-7aCpn`
+
+### What got built
+
+Second migration slice (same proxy + RLS-via-JWT pattern as ingestion). Moved the
+**generation** endpoints into the worker:
+
+- **`POST /api/campaigns`** → worker `POST /campaigns` (`worker/routes/campaigns.py`).
+  The worker now owns the full orchestration: rate-limit, validation, job/persona/
+  brand/connection loads, campaign + campaign_personas creation, per-persona LLM
+  generation (in parallel, 15s cap each), content_items/post_variants/
+  campaign_persona_variants writes, partial-failure status
+  (`failed` / `generation_partial` / `pending_approval`), and the `campaign.created`
+  audit event. The LLM pipeline is called **in-process** — no more HTTP self-hop.
+- **`POST /api/posts/[id]/regenerate`** → worker `POST /posts/{id}/regenerate`
+  (`worker/routes/posts.py`): brand load (persona or workspace-default fallback),
+  pre-regeneration revision snapshot, LLM regenerate, body update, post-regeneration
+  snapshot, returns `{ body, revision_number }`.
+- **New worker db modules:** `personas.py`, `brand_configs.py`, `social_connections.py`,
+  `posts.py`, `campaigns.py`, `audit_events.py`, `post_variant_revisions.py`.
+- **Removed dead code:** worker `routes/generate.py` (both endpoints replaced;
+  `pipeline/` functions retained + still tested). Web `lib/worker-client.ts` lost
+  `workerGenerate`/`workerRegenerate`/related types, gained `workerCampaigns` +
+  `workerRegeneratePost`. Deleted fully-unused web db fns: `lib/db/ingestion.ts`
+  (whole file — `getIngestionJob` was its last user), `createCampaign`/
+  `createCampaignPersonas`/`createCampaignPersonaVariants` (campaigns.ts),
+  `createContentItem`/`createPostVariants` (posts.ts).
+- Web `GET /api/campaigns` (list) stays a Next.js handler — pure read, moves with
+  the CRUD slice.
+
+### Tests
+
+- Worker: 84 pass. New `test_campaigns_route.py` (happy path, rate limit, job-not-ready,
+  invalid persona, missing brand, all-fail→502, partial success) and
+  `test_regenerate_route.py` (happy path, blank instruction, 404, non-editable status,
+  missing brand, pipeline-failure→502). DB + LLM mocked, no live Supabase.
+- Web: 78 pass, typecheck clean, lint clean on changed files.
+
+### Gotchas
+
+- The all-personas-failed case returns a **flat** `{ error, campaign_id }` at 502 via a
+  direct `JSONResponse` — the global HTTPException handler wraps `detail` in `{error}`,
+  which would double-nest a dict detail.
+- `_generate_for_persona` is pure (no DB) so it's safe to `asyncio.gather`; DB writes
+  happen sequentially afterward, mirroring the old web `Promise.allSettled` + sequential
+  write loop.
+- `maybe_single()` is used for single-or-none reads (returns `data=None` on 0 rows)
+  instead of `single()` which raises.
+- Kept shared web db fns still used by non-migrated routes (publish, approve/reject,
+  CRUD): `updateCampaign`, `getPostVariant`, `updatePostVariant`, `getBrandConfigForPersona`,
+  `getConnectionsForPersona`, `getPersona`, `insertAuditEvent`, `snapshotVariantBody`, etc.
+
+### Next step
+
+Next per the plan: **Posts CRUD** slice (`/api/posts*`, `/api/personas`, `/api/brand/*`,
+`/api/connections`, `/api/profile`, `/api/metrics`, `/api/queue`, plus the campaign
+management routes: GET list, detail, approve/reject/cancel) — mostly straight db-layer
+ports. Publishing + cron remain last (Vault service-role exception + scheduler choice).
+
 ## 2026-05-24 — Backend migration to Python, pilot slice: ingestion
 
 Branch: `claude/vigilant-galileo-7aCpn`

@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from routes.ingest import router as ingest_router
-from routes.generate import router as generate_router
+from routes.campaigns import router as campaigns_router
+from routes.posts import router as posts_router
 from routes.voice import router as voice_router
 
 if sys.platform == "win32":
@@ -45,7 +46,8 @@ async def _validation_exception_handler(
 
 
 app.include_router(ingest_router)
-app.include_router(generate_router)
+app.include_router(campaigns_router)
+app.include_router(posts_router)
 app.include_router(voice_router)
 
 
