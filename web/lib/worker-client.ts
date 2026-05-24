@@ -64,6 +64,9 @@ export interface WorkerGenerateRequest {
   extracted_text: string;
   brand_system_prompt: string;
   platforms: ("linkedin" | "x")[];
+  // Optional. With source: directive shaping the post.
+  // Without source (extracted_text === ""): the topic itself.
+  user_angle?: string | null;
 }
 
 export interface WorkerGenerateResponse {

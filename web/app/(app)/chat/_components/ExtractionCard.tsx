@@ -17,6 +17,7 @@ type Props = {
   connectedPlatforms: ("linkedin" | "x")[];
   onTogglePlatform: (p: "linkedin" | "x") => void;
   onGenerate: () => void;
+  userAngle?: string;
   generationError?: string;
   generated?: boolean;
   personas?: PersonaRow[];
@@ -55,6 +56,7 @@ export function ExtractionCard({
   connectedPlatforms,
   onTogglePlatform,
   onGenerate,
+  userAngle,
   generationError,
   generated,
   personas,
@@ -90,6 +92,14 @@ export function ExtractionCard({
                 )}
               </button>
             )}
+          </div>
+        )}
+        {userAngle && (
+          <div className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-indigo-400">
+              Your angle
+            </p>
+            <p className="mt-0.5 text-xs text-slate-600">{userAngle}</p>
           </div>
         )}
         {media.length > 0 && (

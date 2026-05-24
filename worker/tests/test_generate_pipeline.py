@@ -99,3 +99,53 @@ async def test_generate_multiple_platforms_calls_llm_once_per_platform():
         platforms = {v["platform"] for v in variants}
         assert platforms == {"linkedin", "x"}
         assert variants[0]["body"] != variants[1]["body"]
+
+
+@pytest.mark.asyncio
+async def test_generate_with_summary_and_user_angle_includes_both():
+    with patch("pipeline.generate.generate", new_callable=AsyncMock) as mock_gen:
+        mock_gen.return_value = "Skeptical take."
+        from pipeline.generate import generate_variants
+        variants = await generate_variants(
+            summary="Anthropic released a new model.",
+            brand_system_prompt="Professional tone.",
+            platforms=["linkedin"],
+            user_angle="Make it skeptical and focus on pricing.",
+        )
+        assert variants[0]["body"] == "Skeptical take."
+        msg = mock_gen.call_args[1]["user_message"]
+        assert "Make it skeptical and focus on pricing." in msg
+        assert "Anthropic released a new model." in msg
+
+
+@pytest.mark.asyncio
+async def test_generate_with_user_angle_only_skips_summary_section():
+    """Prompt-only flow: no source material, just the user's topic."""
+    with patch("pipeline.generate.generate", new_callable=AsyncMock) as mock_gen:
+        mock_gen.return_value = "A take on AI startups."
+        from pipeline.generate import generate_variants
+        variants = await generate_variants(
+            summary="",
+            brand_system_prompt="Professional tone.",
+            platforms=["linkedin"],
+            user_angle="Why most AI startups will fold by 2027.",
+        )
+        assert variants[0]["body"] == "A take on AI startups."
+        msg = mock_gen.call_args[1]["user_message"]
+        assert "Why most AI startups will fold by 2027." in msg
+        # Topic-only template does not include a summary section
+        assert "Source material summary" not in msg
+        assert "Content summary" not in msg
+
+
+@pytest.mark.asyncio
+async def test_generate_rejects_empty_inputs():
+    """Calling with neither summary nor angle is a contract violation."""
+    from pipeline.generate import generate_variants
+    with pytest.raises(ValueError):
+        await generate_variants(
+            summary="",
+            brand_system_prompt="prompt",
+            platforms=["linkedin"],
+            user_angle=None,
+        )

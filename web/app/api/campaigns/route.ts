@@ -24,6 +24,9 @@ const bodySchema = z.object({
   ingestion_job_id: z.string().uuid(),
   persona_ids: z.array(z.string().uuid()).min(1).max(PERSONA_SOFT_CAP),
   platforms: z.array(z.enum(SUPPORTED_PLATFORMS)).optional(),
+  // Optional user-supplied angle. Stored on the campaign and threaded
+  // through to the worker so it can shape every persona's variant.
+  user_angle: z.string().trim().min(1).max(1000).optional(),
 })
 
 async function generateForPersona(params: {
@@ -33,6 +36,7 @@ async function generateForPersona(params: {
   requestedPlatforms?: Platform[]
   job: IngestionJobRow
   workspaceId: string
+  userAngle?: string | null
 }): Promise<{ personaId: string; workerResult?: WorkerGenerateResponse; error?: string }> {
   const connectedPlatforms = params.connections
     .filter(c => !c.needs_reauth)
@@ -58,6 +62,7 @@ async function generateForPersona(params: {
         extracted_text: params.job.extracted_text ?? '',
         brand_system_prompt: params.brand.custom_system_prompt!,
         platforms,
+        user_angle: params.userAngle ?? null,
       },
       controller.signal
     )
@@ -87,7 +92,12 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json())
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
-  const { ingestion_job_id, persona_ids, platforms: requestedPlatforms } = parsed.data
+  const {
+    ingestion_job_id,
+    persona_ids,
+    platforms: requestedPlatforms,
+    user_angle: userAngle,
+  } = parsed.data
 
   const job = await getIngestionJob(ingestion_job_id)
   if (!job || job.workspace_id !== workspaceId) {
@@ -96,9 +106,15 @@ export async function POST(request: Request) {
   if (job.stage !== 'done') {
     return NextResponse.json({ error: 'Ingestion not ready' }, { status: 409 })
   }
-  // [S1] Guard against empty extracted text
-  if (!job.extracted_text?.trim()) {
-    return NextResponse.json({ error: 'Ingestion job has no extracted text' }, { status: 409 })
+  // [S1] We need something to generate from: either extracted source
+  // material OR a user-supplied angle (prompt-only flow).
+  const hasExtractedText = Boolean(job.extracted_text?.trim())
+  const hasUserAngle = Boolean(userAngle && userAngle.trim())
+  if (!hasExtractedText && !hasUserAngle) {
+    return NextResponse.json(
+      { error: 'Ingestion job has no extracted text and no user angle was provided' },
+      { status: 409 }
+    )
   }
 
   // Validate all personas belong to this workspace
@@ -120,12 +136,23 @@ export async function POST(request: Request) {
     )
   }
 
+  // Prompt-only flow: a text job carrying a user angle means the user typed a
+  // prompt rather than pasting an article. The angle IS the topic, so don't
+  // also feed the echoed prompt back as "source material" — that would make
+  // the worker summarize a one-liner and double-count it. URL jobs and pasted-
+  // text jobs without an angle keep their extracted text.
+  const effectiveJob =
+    job.source_type === 'text' && hasUserAngle
+      ? { ...job, extracted_text: '' }
+      : job
+
   const campaign = await createCampaign({
     workspace_id: workspaceId,
     ingestion_job_id,
     title: job.extracted_title ?? undefined,
     status: 'generating',
     generation_started_at: new Date().toISOString(),
+    user_angle: userAngle ?? null,
   })
 
   const campaignPersonaRows = await createCampaignPersonas(campaign.id, persona_ids)
@@ -141,8 +168,9 @@ export async function POST(request: Request) {
         brand: brandConfigs[idx]!,
         connections: connectionsByPersona[idx] ?? [],
         requestedPlatforms,
-        job,
+        job: effectiveJob,
         workspaceId,
+        userAngle: userAngle ?? null,
       })
     )
   )

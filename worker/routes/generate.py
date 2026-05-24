@@ -17,6 +17,12 @@ class GenerateRequest(BaseModel):
     extracted_text: str
     brand_system_prompt: str
     platforms: list[Literal["linkedin", "x"]]
+    # Optional user-supplied angle / instruction. Two roles:
+    #   1) With source material: a directive that shapes the post
+    #      (e.g. "make it skeptical", "focus on pricing").
+    #   2) Without source material (extracted_text == ""): the topic
+    #      itself ("Quick thought on why AI startups will fold").
+    user_angle: str | None = None
 
 
 class VariantOutput(BaseModel):
@@ -40,13 +46,21 @@ async def generate(req: GenerateRequest, request: Request) -> GenerateResponse:
     await verify_hmac(request, body)
 
     t0 = _ms()
-    summary = await analyze.summarize(req.extracted_title, req.extracted_text)
+    # Skip the summarize LLM call when there's nothing to summarize — the
+    # prompt-only flow passes empty extracted_text and lets user_angle
+    # carry the topic.
+    summary = (
+        await analyze.summarize(req.extracted_title, req.extracted_text)
+        if req.extracted_text.strip()
+        else ""
+    )
     t1 = _ms()
 
     raw_variants = await gen_pipeline.generate_variants(
         summary=summary,
         brand_system_prompt=req.brand_system_prompt,
         platforms=req.platforms,
+        user_angle=req.user_angle,
     )
     t2 = _ms()
 
