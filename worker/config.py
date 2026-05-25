@@ -5,7 +5,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
+    # env_file: in local dev, uv run from the `worker/` dir so only `.env`
+    # (inside worker/) is checked. The repo-root `../.env` is NOT loaded in
+    # containers (Docker / Cloud Run / Render) because that path doesn't exist;
+    # the platform injects env vars directly. extra="ignore" silences unknown keys.
+    model_config = SettingsConfigDict(
+        env_file=(".env",),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     worker_shared_secret: str
     cloudinary_cloud_name: str

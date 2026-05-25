@@ -1,0 +1,133 @@
+name: Worker CI & Deploy — Cloud Run
+
+# =============================================================================
+# OPTION A: Deploy to Google Cloud Run
+#
+# Required GitHub Secrets (Settings → Secrets and variables → Actions):
+#   GCP_PROJECT_ID          — your GCP project ID (e.g. "socialos-prod-123")
+#   GCP_SA_KEY              — JSON key of a Service Account with roles:
+#                               Artifact Registry Writer
+#                               Cloud Run Admin
+#                               Service Account User
+#   WORKER_SHARED_SECRET    — shared secret between web → worker
+#   SUPABASE_URL            — same as NEXT_PUBLIC_SUPABASE_URL
+#   SUPABASE_ANON_KEY       — same as NEXT_PUBLIC_SUPABASE_ANON_KEY
+#   SUPABASE_SERVICE_ROLE_KEY
+#   GROQ_API_KEY
+#   GEMINI_API_KEY
+#   CLOUDINARY_CLOUD_NAME
+#   CLOUDINARY_API_KEY
+#   CLOUDINARY_API_SECRET
+#   CRON_SECRET
+#
+# One-time GCP setup (run in Cloud Shell or gcloud CLI):
+#   gcloud services enable run.googleapis.com artifactregistry.googleapis.com
+#   gcloud artifacts repositories create socialos \
+#     --repository-format=docker --location=asia-south1
+# =============================================================================
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-ci-cloud-run.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-ci-cloud-run.yml'
+
+env:
+  REGION: asia-south1                            # ← change to your nearest GCP region
+  SERVICE: socialos-worker
+  IMAGE: asia-south1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/socialos/worker
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Run tests on every push / PR
+  # ---------------------------------------------------------------------------
+  test:
+    name: Pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dev dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv run pytest tests/ -x -q
+
+  # ---------------------------------------------------------------------------
+  # 2. Build, push, and deploy — only on pushes to main after tests pass
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Build & Deploy to Cloud Run
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write    # needed if you later switch to Workload Identity Federation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Authenticate to GCP using Service Account JSON key
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          # Alternative (more secure — no long-lived key needed):
+          # workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          # service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build & push image
+        run: |
+          docker build \
+            -t ${{ env.IMAGE }}:${{ github.sha }} \
+            -t ${{ env.IMAGE }}:latest \
+            ./worker
+          docker push ${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.IMAGE }}:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE }} \
+            --image ${{ env.IMAGE }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 2Gi \
+            --cpu 1 \
+            --timeout 300 \
+            --concurrency 10 \
+            --set-env-vars "WORKER_SHARED_SECRET=${{ secrets.WORKER_SHARED_SECRET }},\
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }},\
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }},\
+          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }},\
+          GROQ_API_KEY=${{ secrets.GROQ_API_KEY }},\
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},\
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }},\
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }},\
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }},\
+          CRON_SECRET=${{ secrets.CRON_SECRET }}"
+
+      - name: Print service URL
+        run: |
+          gcloud run services describe ${{ env.SERVICE }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)'

@@ -1,0 +1,34 @@
+# =============================================================================
+# .dockerignore for the worker — keeps the Docker image clean & secret-free.
+# This file lives in worker/ and applies when building from that directory.
+# =============================================================================
+
+# Python virtual environment — never needed inside the image (uv syncs fresh)
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Test files — not needed at runtime
+tests/
+
+# Local env files — secrets must NOT enter the image
+.env
+*.env
+.env.*
+
+# Dev / CI artifacts
+*.log
+fly.toml
+render.yaml
+README.md
+*.md
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

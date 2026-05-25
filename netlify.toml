@@ -1,0 +1,20 @@
+# =============================================================================
+# Netlify configuration for the Socialio monorepo
+# Only the `web/` Next.js app is deployed here.
+# The Python worker is deployed separately (Cloud Run / Render).
+# =============================================================================
+
+[build]
+  # Tell Netlify where the app lives inside the monorepo
+  base    = "web"
+  command = "pnpm install --frozen-lockfile && pnpm build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "10"
+
+# Required for Next.js SSR, API routes, and middleware to work on Netlify.
+# Without this plugin only static output would be served.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
