@@ -35,12 +35,6 @@ export type CampaignWithPersonas = CampaignRow & {
   }>
 }
 
-export async function updateCampaign(id: string, patch: Partial<CampaignRow>): Promise<void> {
-  const supabase = await createClient()
-  const { error } = await supabase.from('campaigns').update(patch).eq('id', id)
-  if (error) throw error
-}
-
 export async function getCampaignWithPersonas(id: string): Promise<CampaignWithPersonas | null> {
   const supabase = await createClient()
   const { data } = await supabase
@@ -99,108 +93,6 @@ export async function getCampaignWithPersonas(id: string): Promise<CampaignWithP
     }
   }
   return data as unknown as CampaignWithPersonas
-}
-
-// A variant is "live" if it's headed for, or has already touched, a real
-// social network. Deleting the campaign cascades to post_variants, which
-// would erase the audit trail of a real post — we never want that.
-//
-// 'draft'/'failed'/'cancelled' are safe to delete: draft never went out,
-// the other two were terminal failures with no real-world side effect.
-const LIVE_VARIANT_STATUSES = ['scheduled', 'publishing', 'published'] as const
-
-export async function hasLiveVariants(campaignId: string): Promise<boolean> {
-  const supabase = await createClient()
-
-  const { data: cps, error: cpErr } = await supabase
-    .from('campaign_personas')
-    .select('id')
-    .eq('campaign_id', campaignId)
-  if (cpErr) throw cpErr
-  const cpIds = (cps ?? []).map(r => r.id)
-  if (cpIds.length === 0) return false
-
-  const { data: cpvs, error: cpvErr } = await supabase
-    .from('campaign_persona_variants')
-    .select('post_variant_id')
-    .in('campaign_persona_id', cpIds)
-  if (cpvErr) throw cpvErr
-  const variantIds = (cpvs ?? []).map(r => r.post_variant_id)
-  if (variantIds.length === 0) return false
-
-  const { count, error: pvErr } = await supabase
-    .from('post_variants')
-    .select('id', { count: 'exact', head: true })
-    .in('id', variantIds)
-    .in('status', LIVE_VARIANT_STATUSES as unknown as string[])
-  if (pvErr) throw pvErr
-  return (count ?? 0) > 0
-}
-
-export async function deleteCampaign(id: string): Promise<void> {
-  const supabase = await createClient()
-  const { error } = await supabase.from('campaigns').delete().eq('id', id)
-  if (error) throw error
-}
-
-// Flip every scheduled variant on this campaign to 'cancelled' so the cron
-// stops trying to publish them. Idempotent — cancelling twice is a no-op.
-// Variants already 'publishing' / 'published' / 'failed' are untouched.
-export async function cancelScheduledVariantsForCampaign(
-  campaignId: string
-): Promise<number> {
-  const supabase = await createClient()
-
-  const { data: cps, error: cpErr } = await supabase
-    .from('campaign_personas')
-    .select('id')
-    .eq('campaign_id', campaignId)
-  if (cpErr) throw cpErr
-  const cpIds = (cps ?? []).map(r => r.id)
-  if (cpIds.length === 0) return 0
-
-  const { data: cpvs, error: cpvErr } = await supabase
-    .from('campaign_persona_variants')
-    .select('post_variant_id')
-    .in('campaign_persona_id', cpIds)
-  if (cpvErr) throw cpvErr
-  const variantIds = (cpvs ?? []).map(r => r.post_variant_id)
-  if (variantIds.length === 0) return 0
-
-  const { data, error } = await supabase
-    .from('post_variants')
-    .update({ status: 'cancelled' })
-    .in('id', variantIds)
-    .eq('status', 'scheduled')
-    .select('id')
-  if (error) throw error
-  return (data ?? []).length
-}
-
-export async function updateCampaignPersonaApproval(
-  campaignPersonaId: string,
-  status: 'approved' | 'rejected'
-): Promise<void> {
-  const supabase = await createClient()
-  const { error } = await supabase
-    .from('campaign_personas')
-    .update({
-      approval_status: status,
-      approved_at: status === 'approved' ? new Date().toISOString() : null,
-    })
-    .eq('id', campaignPersonaId)
-  if (error) throw error
-}
-
-export async function getVariantsForCampaignPersona(
-  campaignPersonaId: string
-): Promise<string[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('campaign_persona_variants')
-    .select('post_variant_id')
-    .eq('campaign_persona_id', campaignPersonaId)
-  return (data ?? []).map(row => row.post_variant_id)
 }
 
 export async function countRecentCampaigns(

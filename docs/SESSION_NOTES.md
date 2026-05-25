@@ -13,6 +13,58 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-24 — Backend migration to Python, slice 3a: campaign management
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Moved the campaign **mutation** routes (the approval state machine) into the worker,
+completing worker ownership of campaign writes. All are thin proxies on the web side:
+
+- `DELETE /api/campaigns/[id]` → worker (ownership + live-variant guard).
+- `POST /api/campaigns/[id]/approve` → worker (approve all or a `persona_ids` subset:
+  mark approved, flip variants to `scheduled`, audit event, roll campaign to `approved`
+  once every persona is resolved).
+- `POST /api/campaigns/[id]/cancel-scheduled` → worker.
+- `POST /api/campaigns/[id]/persona/[persona_id]/approve` and `.../reject` → worker.
+
+Worker additions in `worker/db/campaigns.py` (`get_campaign`, `get_campaign_personas`,
+`update_campaign_persona_approval`, `get_variants_for_campaign_persona`,
+`set_post_variants_status`, `has_live_variants`, `delete_campaign`,
+`cancel_scheduled_variants_for_campaign`) and the handlers in `worker/routes/campaigns.py`.
+
+- Added a generic `workerFetch(path, {method, accessToken, json?})` helper to
+  `web/lib/worker-client.ts` for signed + JWT-authed proxying (empty body → signature
+  over "").
+- **Still in Next.js (pure reads, complex nested shape — deferred):** `GET /api/campaigns`
+  (list) and `GET /api/campaigns/[id]` (detail, `getCampaignWithPersonas`).
+- **Removed dead web db code:** `updateCampaign`, `hasLiveVariants`, `deleteCampaign`,
+  `cancelScheduledVariantsForCampaign`, `updateCampaignPersonaApproval`,
+  `getVariantsForCampaignPersona` (campaigns.ts), and the whole `lib/db/audit-events.ts`
+  (`insertAuditEvent` was its last user). Kept `getCampaignWithPersonas`,
+  `countRecentCampaigns`, `listCampaignsForWorkspace` (still used by the GET routes).
+
+### Tests
+
+- Worker: 93 pass. New `test_campaign_actions.py` (approve all → schedules + marks
+  approved; approve subset leaves pending; 404; persona approve/reject; cancel; delete
+  ok; delete blocked by live variants).
+- Web: 78 pass, typecheck + lint clean on changed files.
+
+### Gotchas
+
+- `approve` reads the raw body and tolerates an empty/absent one (approve-all), matching
+  the old Zod `.catch(() => ({}))`. The web proxy always forwards `json: payload ?? {}`.
+- Approval sets variant status to `scheduled` WITHOUT a `scheduled_at` (unchanged from the
+  old behavior) — scheduling a time is a separate action.
+
+### Next step
+
+Remaining CRUD: `/api/personas*`, `/api/brand/*`, `/api/connections`, `/api/profile`,
+`/api/metrics`, `/api/queue`, plus the two deferred campaign GET reads. Then publishing
++ cron last (Vault service-role exception + scheduler choice).
+
 ## 2026-05-24 — Backend migration to Python, slice 2: generation (campaigns + regenerate)
 
 Branch: `claude/vigilant-galileo-7aCpn`

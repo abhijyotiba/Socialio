@@ -9,6 +9,28 @@ function signBody(body: string): string {
   );
 }
 
+// Generic signed + JWT-authenticated proxy to the worker. `json === undefined`
+// means no body (GET/DELETE); the signature is then computed over "" to match
+// the worker's HMAC check on an empty body.
+export async function workerFetch(
+  path: string,
+  opts: { method: string; accessToken: string; json?: unknown; timeoutMs?: number }
+): Promise<Response> {
+  const hasBody = opts.json !== undefined;
+  const body = hasBody ? JSON.stringify(opts.json) : "";
+  const headers: Record<string, string> = {
+    "X-Worker-Signature": signBody(body),
+    Authorization: `Bearer ${opts.accessToken}`,
+  };
+  if (hasBody) headers["Content-Type"] = "application/json";
+  return fetch(`${process.env.WORKER_URL}${path}`, {
+    method: opts.method,
+    headers,
+    body: hasBody ? body : undefined,
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000),
+  });
+}
+
 export interface WorkerIngestRequest {
   source_type: "url" | "text";
   source_url?: string;

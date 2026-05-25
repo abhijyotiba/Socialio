@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -290,3 +291,147 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             for v in all_variants
         ],
     }
+
+
+# ─── Campaign management (approve / reject / cancel / delete) ─────────────────
+
+
+async def _authorize(request: Request, body: bytes) -> tuple[Any, str, dict]:
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+    return client, workspace_id, claims
+
+
+async def _require_campaign(client: Any, campaign_id: str) -> dict:
+    # RLS limits visibility to the user's workspace, so a foreign id is a 404.
+    campaign = await db_campaigns.get_campaign(client, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Not found")
+    return campaign
+
+
+async def _maybe_mark_approved(client: Any, campaign_id: str) -> None:
+    """Once every persona is resolved (approved or rejected), the campaign as a
+    whole is approved. Mirrors the web `allResolved` check."""
+    cps = await db_campaigns.get_campaign_personas(client, campaign_id)
+    if all(cp["approval_status"] != "pending" for cp in cps):
+        await db_campaigns.update_campaign(client, campaign_id, {"status": "approved"})
+
+
+async def _approve_persona(
+    client: Any, workspace_id: str, actor_id: str, cp: dict
+) -> None:
+    await db_campaigns.update_campaign_persona_approval(client, cp["id"], "approved")
+    variant_ids = await db_campaigns.get_variants_for_campaign_persona(
+        client, cp["id"]
+    )
+    await db_campaigns.set_post_variants_status(client, variant_ids, "scheduled")
+    await db_audit.insert_audit_event(
+        client,
+        {
+            "workspace_id": workspace_id,
+            "persona_id": cp["persona_id"],
+            "actor_user_id": actor_id,
+            "event_type": "campaign_persona.approved",
+            "entity_type": "campaign_persona",
+            "entity_id": cp["id"],
+        },
+    )
+
+
+@router.post("/campaigns/{campaign_id}/approve")
+async def approve_campaign(campaign_id: str, request: Request) -> dict:
+    body = await request.body()
+    client, workspace_id, claims = await _authorize(request, body)
+    await _require_campaign(client, campaign_id)
+
+    target_ids: list[str] | None = None
+    if body:
+        try:
+            parsed = json.loads(body)
+            target_ids = parsed.get("persona_ids")
+        except json.JSONDecodeError:
+            target_ids = None
+
+    cps = await db_campaigns.get_campaign_personas(client, campaign_id)
+    to_approve = [
+        cp
+        for cp in cps
+        if cp["approval_status"] == "pending"
+        and (target_ids is None or cp["persona_id"] in target_ids)
+    ]
+
+    for cp in to_approve:
+        await _approve_persona(client, workspace_id, claims["sub"], cp)
+
+    await _maybe_mark_approved(client, campaign_id)
+    return {"ok": True, "approved_count": len(to_approve)}
+
+
+@router.post("/campaigns/{campaign_id}/persona/{persona_id}/approve")
+async def approve_persona(
+    campaign_id: str, persona_id: str, request: Request
+) -> dict:
+    body = await request.body()
+    client, workspace_id, claims = await _authorize(request, body)
+    await _require_campaign(client, campaign_id)
+
+    cps = await db_campaigns.get_campaign_personas(client, campaign_id)
+    cp = next((c for c in cps if c["persona_id"] == persona_id), None)
+    if not cp:
+        raise HTTPException(status_code=404, detail="Persona not in campaign")
+
+    await _approve_persona(client, workspace_id, claims["sub"], cp)
+    await _maybe_mark_approved(client, campaign_id)
+    return {"ok": True}
+
+
+@router.post("/campaigns/{campaign_id}/persona/{persona_id}/reject")
+async def reject_persona(
+    campaign_id: str, persona_id: str, request: Request
+) -> dict:
+    body = await request.body()
+    client, _workspace_id, _claims = await _authorize(request, body)
+    await _require_campaign(client, campaign_id)
+
+    cps = await db_campaigns.get_campaign_personas(client, campaign_id)
+    cp = next((c for c in cps if c["persona_id"] == persona_id), None)
+    if not cp:
+        raise HTTPException(status_code=404, detail="Persona not in campaign")
+
+    # Rejection does NOT delete variants — just marks status.
+    await db_campaigns.update_campaign_persona_approval(client, cp["id"], "rejected")
+    await _maybe_mark_approved(client, campaign_id)
+    return {"ok": True}
+
+
+@router.post("/campaigns/{campaign_id}/cancel-scheduled")
+async def cancel_scheduled(campaign_id: str, request: Request) -> dict:
+    body = await request.body()
+    client, _workspace_id, _claims = await _authorize(request, body)
+    await _require_campaign(client, campaign_id)
+
+    cancelled = await db_campaigns.cancel_scheduled_variants_for_campaign(
+        client, campaign_id
+    )
+    return {"ok": True, "cancelled": cancelled}
+
+
+@router.delete("/campaigns/{campaign_id}")
+async def delete_campaign_route(campaign_id: str, request: Request):
+    body = await request.body()
+    client, _workspace_id, _claims = await _authorize(request, body)
+    await _require_campaign(client, campaign_id)
+
+    if await db_campaigns.has_live_variants(client, campaign_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete: this campaign has variants that are scheduled or already published. Cancel or wait for them to finish first.",
+        )
+
+    await db_campaigns.delete_campaign(client, campaign_id)
+    return {"ok": True}

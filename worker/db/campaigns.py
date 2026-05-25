@@ -78,3 +78,122 @@ async def create_campaign_persona_variants(
         .execute()
     )
     return res.data or []
+
+
+async def get_campaign(
+    client: AsyncClient, campaign_id: str
+) -> dict[str, Any] | None:
+    res = (
+        await client.table("campaigns")
+        .select("*")
+        .eq("id", campaign_id)
+        .maybe_single()
+        .execute()
+    )
+    return res.data
+
+
+async def get_campaign_personas(
+    client: AsyncClient, campaign_id: str
+) -> list[dict[str, Any]]:
+    res = (
+        await client.table("campaign_personas")
+        .select("id, persona_id, approval_status")
+        .eq("campaign_id", campaign_id)
+        .execute()
+    )
+    return res.data or []
+
+
+async def update_campaign_persona_approval(
+    client: AsyncClient, campaign_persona_id: str, status: str
+) -> None:
+    approved_at = (
+        datetime.now(timezone.utc).isoformat() if status == "approved" else None
+    )
+    await client.table("campaign_personas").update(
+        {"approval_status": status, "approved_at": approved_at}
+    ).eq("id", campaign_persona_id).execute()
+
+
+async def get_variants_for_campaign_persona(
+    client: AsyncClient, campaign_persona_id: str
+) -> list[str]:
+    res = (
+        await client.table("campaign_persona_variants")
+        .select("post_variant_id")
+        .eq("campaign_persona_id", campaign_persona_id)
+        .execute()
+    )
+    return [r["post_variant_id"] for r in (res.data or [])]
+
+
+async def set_post_variants_status(
+    client: AsyncClient, variant_ids: list[str], status: str
+) -> None:
+    if not variant_ids:
+        return
+    await client.table("post_variants").update({"status": status}).in_(
+        "id", variant_ids
+    ).execute()
+
+
+async def delete_campaign(client: AsyncClient, campaign_id: str) -> None:
+    await client.table("campaigns").delete().eq("id", campaign_id).execute()
+
+
+# A variant is "live" if it's headed for, or has touched, a real social network.
+# Deleting the campaign cascades to post_variants and would erase that audit
+# trail — never allow it.
+_LIVE_VARIANT_STATUSES = ["scheduled", "publishing", "published"]
+
+
+async def _campaign_variant_ids(
+    client: AsyncClient, campaign_id: str
+) -> list[str]:
+    cps = (
+        await client.table("campaign_personas")
+        .select("id")
+        .eq("campaign_id", campaign_id)
+        .execute()
+    )
+    cp_ids = [r["id"] for r in (cps.data or [])]
+    if not cp_ids:
+        return []
+    cpvs = (
+        await client.table("campaign_persona_variants")
+        .select("post_variant_id")
+        .in_("campaign_persona_id", cp_ids)
+        .execute()
+    )
+    return [r["post_variant_id"] for r in (cpvs.data or [])]
+
+
+async def has_live_variants(client: AsyncClient, campaign_id: str) -> bool:
+    variant_ids = await _campaign_variant_ids(client, campaign_id)
+    if not variant_ids:
+        return False
+    res = (
+        await client.table("post_variants")
+        .select("id", count="exact", head=True)
+        .in_("id", variant_ids)
+        .in_("status", _LIVE_VARIANT_STATUSES)
+        .execute()
+    )
+    return (res.count or 0) > 0
+
+
+async def cancel_scheduled_variants_for_campaign(
+    client: AsyncClient, campaign_id: str
+) -> int:
+    variant_ids = await _campaign_variant_ids(client, campaign_id)
+    if not variant_ids:
+        return 0
+    res = (
+        await client.table("post_variants")
+        .update({"status": "cancelled"})
+        .in_("id", variant_ids)
+        .eq("status", "scheduled")
+        .execute()
+    )
+    return len(res.data or [])
