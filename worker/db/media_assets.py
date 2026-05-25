@@ -38,3 +38,24 @@ async def get_media_for_job(
         .execute()
     )
     return res.data or []
+
+
+async def get_variant_media_urls(
+    client: AsyncClient, post_variant_id: str
+) -> list[str]:
+    """Ordered Cloudinary URLs attached to a variant, for publishing."""
+    res = (
+        await client.table("post_variant_media")
+        .select("position, media_assets(cloudinary_url)")
+        .eq("post_variant_id", post_variant_id)
+        .order("position")
+        .execute()
+    )
+    urls: list[str] = []
+    for row in res.data or []:
+        asset = row.get("media_assets")
+        if isinstance(asset, list):
+            asset = asset[0] if asset else None
+        if asset and asset.get("cloudinary_url"):
+            urls.append(asset["cloudinary_url"])
+    return urls

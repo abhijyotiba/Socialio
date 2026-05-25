@@ -13,6 +13,61 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-24 — Backend migration to Python, slice 4: manual publish
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Migrated the manual publish path — the riskiest slice (real LinkedIn/X side effects +
+the Vault/service-role exception).
+
+- `POST /api/posts/[id]/publish` → worker `POST /posts/{id}/publish` (thin proxy).
+- Worker owns: status check, idempotency guard (`publish_attempts` on `idempotency_key
+  = variant.id`), connection lookup (persona-scoped + workspace-default fallback),
+  reauth check, the `publishing` claim, **Vault token read via the service-role client**,
+  media upload, the platform call, and success/failure recording. TOKEN_EXPIRED → 401,
+  everything else → 502 (flat `{error, error_code}` via direct JSONResponse).
+- **Vault/service-role exception:** added `service_client()` to `worker/db/client.py`
+  (uses new `SUPABASE_SERVICE_ROLE_KEY`, bypasses RLS) used ONLY for `vault_read_secret`
+  in `worker/security/vault.py`. All other publish DB work stays on the user-JWT RLS
+  client. Same documented exception the web app already made (admin client for Vault).
+- New worker code: `adapters/linkedin.py` + `adapters/x.py` (publish + media-upload
+  subset, httpx, with `adapters/base.py::PublishError` carrying the error_code),
+  `publish/upload_media.py` (Cloudinary fetch → platform upload, non-fatal per asset),
+  `db/publish_attempts.py`, `db/social_connections.py` (+ single-get + workspace fallback),
+  `db/media_assets.py::get_variant_media_urls`.
+
+### Important: no web dead code removed this slice
+
+The **cron publish-due sweep is still in Next.js (deferred)** and reuses ALL the same
+web publish machinery — `lib/adapters/{linkedin,x}.ts`, `lib/publish/upload-media.ts`,
+`lib/db/publish-attempts.ts`, `lib/security/vault.ts`, `getVariantMedia`. So none of it
+is dead yet; it stays until the cron slice migrates. Only the manual publish route
+became a proxy.
+
+### Tests
+
+- Worker: 117 pass. New `test_publish_route.py` (LinkedIn success, already-published →
+  409, not-found → 404, non-publishable status → 409, no connection → 409, needs_reauth →
+  409, TOKEN_EXPIRED → 401 + variant marked failed, generic failure → 502). All adapters,
+  Vault, and DB mocked — no real network/Supabase.
+- Web: 76 pass, typecheck + lint clean.
+
+### Gotchas
+
+- The worker now needs `SUPABASE_SERVICE_ROLE_KEY` (added to `.env.example` + test
+  conftest). `service_client()` raises if it's unset, so non-publish paths are unaffected.
+- The web adapters still own OAuth + `getPostMetrics`, used by the OAuth callbacks and the
+  (deferred) pull-metrics cron — another reason the web adapters can't be deleted yet.
+
+### Next step
+
+Cron is the last domain: `publish-due` (the `FOR UPDATE SKIP LOCKED` claim + the publish
+machinery above), `pull-metrics`, `token-expiry-check`, `cleanup-orphaned-media`. Needs
+the deferred scheduler decision (Vercel Cron → worker proxy vs in-worker APScheduler vs
+external). Pure reads stay in Next.js per the agreed scope.
+
 ## 2026-05-24 — Backend migration to Python, slice 3c: brand config + voice profile
 
 Branch: `claude/vigilant-galileo-7aCpn` (PR #13)

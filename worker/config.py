@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_anon_key: str
     supabase_jwt_secret: str = ""
+    # Service-role key — used ONLY for the Supabase Vault read on the publish
+    # path (vault_read_secret is restricted to service_role). This is the same
+    # documented exception the web app already makes; see docs/DECISIONS.md.
+    supabase_service_role_key: str = ""
 
     groq_api_key: str
     groq_model: str = "llama-3.3-70b-versatile"
