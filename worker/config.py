@@ -1,10 +1,11 @@
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=("../.env", ".env"), extra="ignore")
 
     worker_shared_secret: str
     cloudinary_cloud_name: str
@@ -16,13 +17,24 @@ class Settings(BaseSettings):
     # Postgres as the calling user (JWT forwarded from web), so the anon key is
     # correct here; RLS does the per-tenant enforcement. supabase_jwt_secret is
     # only needed for legacy HS256-signed projects (asymmetric projects use JWKS).
-    supabase_url: str
-    supabase_anon_key: str
+    supabase_url: str = Field(
+        validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")
+    )
+    supabase_anon_key: str = Field(
+        validation_alias=AliasChoices(
+            "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+        )
+    )
     supabase_jwt_secret: str = ""
     # Service-role key — used ONLY for the Supabase Vault read on the publish
     # path (vault_read_secret is restricted to service_role). This is the same
     # documented exception the web app already makes; see docs/DECISIONS.md.
-    supabase_service_role_key: str = ""
+    supabase_service_role_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"
+        ),
+    )
 
     # Shared secret for the cron endpoints. Any external scheduler (Google Apps
     # Script, cron-job.org, GitHub Actions, etc.) calls /cron/* with
