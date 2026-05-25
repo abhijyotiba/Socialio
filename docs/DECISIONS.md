@@ -15,6 +15,20 @@ Format:
 
 ---
 
+## 2026-05-24: Backend logic migrates incrementally into the Python worker (RLS-preserving)
+
+**Decision:** We are moving backend/API logic out of Next.js Route Handlers and into the Python service, one vertical slice at a time. For a migrated slice, the Next.js route becomes a **thin authenticated proxy** that forwards the user's Supabase JWT (plus the existing HMAC header) to the worker; the worker validates the JWT and runs all DB work through a **per-request, RLS-scoped `supabase-py` client** built with the anon key + that JWT, so Postgres RLS keeps enforcing per-tenant isolation. The frontend is untouched — it keeps calling relative `/api/...` paths. New worker deps: `supabase` (supabase-py) and `pyjwt[crypto]`. First slice migrated: **ingestion** (`/api/ingest` POST + `/api/ingest/{job_id}` GET).
+
+**Why:** The owner is far more productive building features in Python than in the TS/Next backend, and a working FastAPI service already exists. Forwarding the user JWT (rather than using the service-role key) means we do **not** have to re-implement authorization in app code — RLS does it — which removes the single biggest security risk of the move.
+
+**Alternatives considered:** (a) Full big-bang rewrite to a standalone Python backend + pure-SPA frontend — rejected as high-risk for a solo project; the app would be broken mid-flight and RLS/Vault/OAuth/cron all have to land before anything ships. (b) Service-role key + manual authorization checks in Python — rejected, every missed check is a cross-tenant leak. (c) Stay on Next.js — rejected, doesn't address the velocity problem. Note: the original "Vercel can't handle the load" premise was a misconception (serverless auto-scales); this migration is justified by **developer velocity and code organization, not throughput**.
+
+**Trade-off:** Two backend languages/runtimes during the transition. The worker is no longer purely stateless for migrated slices (it now holds Supabase creds and writes the DB). `supabase-py` is less mature than the JS SDK. Publishing and cron are explicitly deferred to last: publishing needs Supabase Vault decryption (a service-role exception to the JWT model), and leaving Vercel Cron means a new scheduler must be chosen.
+
+**Reversibility:** Medium per slice — a migrated route can be reverted to a real Next.js handler since the frontend contract is unchanged.
+
+---
+
 ## 2026-04-28: Voice profile via user-pasted samples, never scraped
 
 **Decision:** Voice learning ingests samples the user **pastes** into a textarea. We never fetch their LinkedIn or X posts on their behalf — even when a connected OAuth token would technically allow it.

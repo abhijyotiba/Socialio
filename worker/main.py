@@ -3,11 +3,16 @@ import logging
 import sys
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from routes.ingest import router as ingest_router
-from routes.generate import router as generate_router
-from routes.voice import router as voice_router
+from routes.brand import router as brand_router
+from routes.campaigns import router as campaigns_router
+from routes.personas import router as personas_router
+from routes.posts import router as posts_router
 
 if sys.platform == "win32":
     # Playwright relies on subprocess support, which requires the Proactor loop on Windows.
@@ -25,9 +30,27 @@ structlog.configure(
 )
 
 app = FastAPI(title="SocialOS Worker", version="0.1.0")
+
+
+# Normalize error bodies to { "error": ... } so the web frontend's `data.error`
+# contract holds across every endpoint the worker serves.
+@app.exception_handler(StarletteHTTPException)
+async def _http_exception_handler(_request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(
+    _request: Request, exc: RequestValidationError
+):
+    return JSONResponse(status_code=400, content={"error": "Invalid request"})
+
+
 app.include_router(ingest_router)
-app.include_router(generate_router)
-app.include_router(voice_router)
+app.include_router(brand_router)
+app.include_router(campaigns_router)
+app.include_router(personas_router)
+app.include_router(posts_router)
 
 
 @app.get("/health")

@@ -1,21 +1,27 @@
 import time
+from datetime import datetime, timezone
 from typing import Literal
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from auth import verify_hmac
+from auth import verify_hmac, verify_user
+from db import ingestion as db_ingestion
+from db import media_assets as db_media
+from db.client import rls_client
+from db.workspaces import get_workspace_id_for_user
 from pipeline import extract, scrape, upload
 
 log = structlog.get_logger()
 
 router = APIRouter()
 
+RATE_PER_MINUTE = 2
+RATE_PER_DAY = 50
+
 
 class IngestRequest(BaseModel):
-    job_id: str
-    workspace_id: str
     source_type: Literal["url", "text"]
     source_url: str | None = None
     source_text: str | None = None
@@ -32,10 +38,17 @@ class MediaItem(BaseModel):
 
 
 class IngestResponse(BaseModel):
+    job_id: str
     extracted_title: str
     extracted_text: str
     media: list[MediaItem]
-    stage_timings: dict[str, int]
+
+
+class IngestionJobResponse(BaseModel):
+    """Full job row + media, for the polling endpoint."""
+
+    job: dict
+    media: list[dict]
 
 
 def _ms() -> int:
@@ -46,24 +59,73 @@ def _ms() -> int:
 async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
     body = await request.body()
     await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    # Input validation (mirrors the old Zod schema in web).
+    if req.source_type == "text":
+        if not req.source_text:
+            raise HTTPException(status_code=400, detail="source_text required")
+    else:
+        if not req.source_url:
+            raise HTTPException(status_code=400, detail="source_url required")
+        if "linkedin.com" in req.source_url:
+            raise HTTPException(
+                status_code=422,
+                detail="LinkedIn URLs cannot be ingested automatically. Please paste the post text directly.",
+            )
+
+    # Rate limiting, scoped to the workspace.
+    if await db_ingestion.count_recent_jobs(client, workspace_id, 60) >= RATE_PER_MINUTE:
+        raise HTTPException(
+            status_code=429, detail="Rate limit: 2 ingestions per minute."
+        )
+    if await db_ingestion.count_recent_jobs(client, workspace_id, 86400) >= RATE_PER_DAY:
+        raise HTTPException(
+            status_code=429, detail="Daily ingestion limit reached (50/day)."
+        )
+
+    job = await db_ingestion.create_job(
+        client,
+        workspace_id=workspace_id,
+        source_type=req.source_type,
+        source_url=req.source_url,
+        source_text=req.source_text,
+        stage="pending",
+    )
+    job_id = job["id"]
 
     bound = log.bind(
-        job_id=req.job_id,
-        workspace_id=req.workspace_id,
+        job_id=job_id,
+        workspace_id=workspace_id,
         source_type=req.source_type,
     )
 
     if req.source_type == "text":
-        text_len = len(req.source_text or "")
-        bound.info("ingest_text_passthrough", text_len=text_len)
+        bound.info("ingest_text_passthrough", text_len=len(req.source_text or ""))
+        await db_ingestion.update_job(
+            client,
+            job_id,
+            {
+                "extracted_title": "",
+                "extracted_text": req.source_text or "",
+                "stage": "done",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
         return IngestResponse(
+            job_id=job_id,
             extracted_title="",
             extracted_text=req.source_text or "",
             media=[],
-            stage_timings={},
         )
 
     bound.info("ingest_start", url=req.source_url)
+    await db_ingestion.update_job(client, job_id, {"stage": "scraping"})
 
     t0 = _ms()
     try:
@@ -75,14 +137,29 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
             error=str(exc),
             duration_ms=_ms() - t0,
         )
+        await db_ingestion.update_job(
+            client, job_id, {"stage": "failed", "error": str(exc)}
+        )
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     t1 = _ms()
 
     extracted = extract.parse(html, base_url=req.source_url or "")
     t2 = _ms()
 
-    media = await upload.to_cloudinary(extracted.media_urls, req.workspace_id)
+    media = await upload.to_cloudinary(extracted.media_urls, workspace_id)
     t3 = _ms()
+
+    await db_ingestion.update_job(
+        client,
+        job_id,
+        {
+            "extracted_title": extracted.title,
+            "extracted_text": extracted.text,
+            "stage": "done",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    await db_media.create_media_assets(client, workspace_id, job_id, media)
 
     bound.info(
         "ingest_done",
@@ -97,12 +174,23 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
     )
 
     return IngestResponse(
+        job_id=job_id,
         extracted_title=extracted.title,
         extracted_text=extracted.text,
         media=[MediaItem(**m) for m in media],
-        stage_timings={
-            "scraping": t1 - t0,
-            "extracting": t2 - t1,
-            "uploading": t3 - t2,
-        },
     )
+
+
+@router.get("/ingest/{job_id}", response_model=IngestionJobResponse)
+async def get_ingestion(job_id: str, request: Request) -> IngestionJobResponse:
+    await verify_hmac(request, await request.body())
+    _claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    # RLS guarantees the job is only visible if it belongs to the user's
+    # workspace; a foreign job_id simply returns nothing.
+    job = await db_ingestion.get_job(client, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Not found")
+    media = await db_media.get_media_for_job(client, job_id)
+    return IngestionJobResponse(job=job, media=media)

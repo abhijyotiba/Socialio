@@ -13,6 +13,308 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-24 — Backend migration to Python, slice 4: manual publish
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Migrated the manual publish path — the riskiest slice (real LinkedIn/X side effects +
+the Vault/service-role exception).
+
+- `POST /api/posts/[id]/publish` → worker `POST /posts/{id}/publish` (thin proxy).
+- Worker owns: status check, idempotency guard (`publish_attempts` on `idempotency_key
+  = variant.id`), connection lookup (persona-scoped + workspace-default fallback),
+  reauth check, the `publishing` claim, **Vault token read via the service-role client**,
+  media upload, the platform call, and success/failure recording. TOKEN_EXPIRED → 401,
+  everything else → 502 (flat `{error, error_code}` via direct JSONResponse).
+- **Vault/service-role exception:** added `service_client()` to `worker/db/client.py`
+  (uses new `SUPABASE_SERVICE_ROLE_KEY`, bypasses RLS) used ONLY for `vault_read_secret`
+  in `worker/security/vault.py`. All other publish DB work stays on the user-JWT RLS
+  client. Same documented exception the web app already made (admin client for Vault).
+- New worker code: `adapters/linkedin.py` + `adapters/x.py` (publish + media-upload
+  subset, httpx, with `adapters/base.py::PublishError` carrying the error_code),
+  `publish/upload_media.py` (Cloudinary fetch → platform upload, non-fatal per asset),
+  `db/publish_attempts.py`, `db/social_connections.py` (+ single-get + workspace fallback),
+  `db/media_assets.py::get_variant_media_urls`.
+
+### Important: no web dead code removed this slice
+
+The **cron publish-due sweep is still in Next.js (deferred)** and reuses ALL the same
+web publish machinery — `lib/adapters/{linkedin,x}.ts`, `lib/publish/upload-media.ts`,
+`lib/db/publish-attempts.ts`, `lib/security/vault.ts`, `getVariantMedia`. So none of it
+is dead yet; it stays until the cron slice migrates. Only the manual publish route
+became a proxy.
+
+### Tests
+
+- Worker: 117 pass. New `test_publish_route.py` (LinkedIn success, already-published →
+  409, not-found → 404, non-publishable status → 409, no connection → 409, needs_reauth →
+  409, TOKEN_EXPIRED → 401 + variant marked failed, generic failure → 502). All adapters,
+  Vault, and DB mocked — no real network/Supabase.
+- Web: 76 pass, typecheck + lint clean.
+
+### Gotchas
+
+- The worker now needs `SUPABASE_SERVICE_ROLE_KEY` (added to `.env.example` + test
+  conftest). `service_client()` raises if it's unset, so non-publish paths are unaffected.
+- The web adapters still own OAuth + `getPostMetrics`, used by the OAuth callbacks and the
+  (deferred) pull-metrics cron — another reason the web adapters can't be deleted yet.
+
+### Next step
+
+Cron is the last domain: `publish-due` (the `FOR UPDATE SKIP LOCKED` claim + the publish
+machinery above), `pull-metrics`, `token-expiry-check`, `cleanup-orphaned-media`. Needs
+the deferred scheduler decision (Vercel Cron → worker proxy vs in-worker APScheduler vs
+external). Pure reads stay in Next.js per the agreed scope.
+
+## 2026-05-24 — Backend migration to Python, slice 3c: brand config + voice profile
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Moved the brand-voice **mutations** into the worker, and folded the voice-analysis
+HTTP hop into an in-process pipeline call (same win as campaign generation).
+
+- `POST /api/brand/config` → worker `POST /brand/config` (mint prompt version + upsert
+  brand_configs).
+- `POST /api/brand/voice-profile` → worker `POST /brand/voice-profile`: validates samples
+  (3–15, each 20–3000 chars, ≤30 KB total), **analyzes in-process** via
+  `pipeline/voice_profile` (no more `/voice/analyze` HTTP call), persists the profile +
+  new `voice_profile` prompt version + brand_configs row. 422 for unvalidatable analyzer
+  output, 502 for provider outage.
+- Worker: new `worker/routes/brand.py`, `worker/db/prompt_versions.py`,
+  `worker/db/brand_configs.py` (added `upsert_brand_config`, `set_voice_profile_for_persona`),
+  `worker/db/personas.py` (added `get_default_persona`).
+- **Removed dead code:** worker `routes/voice.py` (+ `/voice/analyze`); web
+  `lib/db/prompt-versions.ts` (whole file), `upsertBrandConfig` + `setVoiceProfileForPersona`
+  (brand-configs.ts), and `workerAnalyzeVoice` + `WorkerError` + voice types (worker-client.ts).
+  `pipeline/voice_profile` is retained (now called in-process) and still tested.
+- **Kept in Next.js:** `GET /api/brand/config` (read; still uses `assertPersonaInWorkspace`
+  + `getBrandConfigForPersona`, both still used elsewhere too).
+
+### Tests
+
+- Worker: 109 pass. New `test_brand_route.py` (config save, missing name → 400, no-persona
+  → 400; voice happy path, too-few/too-short samples → 400, analyzer ValueError → 422,
+  provider failure → 502).
+- Web: 76 pass, typecheck + lint clean.
+
+### Gotchas
+
+- `WorkerError` is gone — it was only used by the voice + regenerate clients, both migrated.
+- The `_legacy/brand-configs.ts` re-exports (`getBrandConfig` etc.) are left untouched —
+  that's a separately-managed deprecation shim, out of scope here.
+
+### Next step
+
+Remaining CRUD: `/api/connections`, `/api/profile`, `/api/metrics`, `/api/queue`, plus the
+deferred GET reads. Then publishing + cron last (Vault service-role exception + scheduler).
+
+## 2026-05-24 — Backend migration to Python, slice 3b: persona mutations
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Moved the persona **mutation** routes (the ones with logic) into the worker; reads
+stay in Next.js.
+
+- `POST /api/personas` → worker (soft cap 10, hard cap 50, slug generation).
+- `PATCH /api/personas/[id]` and `DELETE /api/personas/[id]` → worker (delete guards:
+  default persona, pending campaigns → 409).
+- Worker: `worker/routes/personas.py` + new `worker/db/personas.py` helpers
+  (`count_personas`, `generate_persona_slug`, `create_persona`, `update_persona`,
+  `delete_persona`). Guard violations raise `ValueError`, mapped to 400/409 in the route.
+- **Kept in Next.js:** `GET /api/personas` (list) and `GET /api/personas/[id]` (persona +
+  brand summary + connections) — pure reads.
+- **Removed dead web code:** `createPersona`, `updatePersona`, `deletePersona`,
+  `generatePersonaSlug` (personas.ts) and the obsolete `lib/db/__tests__/personas.test.ts`
+  (its deletePersona-guard coverage now lives in worker `test_personas_route.py`). Kept
+  `getPersona`, `getPersonasForWorkspace`, `getDefaultPersona` (still widely used).
+
+### Tests
+
+- Worker: 101 pass. New `test_personas_route.py` (create, invalid color → 400, soft-cap →
+  400, hard-cap ValueError → 400, patch, patch-404, delete, delete-guard → 409).
+- Web: 76 pass (was 78; -2 from the removed deletePersona test), typecheck + lint clean.
+
+### Next step
+
+Remaining CRUD: `/api/brand/*`, `/api/connections`, `/api/profile`, `/api/metrics`,
+`/api/queue`, plus the deferred campaign + persona GET reads. Then publishing + cron last.
+
+## 2026-05-24 — Backend migration to Python, slice 3a: campaign management
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Moved the campaign **mutation** routes (the approval state machine) into the worker,
+completing worker ownership of campaign writes. All are thin proxies on the web side:
+
+- `DELETE /api/campaigns/[id]` → worker (ownership + live-variant guard).
+- `POST /api/campaigns/[id]/approve` → worker (approve all or a `persona_ids` subset:
+  mark approved, flip variants to `scheduled`, audit event, roll campaign to `approved`
+  once every persona is resolved).
+- `POST /api/campaigns/[id]/cancel-scheduled` → worker.
+- `POST /api/campaigns/[id]/persona/[persona_id]/approve` and `.../reject` → worker.
+
+Worker additions in `worker/db/campaigns.py` (`get_campaign`, `get_campaign_personas`,
+`update_campaign_persona_approval`, `get_variants_for_campaign_persona`,
+`set_post_variants_status`, `has_live_variants`, `delete_campaign`,
+`cancel_scheduled_variants_for_campaign`) and the handlers in `worker/routes/campaigns.py`.
+
+- Added a generic `workerFetch(path, {method, accessToken, json?})` helper to
+  `web/lib/worker-client.ts` for signed + JWT-authed proxying (empty body → signature
+  over "").
+- **Still in Next.js (pure reads, complex nested shape — deferred):** `GET /api/campaigns`
+  (list) and `GET /api/campaigns/[id]` (detail, `getCampaignWithPersonas`).
+- **Removed dead web db code:** `updateCampaign`, `hasLiveVariants`, `deleteCampaign`,
+  `cancelScheduledVariantsForCampaign`, `updateCampaignPersonaApproval`,
+  `getVariantsForCampaignPersona` (campaigns.ts), and the whole `lib/db/audit-events.ts`
+  (`insertAuditEvent` was its last user). Kept `getCampaignWithPersonas`,
+  `countRecentCampaigns`, `listCampaignsForWorkspace` (still used by the GET routes).
+
+### Tests
+
+- Worker: 93 pass. New `test_campaign_actions.py` (approve all → schedules + marks
+  approved; approve subset leaves pending; 404; persona approve/reject; cancel; delete
+  ok; delete blocked by live variants).
+- Web: 78 pass, typecheck + lint clean on changed files.
+
+### Gotchas
+
+- `approve` reads the raw body and tolerates an empty/absent one (approve-all), matching
+  the old Zod `.catch(() => ({}))`. The web proxy always forwards `json: payload ?? {}`.
+- Approval sets variant status to `scheduled` WITHOUT a `scheduled_at` (unchanged from the
+  old behavior) — scheduling a time is a separate action.
+
+### Next step
+
+Remaining CRUD: `/api/personas*`, `/api/brand/*`, `/api/connections`, `/api/profile`,
+`/api/metrics`, `/api/queue`, plus the two deferred campaign GET reads. Then publishing
++ cron last (Vault service-role exception + scheduler choice).
+
+## 2026-05-24 — Backend migration to Python, slice 2: generation (campaigns + regenerate)
+
+Branch: `claude/vigilant-galileo-7aCpn`
+
+### What got built
+
+Second migration slice (same proxy + RLS-via-JWT pattern as ingestion). Moved the
+**generation** endpoints into the worker:
+
+- **`POST /api/campaigns`** → worker `POST /campaigns` (`worker/routes/campaigns.py`).
+  The worker now owns the full orchestration: rate-limit, validation, job/persona/
+  brand/connection loads, campaign + campaign_personas creation, per-persona LLM
+  generation (in parallel, 15s cap each), content_items/post_variants/
+  campaign_persona_variants writes, partial-failure status
+  (`failed` / `generation_partial` / `pending_approval`), and the `campaign.created`
+  audit event. The LLM pipeline is called **in-process** — no more HTTP self-hop.
+- **`POST /api/posts/[id]/regenerate`** → worker `POST /posts/{id}/regenerate`
+  (`worker/routes/posts.py`): brand load (persona or workspace-default fallback),
+  pre-regeneration revision snapshot, LLM regenerate, body update, post-regeneration
+  snapshot, returns `{ body, revision_number }`.
+- **New worker db modules:** `personas.py`, `brand_configs.py`, `social_connections.py`,
+  `posts.py`, `campaigns.py`, `audit_events.py`, `post_variant_revisions.py`.
+- **Removed dead code:** worker `routes/generate.py` (both endpoints replaced;
+  `pipeline/` functions retained + still tested). Web `lib/worker-client.ts` lost
+  `workerGenerate`/`workerRegenerate`/related types, gained `workerCampaigns` +
+  `workerRegeneratePost`. Deleted fully-unused web db fns: `lib/db/ingestion.ts`
+  (whole file — `getIngestionJob` was its last user), `createCampaign`/
+  `createCampaignPersonas`/`createCampaignPersonaVariants` (campaigns.ts),
+  `createContentItem`/`createPostVariants` (posts.ts).
+- Web `GET /api/campaigns` (list) stays a Next.js handler — pure read, moves with
+  the CRUD slice.
+
+### Tests
+
+- Worker: 84 pass. New `test_campaigns_route.py` (happy path, rate limit, job-not-ready,
+  invalid persona, missing brand, all-fail→502, partial success) and
+  `test_regenerate_route.py` (happy path, blank instruction, 404, non-editable status,
+  missing brand, pipeline-failure→502). DB + LLM mocked, no live Supabase.
+- Web: 78 pass, typecheck clean, lint clean on changed files.
+
+### Gotchas
+
+- The all-personas-failed case returns a **flat** `{ error, campaign_id }` at 502 via a
+  direct `JSONResponse` — the global HTTPException handler wraps `detail` in `{error}`,
+  which would double-nest a dict detail.
+- `_generate_for_persona` is pure (no DB) so it's safe to `asyncio.gather`; DB writes
+  happen sequentially afterward, mirroring the old web `Promise.allSettled` + sequential
+  write loop.
+- `maybe_single()` is used for single-or-none reads (returns `data=None` on 0 rows)
+  instead of `single()` which raises.
+- Kept shared web db fns still used by non-migrated routes (publish, approve/reject,
+  CRUD): `updateCampaign`, `getPostVariant`, `updatePostVariant`, `getBrandConfigForPersona`,
+  `getConnectionsForPersona`, `getPersona`, `insertAuditEvent`, `snapshotVariantBody`, etc.
+
+### Next step
+
+Next per the plan: **Posts CRUD** slice (`/api/posts*`, `/api/personas`, `/api/brand/*`,
+`/api/connections`, `/api/profile`, `/api/metrics`, `/api/queue`, plus the campaign
+management routes: GET list, detail, approve/reject/cancel) — mostly straight db-layer
+ports. Publishing + cron remain last (Vault service-role exception + scheduler choice).
+
+## 2026-05-24 — Backend migration to Python, pilot slice: ingestion
+
+Branch: `claude/vigilant-galileo-7aCpn`
+
+### What got built
+
+Established the pattern for incrementally moving backend logic from Next.js into
+the Python worker, preserving Supabase RLS by forwarding the user's JWT (see
+`DECISIONS.md`, 2026-05-24). Migrated the **ingestion** slice end-to-end:
+
+- **Worker auth (`worker/auth.py`):** added `verify_user()` — validates the
+  forwarded Supabase JWT (JWKS/RS256 for asymmetric projects, `SUPABASE_JWT_SECRET`
+  for legacy HS256). HMAC verification still runs too (defense-in-depth).
+- **Worker DB layer (`worker/db/`):** new `client.py` (RLS-scoped `supabase-py`
+  client via anon key + user JWT), `workspaces.py`, `ingestion.py`, `media_assets.py`.
+  Mirrors `web/lib/db/`.
+- **Worker `routes/ingest.py`:** now owns the full flow — auth, validation,
+  LinkedIn guard, rate-limiting (2/min, 50/day), job creation, scrape/extract/upload,
+  and DB writes. Added `GET /ingest/{job_id}` for polling.
+- **Error shape (`worker/main.py`):** exception handlers normalize all errors to
+  `{ "error": ... }` so the frontend's `data.error` contract holds.
+- **Web side:** `app/api/ingest/route.ts` and `app/api/ingest/[job_id]/route.ts`
+  are now thin proxies (auth gate + forward JWT + pass through status/body).
+  `lib/worker-client.ts` gained `workerGetIngestion` and `workerIngest` now forwards
+  the access token. Removed the now-dead `createIngestionJob`, `updateIngestionJob`,
+  `countRecentJobs` (ingestion.ts) and `createMediaAssets` (media-assets.ts).
+- **Deps:** added `supabase>=2.0`, `pyjwt[crypto]>=2.8` to `worker/pyproject.toml`.
+  Added `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET` to `.env.example`.
+
+### Tests
+
+- Worker: 71 pass (`uv run pytest`). New `test_auth_jwt.py` (JWT verify cases) and
+  `test_ingest_route.py` (validation, LinkedIn guard, rate limit, text passthrough,
+  URL happy-path with mocked scrape/DB — no live Supabase).
+- Web: 78 pass, typecheck clean, lint clean on changed files. (Two pre-existing
+  lint errors remain in `CampaignDetail.tsx` + a clock component — untouched, not ours.)
+
+### Gotchas
+
+- The frontend uses Supabase **Realtime** on `ingestion_jobs` (chat page) and does
+  **not** poll `GET /api/ingest/{job_id}`. Worker writes under the user JWT still
+  fire Realtime correctly. The synchronous POST must keep returning the extracted
+  result inline (UI expects `job_id` + title/text/media in one response).
+- The proxy uses `getSession()` (not `getUser()`) to grab the access token; the
+  worker re-validates the JWT, so this is safe.
+- `worker/tests/conftest.py` now stubs `SUPABASE_URL`/`SUPABASE_ANON_KEY` (required
+  settings) — any new worker test needing config relies on these.
+
+### Next step
+
+Next slice per the plan: **generation / campaigns** (`/api/campaigns*`,
+`/api/posts/[id]/regenerate`) — the worker already does the LLM work; move the
+orchestration + `content_items`/`post_variants` writes using the same proxy + RLS
+pattern. Publishing and cron are deferred to last (Vault + scheduler).
+Verify the pilot live first: run `pnpm --dir web dev` + `cd worker && uv run fastapi dev`,
+paste a URL in chat, confirm extraction works unchanged.
+
 ## 2026-05-16 — Phase V2.2: Multi-Persona Redesign (Round 2)
 
 Branch: `claude/review-multi-persona-arch-CwGpD`
