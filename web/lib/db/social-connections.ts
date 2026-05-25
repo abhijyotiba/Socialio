@@ -47,11 +47,3 @@ export async function getConnectionsForPersona(
     .eq('persona_id', personaId)
   return data ?? []
 }
-
-// Re-exports of workspace-scoped helpers retained for backward compatibility.
-// New callers are flagged by ESLint. The implementations live in
-// _legacy/social-connections.ts and will be deleted once all callers migrate.
-export {
-  getSocialConnection,
-  getActiveSocialConnections,
-} from '@/lib/db/_legacy/social-connections'

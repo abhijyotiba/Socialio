@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # documented exception the web app already makes; see docs/DECISIONS.md.
     supabase_service_role_key: str = ""
 
+    # Shared secret for the cron endpoints. Any external scheduler (Google Apps
+    # Script, cron-job.org, GitHub Actions, etc.) calls /cron/* with
+    # `Authorization: Bearer $CRON_SECRET`. Same value the web app uses.
+    cron_secret: str = ""
+
     groq_api_key: str
     groq_model: str = "llama-3.3-70b-versatile"
     gemini_api_key: str

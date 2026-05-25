@@ -118,3 +118,64 @@ async def publish_post(
         "platform_post_id": post_urn,
         "platform_post_url": f"https://www.linkedin.com/feed/update/{post_urn}/",
     }
+
+
+async def get_post_metrics(
+    access_token: str, author_urn: str, platform_post_id: str
+) -> dict:
+    url = (
+        "https://api.linkedin.com/rest/organizationalEntityShareStatistics"
+        f"?q=organizationalEntity&organizationalEntity={author_urn}"
+        f"&shares[0]={platform_post_id}"
+    )
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        res = await client.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "X-Restli-Protocol-Version": "2.0.0",
+                "LinkedIn-Version": "202304",
+            },
+        )
+    if res.status_code >= 400:
+        if res.status_code == 404:
+            raise PublishError("POST_DELETED", "POST_DELETED")
+        raise PublishError(
+            f"LinkedIn metrics fetch failed: {res.status_code}",
+            classify_error(res.status_code),
+        )
+    stats = (res.json().get("elements") or [{}])[0].get("totalShareStatistics", {})
+    return {
+        "impressions": stats.get("impressionCount", 0),
+        "likes": stats.get("likeCount", 0),
+        "comments": stats.get("commentCount", 0),
+        "shares": stats.get("shareCount", 0),
+    }
+
+
+async def refresh_token(refresh_token_value: str) -> dict:
+    import os
+
+    params = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token_value,
+        "client_id": os.environ["LINKEDIN_CLIENT_ID"],
+        "client_secret": os.environ["LINKEDIN_CLIENT_SECRET"],
+    }
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        res = await client.post(
+            "https://www.linkedin.com/oauth/v2/accessToken",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=params,
+        )
+    if res.status_code >= 400:
+        raise PublishError(
+            f"LinkedIn token refresh failed: {res.status_code}",
+            classify_error(res.status_code),
+        )
+    data = res.json()
+    return {
+        "access_token": data["access_token"],
+        "expires_in": data.get("expires_in"),
+        "new_refresh_token": data.get("refresh_token"),
+    }

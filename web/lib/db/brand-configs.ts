@@ -16,12 +16,3 @@ export async function getBrandConfigForPersona(
     .single()
   return data
 }
-
-// Re-exports of workspace-scoped helpers retained for backward compatibility.
-// New callers are flagged by ESLint. The implementations live in
-// _legacy/brand-configs.ts and will be deleted once all callers migrate.
-export {
-  getBrandConfig,
-  setVoiceProfile,
-  getVoiceProfile,
-} from '@/lib/db/_legacy/brand-configs'
