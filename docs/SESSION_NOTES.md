@@ -13,6 +13,77 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-25 — Backend migration slice 7: cron jobs + dead-code/doc cleanup
+
+Branch: `claude/vigilant-galileo-7aCpn` (rebased on merged main).
+
+### Cron migrated to the worker (external-scheduler model)
+
+All four cron jobs now live in the worker under `POST /cron/*`, authed by
+`Authorization: Bearer $CRON_SECRET` (`worker/auth.py::verify_cron`). This is
+scheduler-agnostic — point any HTTP cron service (Google Apps Script,
+cron-job.org, GitHub Actions, …) directly at the worker's public URL. No more
+Vercel Cron; `vercel.json` was deleted.
+
+- `worker/cron/jobs.py` holds the logic: `run_publish_due` (zombie-campaign
+  cleanup + stuck-publishing sweep + `claim_due_variants` SKIP LOCKED RPC +
+  per-variant publish), `run_pull_metrics`, `run_token_expiry_check` (token
+  refresh + Vault re-store), `run_cleanup_orphaned_media`.
+- `worker/routes/cron.py` = auth + service-role client + dispatch. All jobs use
+  the **service-role client** (no user context), same as the old web admin client.
+- New worker pieces: `adapters/cloudinary.py` (idempotent delete via SDK),
+  `db/metrics.py`, `adapters/{linkedin,x}.py` gained `get_post_metrics` +
+  `refresh_token`, `security/vault.py` gained `create_secret`, and cron queries
+  on `db/{posts,campaigns,social_connections,media_assets}.py`.
+- Config: worker now reads `CRON_SECRET` (set on BOTH web and worker).
+
+### Dead-code cleanup (cron was the last web consumer)
+
+Deleted from web: the 4 `app/api/cron/*` routes, `lib/publish/upload-media.ts`,
+`lib/db/publish-attempts.ts`, `lib/db/metrics.ts`, `lib/generation/context.ts`
+(fully orphaned since the generation slice), `lib/db/_legacy/{brand-configs,
+social-connections}.ts` + their re-export blocks, and the three paired test
+files. `vercel.json` removed.
+
+**Not removed (deliberate):** the now-unused publish/metrics/refresh functions
+inside `lib/adapters/{linkedin,x}.ts` — those files still export OAuth functions
+used by the callbacks, and trimming touches their tests. Logged in `BACKLOG.md`.
+
+### Docs cleanup
+
+Deleted `docs/superpowers/**`, `docs/phases/PHASE_V2_2_*`,
+`docs/VERSION_2_PLANNING.md`. Fixed stale `CLAUDE.md` pointers (PRD filename,
+dead PHASE_5 link, repo-layout tree).
+
+### Tests
+
+- Worker: 127 pass (+10 cron tests in `test_cron.py`, all DB/adapters/Vault/
+  Cloudinary mocked — no network).
+- Web: 60 pass (was 76; −16 from the 3 deleted test files), typecheck clean.
+- Web `pnpm lint` has 2 errors + 1 warning, but they are PRE-EXISTING on main
+  (`CampaignDetail.tsx` `Date.now()`-in-render + a set-state-in-effect) and
+  untouched by this slice.
+
+### Gotchas / open items
+
+- `CLAUDE.md` §3 stack table still says "Python worker: Scraping and AI
+  generation only" and lists Vercel cron — now inaccurate after the migration.
+  Left for the user to decide how to reword (architecture statement, not just a
+  stale ref).
+- The external scheduler must reach the worker's public URL. Cron endpoints are
+  guarded only by `CRON_SECRET` (same bar as the old web cron) — not HMAC.
+- **Manual publish still needs one real end-to-end test** against live
+  LinkedIn/X (carried over from slice 4 — adapter HTTP calls are unit-mocked).
+
+### Next step
+
+Migration of write paths is essentially done. Remaining candidates if continuing
+the migrate-mutations scope: `posts/[id]/{schedule,cancel,media}`,
+`schedule-slots`, `profile`, `media/upload` — confirm with the user whether these
+move or stay. Then the adapter-trim BACKLOG item.
+
+---
+
 ## 2026-05-24 — Backend migration to Python, slice 4: manual publish
 
 Branch: `claude/vigilant-galileo-7aCpn` (PR #13)

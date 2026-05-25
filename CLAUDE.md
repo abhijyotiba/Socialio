@@ -10,15 +10,15 @@ SocialOS is a multi-tenant SaaS web application. A user signs up, connects their
 
 Tech-wise it's a Next.js 15 web app + Supabase (Postgres, Auth, Storage) + a small Python FastAPI "worker" service that handles the two things Node is bad at (Playwright scraping and LLM orchestration) + Cloudinary for media.
 
-The full product vision lives in `docs/PRD.md`. The current architecture lives in `docs/ARCHITECTURE.md`. The schema lives in `docs/DATA_MODEL.md`. Read those before making changes.
+The full product vision lives in `docs/SocialOS_PRD_v1.1.md`. The current architecture lives in `docs/ARCHITECTURE.md`. The schema lives in `docs/DATA_MODEL.md`. Read those before making changes.
 
 ---
 
 ## 2. Current phase
 
-**Phase 6 — Polish.** Phase 5 (Scheduling & Cron) is complete. See `docs/phases/PHASE_5_SCHEDULING.md` for what was built.
+**Backend migration to the Python worker (in progress).** All scraping, AI generation, and the mutation/write paths (ingestion, generation, campaigns, personas, brand/voice, manual publish, cron jobs) now live in `worker/`; the Next.js routes are thin proxies. Pure read endpoints stay in Next.js. Remaining work and the slice-by-slice log live in `docs/ARCHITECTURE_MIGRATION_PLAN.md`; the session handoff is in `docs/SESSION_NOTES.md`.
 
-When a phase changes, update this line. Do **not** modify files outside the current phase's scope without explicit permission from the user.
+Do **not** modify files outside the current task's scope without explicit permission from the user.
 
 ---
 
@@ -48,17 +48,14 @@ socialos/
 ├── README.md                 # Human-facing intro + quickstart
 ├── .env.example              # All env vars, empty values
 ├── docs/                     # Source of truth for product + architecture
-│   ├── PRD.md
+│   ├── SocialOS_PRD_v1.1.md  # Product vision
 │   ├── ARCHITECTURE.md
+│   ├── ARCHITECTURE_MIGRATION_PLAN.md  # Web → Python worker migration log
 │   ├── DATA_MODEL.md         # Every table, column, index, RLS policy
 │   ├── API_CONTRACTS.md      # Every HTTP endpoint
 │   ├── DECISIONS.md          # Append-only architectural decision log
 │   ├── SESSION_NOTES.md      # Append-only session handoff notes
-│   ├── BACKLOG.md            # Stuff noticed during a phase that belongs elsewhere
-│   └── phases/
-│       ├── PHASE_0_FOUNDATION.md
-│       ├── PHASE_1_AUTH_BRAND.md
-│       └── ...
+│   └── BACKLOG.md            # Stuff noticed mid-task that belongs elsewhere
 ├── web/                      # Next.js app (created in Phase 0)
 ├── worker/                   # Python FastAPI service (created in Phase 2)
 └── supabase/

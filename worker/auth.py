@@ -10,6 +10,18 @@ from jwt import PyJWKClient
 from config import settings
 
 
+def verify_cron(request: Request) -> None:
+    """Authorize a call from an external scheduler. Any cron service can hit
+    the /cron/* endpoints with `Authorization: Bearer $CRON_SECRET`."""
+    secret = settings.cron_secret
+    if not secret:
+        raise HTTPException(status_code=401, detail="Cron not configured")
+    header = request.headers.get("Authorization", "")
+    expected = f"Bearer {secret}"
+    if not hmac.compare_digest(header, expected):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 async def verify_hmac(request: Request, body: bytes) -> None:
     sig_header = request.headers.get("X-Worker-Signature", "")
     if not sig_header.startswith("sha256="):

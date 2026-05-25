@@ -4,6 +4,42 @@ from typing import Any
 from supabase import AsyncClient
 
 
+async def fail_zombie_campaigns(
+    client: AsyncClient, older_than_minutes: int = 3
+) -> list[dict[str, Any]]:
+    """Mark campaigns stuck in 'generating' past the window as failed. Returns
+    the affected rows (id, workspace_id) so the caller can reject their pending
+    personas and emit audit events."""
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
+    ).isoformat()
+    res = (
+        await client.table("campaigns")
+        .update(
+            {
+                "status": "failed",
+                "failure_code": "GENERATION_TIMEOUT",
+                "failure_reason": "Generation exceeded the 3-minute window.",
+            }
+        )
+        .eq("status", "generating")
+        .lt("generation_started_at", cutoff)
+        .select("id, workspace_id")
+        .execute()
+    )
+    return res.data or []
+
+
+async def reject_pending_personas(
+    client: AsyncClient, campaign_ids: list[str]
+) -> None:
+    if not campaign_ids:
+        return
+    await client.table("campaign_personas").update(
+        {"approval_status": "rejected"}
+    ).eq("approval_status", "pending").in_("campaign_id", campaign_ids).execute()
+
+
 async def count_recent_campaigns(
     client: AsyncClient, workspace_id: str, window_seconds: int
 ) -> int:

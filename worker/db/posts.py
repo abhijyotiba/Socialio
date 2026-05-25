@@ -38,6 +38,54 @@ async def update_post_variant(
     await client.table("post_variants").update(patch).eq("id", variant_id).execute()
 
 
+async def claim_due_variants(
+    client: AsyncClient, worker_id: str, limit: int = 10
+) -> list[dict[str, Any]]:
+    """Atomically claim scheduled variants whose time has come, via the
+    Postgres FOR UPDATE SKIP LOCKED RPC. Service-role client only."""
+    res = await client.rpc(
+        "claim_due_variants", {"p_worker_id": worker_id, "p_limit": limit}
+    ).execute()
+    return res.data or []
+
+
+async def sweep_stuck_publishing(
+    client: AsyncClient, older_than_minutes: int = 10
+) -> int:
+    """Reset variants stuck in 'publishing' (a worker died mid-publish) back to
+    'scheduled' so the next sweep retries them. Returns count reset."""
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
+    ).isoformat()
+    res = (
+        await client.table("post_variants")
+        .update({"status": "scheduled"})
+        .eq("status", "publishing")
+        .lt("claimed_at", cutoff)
+        .select("id")
+        .execute()
+    )
+    return len(res.data or [])
+
+
+async def get_published_variants_for_metrics(
+    client: AsyncClient, since_iso: str, limit: int = 50
+) -> list[dict[str, Any]]:
+    res = (
+        await client.table("post_variants")
+        .select("*")
+        .eq("status", "published")
+        .not_.is_("platform_post_id", "null")
+        .gt("published_at", since_iso)
+        .order("published_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []
+
+
 async def get_content_item_summary(
     client: AsyncClient, content_item_id: str
 ) -> str | None:
