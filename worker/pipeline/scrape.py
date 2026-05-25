@@ -66,13 +66,14 @@ class ScrapeError(Exception):
     pass
 
 
-def _is_ssrf_safe(url: str) -> bool:
+async def _is_ssrf_safe(url: str) -> bool:
     """DNS-based SSRF guard. String-matching is bypassable via decimal/octal IPs or redirects."""
     hostname = urlparse(url).hostname
     if not hostname:
         return False
     try:
-        ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+        resolved_ip = await asyncio.to_thread(socket.gethostbyname, hostname)
+        ip = ipaddress.ip_address(resolved_ip)
         return not any(ip in net for net in _PRIVATE_NETS)
     except (socket.gaierror, ValueError):
         return False
@@ -181,7 +182,7 @@ async def fetch_html(url: str) -> str:
     host = urlparse(url).hostname or "?"
     log.info("scrape_start", url=url, host=host)
 
-    if not _is_ssrf_safe(url):
+    if not await _is_ssrf_safe(url):
         log.warning("scrape_ssrf_blocked", url=url, host=host)
         raise ScrapeError(f"SSRF guard: {url} resolves to a private address")
 

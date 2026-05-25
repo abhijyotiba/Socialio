@@ -26,7 +26,7 @@ log = structlog.get_logger()
 router = APIRouter()
 
 PERSONA_SOFT_CAP = 10
-GENERATION_TIMEOUT_S = 15
+GENERATION_TIMEOUT_S = 45
 
 
 class CampaignRequest(BaseModel):

@@ -4,6 +4,7 @@ import { listCampaignsForWorkspace } from "@/lib/db/campaigns";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Inbox, ChevronRight } from "lucide-react";
+import { ClientRelativeTime } from "./_components/ClientRelativeTime";
 
 const STATUS_LABEL: Record<string, string> = {
   generating: "Generating",
@@ -20,17 +21,6 @@ const STATUS_TONE: Record<string, string> = {
   approved: "bg-emerald-50 text-emerald-700",
   failed: "bg-red-50 text-red-700",
 };
-
-function relativeTime(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const mins = Math.round(ms / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.round(hrs / 24);
-  return `${days}d ago`;
-}
 
 export default async function CampaignsListPage() {
   const supabase = await createClient();
@@ -87,7 +77,7 @@ export default async function CampaignsListPage() {
                     {c.persona_count} persona{c.persona_count !== 1 ? "s" : ""}
                     {c.pending_count > 0 ? ` · ${c.pending_count} pending` : ""}
                     {" · "}
-                    {relativeTime(c.created_at)}
+                    <ClientRelativeTime iso={c.created_at} />
                   </p>
                 </div>
                 <span
