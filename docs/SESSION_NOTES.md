@@ -13,6 +13,50 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-24 — Backend migration to Python, slice 3c: brand config + voice profile
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Moved the brand-voice **mutations** into the worker, and folded the voice-analysis
+HTTP hop into an in-process pipeline call (same win as campaign generation).
+
+- `POST /api/brand/config` → worker `POST /brand/config` (mint prompt version + upsert
+  brand_configs).
+- `POST /api/brand/voice-profile` → worker `POST /brand/voice-profile`: validates samples
+  (3–15, each 20–3000 chars, ≤30 KB total), **analyzes in-process** via
+  `pipeline/voice_profile` (no more `/voice/analyze` HTTP call), persists the profile +
+  new `voice_profile` prompt version + brand_configs row. 422 for unvalidatable analyzer
+  output, 502 for provider outage.
+- Worker: new `worker/routes/brand.py`, `worker/db/prompt_versions.py`,
+  `worker/db/brand_configs.py` (added `upsert_brand_config`, `set_voice_profile_for_persona`),
+  `worker/db/personas.py` (added `get_default_persona`).
+- **Removed dead code:** worker `routes/voice.py` (+ `/voice/analyze`); web
+  `lib/db/prompt-versions.ts` (whole file), `upsertBrandConfig` + `setVoiceProfileForPersona`
+  (brand-configs.ts), and `workerAnalyzeVoice` + `WorkerError` + voice types (worker-client.ts).
+  `pipeline/voice_profile` is retained (now called in-process) and still tested.
+- **Kept in Next.js:** `GET /api/brand/config` (read; still uses `assertPersonaInWorkspace`
+  + `getBrandConfigForPersona`, both still used elsewhere too).
+
+### Tests
+
+- Worker: 109 pass. New `test_brand_route.py` (config save, missing name → 400, no-persona
+  → 400; voice happy path, too-few/too-short samples → 400, analyzer ValueError → 422,
+  provider failure → 502).
+- Web: 76 pass, typecheck + lint clean.
+
+### Gotchas
+
+- `WorkerError` is gone — it was only used by the voice + regenerate clients, both migrated.
+- The `_legacy/brand-configs.ts` re-exports (`getBrandConfig` etc.) are left untouched —
+  that's a separately-managed deprecation shim, out of scope here.
+
+### Next step
+
+Remaining CRUD: `/api/connections`, `/api/profile`, `/api/metrics`, `/api/queue`, plus the
+deferred GET reads. Then publishing + cron last (Vault service-role exception + scheduler).
+
 ## 2026-05-24 — Backend migration to Python, slice 3b: persona mutations
 
 Branch: `claude/vigilant-galileo-7aCpn` (PR #13)

@@ -18,6 +18,20 @@ async def get_persona(client: AsyncClient, persona_id: str) -> dict[str, Any] | 
     return res.data
 
 
+async def get_default_persona(
+    client: AsyncClient, workspace_id: str
+) -> dict[str, Any] | None:
+    res = (
+        await client.table("personas")
+        .select("*")
+        .eq("workspace_id", workspace_id)
+        .eq("is_default", True)
+        .maybe_single()
+        .execute()
+    )
+    return res.data
+
+
 async def count_personas(client: AsyncClient, workspace_id: str) -> int:
     res = (
         await client.table("personas")

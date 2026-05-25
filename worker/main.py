@@ -9,10 +9,10 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from routes.ingest import router as ingest_router
+from routes.brand import router as brand_router
 from routes.campaigns import router as campaigns_router
 from routes.personas import router as personas_router
 from routes.posts import router as posts_router
-from routes.voice import router as voice_router
 
 if sys.platform == "win32":
     # Playwright relies on subprocess support, which requires the Proactor loop on Windows.
@@ -47,10 +47,10 @@ async def _validation_exception_handler(
 
 
 app.include_router(ingest_router)
+app.include_router(brand_router)
 app.include_router(campaigns_router)
 app.include_router(personas_router)
 app.include_router(posts_router)
-app.include_router(voice_router)
 
 
 @app.get("/health")

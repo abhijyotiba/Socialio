@@ -118,53 +118,5 @@ export async function workerRegeneratePost(
   );
 }
 
-// ─── Phase 7: voice analyze (still HMAC-only, not yet migrated) ──────────────
-
-export interface WorkerVoiceAnalyzeRequest {
-  workspace_id: string;
-  brand_name: string;
-  samples: string[];
-  tone_tags?: string[];
-  platform_mix?: Record<string, number>;
-}
-
-export interface WorkerVoiceAnalyzeResponse {
-  /** Opaque structured profile; the worker is the schema-of-record. */
-  profile: Record<string, unknown>;
-  system_prompt: string;
-  stage_timings: Record<string, number>;
-}
-
-export class WorkerError extends Error {
-  constructor(
-    public readonly status: number,
-    message: string,
-    public readonly detail?: string
-  ) {
-    super(message);
-  }
-}
-
-export async function workerAnalyzeVoice(
-  req: WorkerVoiceAnalyzeRequest
-): Promise<WorkerVoiceAnalyzeResponse> {
-  const body = JSON.stringify(req);
-  const res = await fetch(`${process.env.WORKER_URL}/voice/analyze`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Worker-Signature": signBody(body),
-    },
-    body,
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new WorkerError(
-      res.status,
-      `Worker /voice/analyze responded ${res.status}`,
-      detail
-    );
-  }
-  return res.json() as Promise<WorkerVoiceAnalyzeResponse>;
-}
+// Voice analysis (`/brand/voice-profile`) now runs in-process in the worker,
+// so the dedicated HTTP voice client was removed.
