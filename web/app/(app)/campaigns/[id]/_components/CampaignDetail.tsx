@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { CampaignWithPersonas } from "@/lib/db/campaigns";
@@ -30,7 +30,7 @@ const STATUS_TONE: Record<string, string> = {
   failed: "bg-red-50 text-red-700",
 };
 
-const LIVE_STATUSES = new Set(["scheduled", "publishing", "published"]);
+const NOW_POLL_INTERVAL_MS = 60_000;
 
 function relativeTime(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -55,6 +55,17 @@ function formatDuration(ms: number): string {
 // On the server pass we render nothing — the locale-formatted title and the
 // relative-time string would otherwise hydrate-mismatch (server in en-US,
 // browser in en-GB, etc.). After mount, we render the real values.
+function useNowMs() {
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      const id = setInterval(onStoreChange, NOW_POLL_INTERVAL_MS);
+      return () => clearInterval(id);
+    },
+    () => Date.now(),
+    () => 0
+  );
+}
+
 function ClientDate({
   iso,
   render,
@@ -62,9 +73,8 @@ function ClientDate({
   iso: string;
   render: (date: Date) => { label: string; tooltip: string };
 }) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
-  if (!ready) {
+  const nowMs = useNowMs();
+  if (!nowMs) {
     return <span suppressHydrationWarning>&nbsp;</span>;
   }
   const { label, tooltip } = render(new Date(iso));
@@ -104,6 +114,8 @@ export function CampaignDetail({ initial }: Props) {
   const canCancelScheduled =
     variantStatusCounts.scheduled > 0 && variantStatusCounts.publishing === 0;
 
+  const nowMs = useNowMs();
+
   // A campaign whose worker crashed or got killed before producing any
   // variants stays in 'generating' forever. After ~5 minutes with no
   // variants written, treat it as stuck and let the user delete it.
@@ -112,7 +124,8 @@ export function CampaignDetail({ initial }: Props) {
     isGeneratingNow &&
     campaign.campaign_personas.every(cp => cp.variants.length === 0) &&
     !!campaign.generation_started_at &&
-    Date.now() - new Date(campaign.generation_started_at).getTime() > 5 * 60_000;
+    nowMs > 0 &&
+    nowMs - new Date(campaign.generation_started_at).getTime() > 5 * 60_000;
   const canDelete =
     !hasLiveVariants && (!isGeneratingNow || generatingStuck);
 

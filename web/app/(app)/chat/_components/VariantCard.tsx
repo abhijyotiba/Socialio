@@ -141,7 +141,11 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
       });
       const data = await res.json();
       if (!res.ok) {
-        setState({ kind: "error", message: data.error?.formErrors?.[0] ?? data.error ?? "Schedule failed." });
+        const errorMessage =
+          data.error?.formErrors?.[0] ??
+          (typeof data.error === "string" ? data.error : null) ??
+          "Schedule failed.";
+        setState({ kind: "error", message: errorMessage });
         return;
       }
       setState({ kind: "scheduled", scheduledAt: data.scheduled_at });

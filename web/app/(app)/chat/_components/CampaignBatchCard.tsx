@@ -36,6 +36,18 @@ export function CampaignBatchCard({ campaignId }: Props) {
           fetchCampaign(campaignId).then(setCampaign);
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "campaigns",
+          filter: `id=eq.${campaignId}`,
+        },
+        () => {
+          fetchCampaign(campaignId).then(setCampaign);
+        }
+      )
       .subscribe();
 
     return () => {

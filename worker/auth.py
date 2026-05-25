@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import hmac
-from functools import lru_cache
+import time
 
 import jwt
 from fastapi import HTTPException, Request
@@ -45,9 +45,21 @@ def _bearer_token(request: Request) -> str:
     return token
 
 
-@lru_cache
+_JWKS_CACHE: PyJWKClient | None = None
+_JWKS_CACHE_AT = 0.0
+_JWKS_CACHE_TTL_S = 3600
+
+
 def _jwks_client() -> PyJWKClient:
-    return PyJWKClient(f"{settings.supabase_url}/auth/v1/.well-known/jwks.json")
+    global _JWKS_CACHE, _JWKS_CACHE_AT
+    now = time.monotonic()
+    if _JWKS_CACHE and now - _JWKS_CACHE_AT < _JWKS_CACHE_TTL_S:
+        return _JWKS_CACHE
+    _JWKS_CACHE = PyJWKClient(
+        f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
+    )
+    _JWKS_CACHE_AT = now
+    return _JWKS_CACHE
 
 
 def _decode_token(token: str) -> dict:

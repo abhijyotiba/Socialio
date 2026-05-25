@@ -2,6 +2,8 @@ from typing import Any
 
 from supabase import AsyncClient
 
+from db.personas import get_default_persona
+
 
 async def get_connections_for_persona(
     client: AsyncClient, persona_id: str
@@ -34,10 +36,13 @@ async def get_default_social_connection(
 ) -> dict[str, Any] | None:
     """Workspace-scoped fallback for pre-persona variants (persona_id NULL).
     Mirrors web's legacy getSocialConnection."""
+    default_persona = await get_default_persona(client, workspace_id)
+    if not default_persona:
+        return None
     res = (
         await client.table("social_connections")
         .select("*")
-        .eq("workspace_id", workspace_id)
+        .eq("persona_id", default_persona["id"])
         .eq("platform", platform)
         .maybe_single()
         .execute()

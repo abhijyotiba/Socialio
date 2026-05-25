@@ -47,12 +47,13 @@ export function MediaPicker({
   // Load available only when opened, or immediately? 
   // Let's load when opened to save network.
   useEffect(() => {
-    if (!isOpen || available.length > 0 || !jobId) return;
+    if (!isOpen || !jobId) return;
     // Showing a spinner before fetch is the intended UX; the React Compiler
     // rule treats this as a cascading-render risk but in practice it's one
     // extra render when the picker opens, which is negligible.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional loading flag before fetch
     setLoading(true);
+    setError("");
     fetch(`/api/media?job_id=${jobId}`)
       .then((r) => r.json())
       .then((data) => {
@@ -64,7 +65,7 @@ export function MediaPicker({
       })
       .catch(() => setError("Failed to load available media"))
       .finally(() => setLoading(false));
-  }, [isOpen, jobId, available.length]);
+  }, [isOpen, jobId]);
 
   function saveSelection(newSelection: Asset[]) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
