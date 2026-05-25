@@ -13,6 +13,39 @@ At the end of every session, add a new entry with:
 
 ---
 
+## 2026-05-24 — Backend migration to Python, slice 3b: persona mutations
+
+Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
+
+### What got built
+
+Moved the persona **mutation** routes (the ones with logic) into the worker; reads
+stay in Next.js.
+
+- `POST /api/personas` → worker (soft cap 10, hard cap 50, slug generation).
+- `PATCH /api/personas/[id]` and `DELETE /api/personas/[id]` → worker (delete guards:
+  default persona, pending campaigns → 409).
+- Worker: `worker/routes/personas.py` + new `worker/db/personas.py` helpers
+  (`count_personas`, `generate_persona_slug`, `create_persona`, `update_persona`,
+  `delete_persona`). Guard violations raise `ValueError`, mapped to 400/409 in the route.
+- **Kept in Next.js:** `GET /api/personas` (list) and `GET /api/personas/[id]` (persona +
+  brand summary + connections) — pure reads.
+- **Removed dead web code:** `createPersona`, `updatePersona`, `deletePersona`,
+  `generatePersonaSlug` (personas.ts) and the obsolete `lib/db/__tests__/personas.test.ts`
+  (its deletePersona-guard coverage now lives in worker `test_personas_route.py`). Kept
+  `getPersona`, `getPersonasForWorkspace`, `getDefaultPersona` (still widely used).
+
+### Tests
+
+- Worker: 101 pass. New `test_personas_route.py` (create, invalid color → 400, soft-cap →
+  400, hard-cap ValueError → 400, patch, patch-404, delete, delete-guard → 409).
+- Web: 76 pass (was 78; -2 from the removed deletePersona test), typecheck + lint clean.
+
+### Next step
+
+Remaining CRUD: `/api/brand/*`, `/api/connections`, `/api/profile`, `/api/metrics`,
+`/api/queue`, plus the deferred campaign + persona GET reads. Then publishing + cron last.
+
 ## 2026-05-24 — Backend migration to Python, slice 3a: campaign management
 
 Branch: `claude/vigilant-galileo-7aCpn` (PR #13)
