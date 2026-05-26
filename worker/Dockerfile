@@ -13,6 +13,9 @@ WORKDIR /app
 # Install uv (fast Python package manager) as root.
 RUN pip install uv
 
+# Force uv to use the system Python so it can use prebuilt wheels.
+ENV UV_PYTHON=python3.12
+
 # Copy dependency manifests first so Docker can cache this layer.
 COPY pyproject.toml uv.lock ./
 
