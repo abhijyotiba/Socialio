@@ -1,0 +1,63 @@
+# =============================================================================
+# Render Blueprint — Infrastructure-as-Code for the SocialOS Worker
+#
+# This file lets Render auto-detect and configure your service.
+# Commit it to the repo root, then go to render.com → New → Blueprint
+# and point it at this repo. Render will read this file and create the service.
+#
+# All `sync: false` env vars must be set manually in the Render dashboard
+# (Render intentionally never syncs secrets from YAML to avoid exposing them).
+# =============================================================================
+
+services:
+  - type: web
+    name: socialos-worker
+    runtime: docker
+
+    # Docker build context is the worker/ subdirectory
+    dockerfilePath: ./worker/Dockerfile
+    dockerContext: ./worker
+
+    # Region closest to your users / Supabase project
+    # Options: oregon, frankfurt, singapore, ohio, virginia
+    region: singapore
+
+    # "starter" = free tier (spins down after 15 min idle → cold starts)
+    # "standard" = $7/mo, always-on, recommended for production
+    plan: starter
+
+    # Health check so Render knows the service is up
+    healthCheckPath: /health
+
+    envVars:
+      # All secrets must be set in the Render dashboard (sync: false).
+      # The keys here just document what is required.
+      - key: WORKER_SHARED_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      # Optional
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: PLAYWRIGHT_TIMEOUT_MS
+        value: "20000"

@@ -60,8 +60,8 @@ htmlcov/
 .vercel/
 
 # Supabase local state
-supabase/.temp/
-supabase/.branches/
+**/supabase/.temp/
+**/supabase/.branches/
 
 # IDE/editor local files
 .idea/

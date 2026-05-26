@@ -1,0 +1,82 @@
+name: Worker CI & Deploy — Render
+
+# =============================================================================
+# OPTION B: Deploy to Render (simpler alternative to Cloud Run)
+#
+# Setup steps:
+#   1. Go to render.com → New → Web Service → Connect this GitHub repo
+#   2. Settings:
+#        Root Directory: worker
+#        Runtime:        Docker
+#        Dockerfile:     ./Dockerfile   (relative to root directory)
+#   3. Add all environment variables in the Render dashboard (see below)
+#   4. Go to Settings → Deploy Hook → Copy the URL
+#   5. Add it as a GitHub secret named RENDER_DEPLOY_HOOK_URL
+#
+# Environment variables to set in the Render dashboard:
+#   WORKER_SHARED_SECRET
+#   SUPABASE_URL            (same value as NEXT_PUBLIC_SUPABASE_URL)
+#   SUPABASE_ANON_KEY       (same value as NEXT_PUBLIC_SUPABASE_ANON_KEY)
+#   SUPABASE_SERVICE_ROLE_KEY
+#   GROQ_API_KEY
+#   GEMINI_API_KEY
+#   CLOUDINARY_CLOUD_NAME
+#   CLOUDINARY_API_KEY
+#   CLOUDINARY_API_SECRET
+#   CRON_SECRET
+#   FIRECRAWL_API_KEY       (optional)
+#
+# Required GitHub Secret:
+#   RENDER_DEPLOY_HOOK_URL  — from Render → Service → Settings → Deploy Hook
+# =============================================================================
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-ci-render.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - '.github/workflows/worker-ci-render.yml'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Run tests on every push / PR
+  # ---------------------------------------------------------------------------
+  test:
+    name: Pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dev dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv run pytest tests/ -x -q
+
+  # ---------------------------------------------------------------------------
+  # 2. Trigger Render deploy — only on pushes to main after tests pass
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Trigger Render Deploy
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger deploy via Render deploy hook
+        run: |
+          curl --silent --fail -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Deploy triggered successfully"

@@ -1,14 +1,23 @@
-name: CI
+name: Web CI
 
+# Only triggers when files inside web/ actually change.
+# Netlify handles its own build + deploy automatically via its GitHub integration
+# (no deploy step needed here).
 on:
   push:
     branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-ci.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-ci.yml'
 
 jobs:
-  web:
-    name: web — typecheck + test
+  check:
+    name: Typecheck + Test
     runs-on: ubuntu-latest
     defaults:
       run:
