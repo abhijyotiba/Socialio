@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import sys
 
@@ -14,10 +13,6 @@ from routes.campaigns import router as campaigns_router
 from routes.personas import router as personas_router
 from routes.posts import router as posts_router
 from routes.cron import router as cron_router
-
-if sys.platform == "win32":
-    # Playwright relies on subprocess support, which requires the Proactor loop on Windows.
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 structlog.configure(

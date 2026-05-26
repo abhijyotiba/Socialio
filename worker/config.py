@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     cloudinary_cloud_name: str
     cloudinary_api_key: str
     cloudinary_api_secret: str
-    playwright_timeout_ms: int = 20000
 
     # Supabase — used by the worker's RLS-scoped DB layer. The worker talks to
     # Postgres as the calling user (JWT forwarded from web), so the anon key is

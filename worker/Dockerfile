@@ -1,29 +1,25 @@
 # =============================================================================
-# Dockerfile for the SocialOS Worker (FastAPI + Playwright)
+# Dockerfile for the SocialOS Worker (FastAPI)
 # =============================================================================
+# Scraping is delegated to the Firecrawl API, so the container does NOT need
+# Playwright or a browser. Image stays small and the build stays fast.
 
-# Use Microsoft's Playwright-ready Python image — includes system Chromium deps.
-FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
+FROM python:3.12-slim
 
-# Create a non-root user for security (best practice for containers).
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create a non-root user with a real home directory so any tool that looks at
+# $HOME (uv, pip cache, etc.) has a writable spot.
+RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
 WORKDIR /app
 
 # Install uv (fast Python package manager) as root.
-RUN pip install uv
-
-# Force uv to use the system Python so it can use prebuilt wheels.
-ENV UV_PYTHON=python3.12
+RUN pip install --no-cache-dir uv
 
 # Copy dependency manifests first so Docker can cache this layer.
 COPY pyproject.toml uv.lock ./
 
 # Install only production dependencies.
 RUN uv sync --frozen --no-dev
-
-# Install Chromium browser (this must run as root because it installs system packages).
-RUN uv run playwright install chromium --with-deps
 
 # Copy the rest of the application source code.
 COPY . .
@@ -32,8 +28,6 @@ COPY . .
 RUN chown -R appuser:appuser /app
 
 # Put the venv on PATH so `uvicorn` resolves without invoking `uv` at runtime.
-# Using `uv run` here would try to initialize a cache under $HOME, which fails
-# for this non-root user on platforms that don't provide a writable home dir.
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Switch to non-root for runtime.
