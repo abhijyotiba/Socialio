@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Copy, CheckCheck, ExternalLink, Loader2, Zap, CalendarClock, X, Sparkles, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { MediaPicker } from "./MediaPicker";
 import { useNowPlusMinutes } from "@/lib/hooks/useNowPlusMinutes";
@@ -72,7 +72,7 @@ interface Revision {
   created_at: string;
 }
 
-export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: string }) {
+export const VariantCard = memo(function VariantCard({ variant, jobId }: { variant: Variant; jobId?: string }) {
   const [state, setState] = useState<ActionState>({ kind: "idle" });
   const [scheduledAt, setScheduledAt] = useState("");
   const [copied, setCopied] = useState(false);
@@ -550,4 +550,4 @@ export function VariantCard({ variant, jobId }: { variant: Variant; jobId?: stri
       </div>
     </div>
   );
-}
+});

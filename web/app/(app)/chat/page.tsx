@@ -225,20 +225,67 @@ export default function ChatPage() {
         return;
       }
       setActiveJobId(data.job_id);
+
+      // Poll the job status until it transitions to "done" or "failed"
+      let jobData = data;
+      const startTime = Date.now();
+      const timeoutMs = 60000; // 60s timeout for full scrape + upload
+
+      const INGEST_STAGE_LABELS: Record<string, string> = {
+        pending: "Starting ingestion...",
+        scraping: "Scraping URL...",
+        uploading_media: "Uploading media assets...",
+      };
+
+      while (
+        jobData.status === "processing" ||
+        (jobData.stage !== "done" && jobData.stage !== "failed")
+      ) {
+        if (Date.now() - startTime > timeoutMs) {
+          throw new Error("Extraction timed out.");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const checkRes = await fetch(`/api/ingest/${data.job_id}`);
+        if (!checkRes.ok) {
+          throw new Error("Failed to check extraction status.");
+        }
+        jobData = await checkRes.json();
+        
+        if (jobData.stage === "done" || jobData.stage === "failed") {
+          break;
+        }
+
+        const stageLabel = INGEST_STAGE_LABELS[jobData.stage] ?? "Extracting content...";
+        replaceMessage(typingId, {
+          id: typingId,
+          type: "ai-typing",
+          label: stageLabel,
+        });
+      }
+
+      if (jobData.stage === "failed") {
+        replaceMessage(typingId, {
+          id: typingId,
+          type: "ai-error",
+          message: jobData.error ?? "Extraction failed.",
+        });
+        return;
+      }
+
       replaceMessage(typingId, {
         id: typingId,
         type: "ai-extracted",
         jobId: data.job_id,
-        title: data.extracted_title,
-        text: data.extracted_text,
-        media: data.media,
+        title: jobData.extracted_title || "",
+        text: jobData.extracted_text || "",
+        media: jobData.media || [],
         userAngle: angle || undefined,
       });
-    } catch {
+    } catch (err) {
       replaceMessage(typingId, {
         id: typingId,
         type: "ai-error",
-        message: "Network error. Please try again.",
+        message: err instanceof Error ? err.message : "Network error. Please try again.",
       });
     } finally {
       setIsExtracting(false);
