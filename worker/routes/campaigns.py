@@ -42,11 +42,15 @@ async def _generate_for_persona(
     brand: dict[str, Any],
     connections: list[dict[str, Any]],
     requested_platforms: list[str] | None,
-    job: dict[str, Any],
+    summary: str,
     user_angle: str | None,
 ) -> dict[str, Any]:
     """Pure (no DB): resolve platforms and run the LLM pipeline for one persona.
-    Returns {persona_id, variants} or {persona_id, error}."""
+    Returns {persona_id, variants} or {persona_id, error}.
+
+    The caller is responsible for running summarization once and passing the
+    result via the *summary* parameter — this avoids N duplicate LLM calls
+    when generating for N personas on the same article."""
     connected = [c["platform"] for c in connections if not c.get("needs_reauth")]
     platforms = (
         [p for p in requested_platforms if p in connected]
@@ -57,9 +61,6 @@ async def _generate_for_persona(
         return {"persona_id": persona_id, "error": "No connected platforms"}
 
     async def _run() -> list[dict[str, str]]:
-        title = job.get("extracted_title") or ""
-        text = job.get("extracted_text") or ""
-        summary = await analyze.summarize(title, text) if text.strip() else ""
         return await gen_pipeline.generate_variants(
             summary=summary,
             brand_system_prompt=brand["custom_system_prompt"],
@@ -109,21 +110,22 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             detail="Ingestion job has no extracted text and no user angle was provided",
         )
 
-    # Validate every persona is visible (RLS) i.e. belongs to this workspace.
-    personas = [
-        await db_personas.get_persona(client, pid) for pid in req.persona_ids
-    ]
+    # ── Batch DB reads (replaces N+1 sequential queries) ────────────────
+    personas_resp = await client.table("personas").select("*").in_("id", req.persona_ids).execute()
+    personas_map: dict[str, dict] = {p["id"]: p for p in (personas_resp.data or [])}
+    personas = [personas_map.get(pid) for pid in req.persona_ids]
     if any(p is None for p in personas):
         raise HTTPException(status_code=403, detail="Invalid persona")
 
-    brand_configs = [
-        await db_brand.get_brand_config_for_persona(client, pid)
-        for pid in req.persona_ids
-    ]
-    connections_by_persona = [
-        await db_connections.get_connections_for_persona(client, pid)
-        for pid in req.persona_ids
-    ]
+    brand_resp = await client.table("brand_configs").select("*").in_("persona_id", req.persona_ids).execute()
+    brand_map: dict[str, dict] = {b["persona_id"]: b for b in (brand_resp.data or [])}
+    brand_configs = [brand_map.get(pid) for pid in req.persona_ids]
+
+    conn_resp = await client.table("social_connections").select("*").in_("persona_id", req.persona_ids).execute()
+    conn_map: dict[str, list[dict]] = {}
+    for c in (conn_resp.data or []):
+        conn_map.setdefault(c["persona_id"], []).append(c)
+    connections_by_persona = [conn_map.get(pid, []) for pid in req.persona_ids]
 
     if any(not (bc and bc.get("custom_system_prompt")) for bc in brand_configs):
         raise HTTPException(
@@ -132,9 +134,17 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
 
     # Prompt-only flow: a text job carrying a user angle means the angle IS the
     # topic — don't also feed the echoed prompt back as source material.
-    effective_job = dict(job)
+    effective_title = job.get("extracted_title") or ""
+    effective_text = job.get("extracted_text") or ""
     if job["source_type"] == "text" and has_user_angle:
-        effective_job["extracted_text"] = ""
+        effective_text = ""
+
+    # ── Single summarization pass (was duplicated N times per persona) ──
+    summary = (
+        await analyze.summarize(effective_title, effective_text)
+        if effective_text.strip()
+        else ""
+    )
 
     campaign = await db_campaigns.create_campaign(
         client,
@@ -160,7 +170,7 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
                 brand=brand_configs[idx],
                 connections=connections_by_persona[idx] or [],
                 requested_platforms=req.platforms,
-                job=effective_job,
+                summary=summary,
                 user_angle=user_angle,
             )
             for idx, pid in enumerate(req.persona_ids)

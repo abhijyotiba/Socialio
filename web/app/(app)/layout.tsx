@@ -1,20 +1,15 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
-import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getDefaultPersona } from "@/lib/db/personas";
-import { getBrandConfigForPersona } from "@/lib/db/brand-configs";
 import { Sidebar } from "@/components/app/Sidebar";
+import { getAuthenticatedUser } from "@/lib/auth/auth-header";
+import { getLayoutConfig } from "@/lib/db/layout-config";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthenticatedUser();
 
   if (!user) {
     redirect("/login");
@@ -29,13 +24,9 @@ export default async function AppLayout({
     pathname.startsWith("/onboarding") || pathname === "";
 
   if (!onOnboarding) {
-    const workspace = await getWorkspaceForUser(user.id);
-    if (workspace) {
-      const defaultPersona = await getDefaultPersona(workspace.workspace_id);
-      const brandConfig = defaultPersona
-        ? await getBrandConfigForPersona(defaultPersona.id)
-        : null;
-      if (!brandConfig) {
+    const config = await getLayoutConfig(user.id);
+    if (config?.workspace) {
+      if (!config.brandConfig) {
         redirect("/onboarding");
       }
     }

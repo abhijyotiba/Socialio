@@ -1,3 +1,4 @@
+import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Literal
@@ -42,6 +43,7 @@ class IngestResponse(BaseModel):
     extracted_title: str
     extracted_text: str
     media: list[MediaItem]
+    status: str = "done"
 
 
 class IngestionJobResponse(BaseModel):
@@ -53,6 +55,72 @@ class IngestionJobResponse(BaseModel):
 
 def _ms() -> int:
     return int(time.monotonic() * 1000)
+
+
+async def _run_url_ingestion(
+    token: str,
+    job_id: str,
+    workspace_id: str,
+    source_url: str,
+) -> None:
+    """Background task: scrape, extract, upload, and update the job row.
+
+    Runs outside the original request lifecycle so the client gets an
+    immediate response.  Errors are recorded on the job row (stage=failed)
+    rather than surfaced as HTTP exceptions.
+    """
+    bound = log.bind(job_id=job_id, workspace_id=workspace_id, source_url=source_url)
+
+    # Build a fresh RLS client for the background context.
+    client = await rls_client(token)
+
+    await db_ingestion.update_job(client, job_id, {"stage": "scraping"})
+
+    t0 = _ms()
+    try:
+        html = await scrape.fetch_html(source_url)
+    except scrape.ScrapeError as exc:
+        bound.warning(
+            "ingest_scrape_failed",
+            url=source_url,
+            error=str(exc),
+            duration_ms=_ms() - t0,
+        )
+        await db_ingestion.update_job(
+            client, job_id, {"stage": "failed", "error": str(exc)}
+        )
+        return
+    t1 = _ms()
+
+    extracted = extract.parse(html, base_url=source_url)
+    t2 = _ms()
+
+    media = await upload.to_cloudinary(extracted.media_urls, workspace_id)
+    t3 = _ms()
+
+    await db_ingestion.update_job(
+        client,
+        job_id,
+        {
+            "extracted_title": extracted.title,
+            "extracted_text": extracted.text,
+            "stage": "done",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+    await db_media.create_media_assets(client, workspace_id, job_id, media)
+
+    bound.info(
+        "ingest_done",
+        url=source_url,
+        title_len=len(extracted.title),
+        text_len=len(extracted.text),
+        media_count=len(media),
+        scrape_ms=t1 - t0,
+        extract_ms=t2 - t1,
+        upload_ms=t3 - t2,
+        total_ms=t3 - t0,
+    )
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -105,6 +173,7 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
         source_type=req.source_type,
     )
 
+    # ── Text pass-through (instant) ────────────────────────────────────
     if req.source_type == "text":
         bound.info("ingest_text_passthrough", text_len=len(req.source_text or ""))
         await db_ingestion.update_job(
@@ -122,62 +191,30 @@ async def ingest(req: IngestRequest, request: Request) -> IngestResponse:
             extracted_title="",
             extracted_text=req.source_text or "",
             media=[],
+            status="done",
         )
 
-    bound.info("ingest_start", url=req.source_url)
-    await db_ingestion.update_job(client, job_id, {"stage": "scraping"})
+    # ── URL ingestion (async background) ───────────────────────────────
+    # Return immediately — the heavy scrape/extract/upload work runs in
+    # the background.  The client polls GET /ingest/{job_id} or listens
+    # via Supabase Realtime for the stage transition to "done".
+    bound.info("ingest_start_async", url=req.source_url)
 
-    t0 = _ms()
-    try:
-        html = await scrape.fetch_html(req.source_url or "")
-    except scrape.ScrapeError as exc:
-        bound.warning(
-            "ingest_scrape_failed",
-            url=req.source_url,
-            error=str(exc),
-            duration_ms=_ms() - t0,
+    asyncio.create_task(
+        _run_url_ingestion(
+            token=token,
+            job_id=job_id,
+            workspace_id=workspace_id,
+            source_url=req.source_url or "",
         )
-        await db_ingestion.update_job(
-            client, job_id, {"stage": "failed", "error": str(exc)}
-        )
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    t1 = _ms()
-
-    extracted = extract.parse(html, base_url=req.source_url or "")
-    t2 = _ms()
-
-    media = await upload.to_cloudinary(extracted.media_urls, workspace_id)
-    t3 = _ms()
-
-    await db_ingestion.update_job(
-        client,
-        job_id,
-        {
-            "extracted_title": extracted.title,
-            "extracted_text": extracted.text,
-            "stage": "done",
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-        },
-    )
-    await db_media.create_media_assets(client, workspace_id, job_id, media)
-
-    bound.info(
-        "ingest_done",
-        url=req.source_url,
-        title_len=len(extracted.title),
-        text_len=len(extracted.text),
-        media_count=len(media),
-        scrape_ms=t1 - t0,
-        extract_ms=t2 - t1,
-        upload_ms=t3 - t2,
-        total_ms=t3 - t0,
     )
 
     return IngestResponse(
         job_id=job_id,
-        extracted_title=extracted.title,
-        extracted_text=extracted.text,
-        media=[MediaItem(**m) for m in media],
+        extracted_title="",
+        extracted_text="",
+        media=[],
+        status="processing",
     )
 
 

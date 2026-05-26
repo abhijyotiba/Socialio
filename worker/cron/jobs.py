@@ -190,52 +190,64 @@ async def run_pull_metrics(svc: AsyncClient) -> dict:
     since_iso = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     variants = await db_posts.get_published_variants_for_metrics(svc, since_iso, 50)
 
-    checked = synced = failed = 0
-    for variant in variants:
-        checked += 1
-        try:
-            platform = variant["platform"]
-            connection = await _resolve_connection(svc, variant)
-            if (
-                not connection
-                or connection.get("needs_reauth")
-                or not connection.get("access_token_vault_id")
-            ):
-                raise RuntimeError("Missing valid connection")
+    # Limit concurrency to avoid overwhelming external APIs / DB connections.
+    sem = asyncio.Semaphore(5)
 
-            access_token = await vault.read_secret(
-                svc, connection["access_token_vault_id"]
-            )
-            if platform == "linkedin":
-                payload = await linkedin.get_post_metrics(
-                    access_token,
-                    f"urn:li:person:{connection['platform_user_id']}",
-                    variant["platform_post_id"],
+    async def _sync_one(variant: dict) -> str:
+        """Returns 'synced', 'skipped', or 'failed'."""
+        async with sem:
+            try:
+                platform = variant["platform"]
+                connection = await _resolve_connection(svc, variant)
+                if (
+                    not connection
+                    or connection.get("needs_reauth")
+                    or not connection.get("access_token_vault_id")
+                ):
+                    raise RuntimeError("Missing valid connection")
+
+                access_token = await vault.read_secret(
+                    svc, connection["access_token_vault_id"]
                 )
-            else:
-                payload = await x.get_post_metrics(
-                    access_token, variant["platform_post_id"]
+                if platform == "linkedin":
+                    payload = await linkedin.get_post_metrics(
+                        access_token,
+                        f"urn:li:person:{connection['platform_user_id']}",
+                        variant["platform_post_id"],
+                    )
+                else:
+                    payload = await x.get_post_metrics(
+                        access_token, variant["platform_post_id"]
+                    )
+
+                await db_metrics.upsert_post_metrics(
+                    svc,
+                    {
+                        "post_variant_id": variant["id"],
+                        "workspace_id": variant["workspace_id"],
+                        "impressions": payload["impressions"],
+                        "likes": payload["likes"],
+                        "comments": payload["comments"],
+                        "shares": payload["shares"],
+                        "last_synced_at": _now(),
+                    },
                 )
+                return "synced"
+            except Exception as exc:  # noqa: BLE001
+                # POST_DELETED means the user removed the post on-platform —
+                # stop syncing it, but it's not a failure.
+                if getattr(exc, "error_code", None) == "POST_DELETED":
+                    return "skipped"
+                return "failed"
 
-            await db_metrics.upsert_post_metrics(
-                svc,
-                {
-                    "post_variant_id": variant["id"],
-                    "workspace_id": variant["workspace_id"],
-                    "impressions": payload["impressions"],
-                    "likes": payload["likes"],
-                    "comments": payload["comments"],
-                    "shares": payload["shares"],
-                    "last_synced_at": _now(),
-                },
-            )
-            synced += 1
-        except Exception as exc:  # noqa: BLE001
-            # POST_DELETED means the user removed the post on-platform — stop
-            # syncing it, but it's not a failure.
-            if getattr(exc, "error_code", None) != "POST_DELETED":
-                failed += 1
+    results = await asyncio.gather(
+        *(_sync_one(v) for v in variants),
+        return_exceptions=True,
+    )
 
+    checked = len(variants)
+    synced = sum(1 for r in results if r == "synced")
+    failed = sum(1 for r in results if r == "failed" or isinstance(r, BaseException))
     return {"checked": checked, "synced": synced, "failed": failed}
 
 

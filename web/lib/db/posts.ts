@@ -20,21 +20,20 @@ export async function getContentItemWithVariants(
   id: string
 ): Promise<{ content_item: ContentItemRow; variants: PostVariantRow[] } | null> {
   const supabase = await createClient();
-  const { data: item, error: itemError } = await supabase
+  const { data, error } = await supabase
     .from("content_items")
-    .select("*")
+    .select("*, post_variants(*)")
     .eq("id", id)
     .single();
-  if (itemError || !item) return null;
 
-  const { data: variants, error: variantsError } = await supabase
-    .from("post_variants")
-    .select("*")
-    .eq("content_item_id", id)
-    .order("created_at");
-  if (variantsError) return null;
+  if (error || !data) return null;
 
-  return { content_item: item, variants: variants ?? [] };
+  const { post_variants, ...contentItem } = data as any;
+  const sortedVariants = [...(post_variants ?? [])].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+
+  return { content_item: contentItem as ContentItemRow, variants: sortedVariants as PostVariantRow[] };
 }
 
 export async function getPostVariant(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Sparkles, ChevronDown, ChevronUp, Image as ImageIcon, Link2 } from "lucide-react";
 import { AiMessage } from "./AiMessage";
 import { PersonaSelector } from "./PersonaSelector";
@@ -48,7 +48,7 @@ const PLATFORM_CONFIG = {
   },
 } as const;
 
-export function ExtractionCard({
+export const ExtractionCard = memo(function ExtractionCard({
   title,
   text,
   media,
@@ -205,4 +205,4 @@ export function ExtractionCard({
       )}
     </AiMessage>
   );
-}
+});
