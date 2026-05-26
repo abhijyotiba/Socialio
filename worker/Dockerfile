@@ -31,10 +31,15 @@ COPY . .
 # Hand ownership of the app directory to the non-root user.
 RUN chown -R appuser:appuser /app
 
+# Put the venv on PATH so `uvicorn` resolves without invoking `uv` at runtime.
+# Using `uv run` here would try to initialize a cache under $HOME, which fails
+# for this non-root user on platforms that don't provide a writable home dir.
+ENV PATH="/app/.venv/bin:$PATH"
+
 # Switch to non-root for runtime.
 USER appuser
 
 # Cloud Run injects $PORT at runtime (usually 8080).
 # Render and local dev default to 8000.
 # The `sh -c` wrapper lets us expand the $PORT env variable at container start.
-CMD ["sh", "-c", "uv run uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
