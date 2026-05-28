@@ -224,12 +224,6 @@ def build_authorization_url(state: str) -> str:
     }
     return f"https://www.linkedin.com/oauth/v2/authorization?{urlencode(params)}"
 
-        raise PublishError(
-            f"LinkedIn token exchange failed: {res.status_code}",
-            classify_error(res.status_code),
-        )
-    return res.json()
-
 
 async def get_user_info(access_token: str) -> dict:
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
