@@ -1,32 +1,24 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { exchangeCodeForTokens, getUserInfo } from '@/lib/adapters/x'
-import { createSecret } from '@/lib/security/vault'
+import { workerXCallback } from '@/lib/worker-client'
 import { getWorkspaceForUser } from '@/lib/db/workspaces'
-import { upsertSocialConnection } from '@/lib/db/social-connections'
 import { getPersona } from '@/lib/db/personas'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session || !session.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const user = session.user
 
   const { searchParams } = new URL(request.url)
-
-  // X sends ?error=access_denied&error_description=... when the user denies or
-  // the app config is wrong. Redirect back to settings with a readable message.
   const xError = searchParams.get('error')
   if (xError) {
     const desc = searchParams.get('error_description') ?? xError
     return NextResponse.redirect(
-      new URL(
-        `/settings/connections?x_error=${encodeURIComponent(desc)}`,
-        request.url
-      )
+      new URL(`/settings/connections?x_error=${encodeURIComponent(desc)}`, request.url)
     )
   }
 
@@ -47,8 +39,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid state' }, { status: 400 })
   }
 
-  // [B5] Use indexOf + slice — safe against UUIDs or future format changes.
-  // Never use split(':')[1] — would silently return undefined on malformed state.
   const colonIdx = savedState.indexOf(':')
   if (colonIdx === -1) {
     return NextResponse.redirect(
@@ -56,8 +46,6 @@ export async function GET(request: NextRequest) {
     )
   }
   const personaId = savedState.slice(colonIdx + 1)
-  // Reject malformed persona ids before they hit the DB — keeps error messages
-  // crisp and prevents wasted lookups on garbage input.
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!personaId || !UUID_RE.test(personaId)) {
     return NextResponse.redirect(
@@ -70,7 +58,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Workspace not found' }, { status: 403 })
   }
 
-  // Defense in depth — re-validate persona ownership even though we validated at start
   const persona = await getPersona(personaId)
   if (!persona || persona.workspace_id !== workspace.workspace_id) {
     return NextResponse.redirect(
@@ -78,67 +65,17 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  let tokens
   try {
-    tokens = await exchangeCodeForTokens(code, codeVerifier)
+    const res = await workerXCallback(code, personaId, codeVerifier, session.access_token)
+    if (!res.ok) {
+      return NextResponse.json({ error: 'X token exchange failed' }, { status: res.status })
+    }
   } catch {
     return NextResponse.json({ error: 'X token exchange failed' }, { status: 502 })
   }
 
-  // Delete only after successful exchange so the user can retry on failure
   cookieStore.delete('x_oauth_state')
   cookieStore.delete('x_code_verifier')
-
-  const admin = createAdminClient()
-  const workspaceId = workspace.workspace_id
-
-  const accessVaultId = await createSecret(
-    admin,
-    tokens.access_token,
-    `x:access:${workspaceId}:${personaId}`
-  )
-
-  let refreshVaultId: string | null = null
-  if (tokens.refresh_token) {
-    refreshVaultId = await createSecret(
-      admin,
-      tokens.refresh_token,
-      `x:refresh:${workspaceId}:${personaId}`
-    )
-  }
-
-  let platformUserId: string | null = null
-  let platformUsername: string | null = null
-  try {
-    const info = await getUserInfo(tokens.access_token)
-    platformUserId = info.data.id
-    platformUsername = info.data.username
-  } catch {
-    // Profile fetch failure is non-fatal; connection is still stored.
-  }
-
-  const tokenExpiresAt = tokens.expires_in
-    ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
-    : null
-
-  // If X did not return a refresh token, the access token expires in ~2h.
-  // Flag needs_reauth so the UI can prompt the user to reconnect before posting.
-  const needsReauth = !tokens.refresh_token
-
-  await upsertSocialConnection(
-    {
-      workspace_id: workspaceId,
-      persona_id: personaId,
-      platform: 'x',
-      platform_user_id: platformUserId,
-      platform_username: platformUsername,
-      access_token_vault_id: accessVaultId,
-      refresh_token_vault_id: refreshVaultId,
-      token_expires_at: tokenExpiresAt,
-      needs_reauth: needsReauth,
-    },
-    admin
-  )
 
   return NextResponse.redirect(
     new URL(`/settings/personas/${personaId}/connections?x=connected`, request.url)

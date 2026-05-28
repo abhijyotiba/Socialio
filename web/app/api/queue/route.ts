@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getPersona } from "@/lib/db/personas";
+import { listScheduledVariants } from "@/lib/db/posts";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -29,31 +30,17 @@ export async function GET(request: Request) {
     }
   }
 
-  let query = supabase
-    .from("post_variants")
-    .select(`
-      id,
-      platform,
-      status,
-      scheduled_at,
-      body,
-      created_at,
-      persona_id
-    `)
-    .eq("status", "scheduled")
-    .order("scheduled_at", { ascending: true });
-
-  if (personaId) {
-    query = query.eq("persona_id", personaId);
+  let variants;
+  try {
+    variants = await listScheduledVariants(personaId ?? undefined);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Query failed" },
+      { status: 500 }
+    );
   }
 
-  const { data: variants, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const formattedVariants = (variants ?? []).map((v) => ({
+  const formattedVariants = variants.map((v) => ({
     ...v,
     content: v.body,
   }));

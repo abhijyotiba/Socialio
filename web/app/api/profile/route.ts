@@ -5,6 +5,7 @@ import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getDefaultPersona } from "@/lib/db/personas";
 import { getBrandConfigForPersona } from "@/lib/db/brand-configs";
 import { getSocialConnectionForPersona } from "@/lib/db/social-connections";
+import { countVariantsByStatus } from "@/lib/db/posts";
 
 export async function GET() {
   const supabase = await createClient();
@@ -23,24 +24,14 @@ export async function GET() {
       ])
     : [null, null, null];
 
-  // Post counts
-  const { count: scheduledCount } = await supabase
-    .from("post_variants")
-    .select("*", { count: "exact", head: true })
-    .eq("workspace_id", workspace?.workspace_id ?? "")
-    .eq("status", "scheduled");
-
-  const { count: publishedCount } = await supabase
-    .from("post_variants")
-    .select("*", { count: "exact", head: true })
-    .eq("workspace_id", workspace?.workspace_id ?? "")
-    .eq("status", "published");
-
-  const { count: draftCount } = await supabase
-    .from("post_variants")
-    .select("*", { count: "exact", head: true })
-    .eq("workspace_id", workspace?.workspace_id ?? "")
-    .eq("status", "draft");
+  // Post counts — parallel; collapse to zeros when there's no workspace yet.
+  const [scheduledCount, publishedCount, draftCount] = workspace
+    ? await Promise.all([
+        countVariantsByStatus(workspace.workspace_id, "scheduled"),
+        countVariantsByStatus(workspace.workspace_id, "published"),
+        countVariantsByStatus(workspace.workspace_id, "draft"),
+      ])
+    : [0, 0, 0];
 
   return NextResponse.json({
     user: {
@@ -73,9 +64,9 @@ export async function GET() {
         : null,
     },
     stats: {
-      published: publishedCount ?? 0,
-      scheduled: scheduledCount ?? 0,
-      drafts: draftCount ?? 0,
+      published: publishedCount,
+      scheduled: scheduledCount,
+      drafts: draftCount,
     },
   });
 }

@@ -12,6 +12,56 @@ from db import posts as db_posts
 from db import social_connections as db_connections
 
 
+class MockResponse:
+    def __init__(self, data):
+        self.data = data
+
+
+class MockClient:
+    mock_invalid_persona = False
+    mock_missing_prompt = False
+    mock_no_connections = False
+    mock_partial_success = False
+
+    def table(self, table_name):
+        self.table_name = table_name
+        return self
+
+    def select(self, select_fields):
+        self.select_fields = select_fields
+        return self
+
+    def in_(self, field, values):
+        self.field = field
+        self.values = values
+        return self
+
+    async def execute(self):
+        if self.table_name == "personas":
+            if MockClient.mock_invalid_persona:
+                return MockResponse([])
+            return MockResponse([
+                {"id": pid, "name": f"Persona {pid}", "workspace_id": "ws-1"}
+                for pid in self.values
+            ])
+        elif self.table_name == "brand_configs":
+            prompt = None if MockClient.mock_missing_prompt else "prompt"
+            return MockResponse([
+                {"persona_id": pid, "custom_system_prompt": prompt, "current_prompt_version_id": "pv-1"}
+                for pid in self.values
+            ])
+        elif self.table_name == "social_connections":
+            if MockClient.mock_no_connections:
+                return MockResponse([])
+            res_data = []
+            for pid in self.values:
+                if pid == "p2" and MockClient.mock_partial_success:
+                    continue
+                res_data.append({"persona_id": pid, "platform": "linkedin", "needs_reauth": False})
+            return MockResponse(res_data)
+        return MockResponse([])
+
+
 @pytest.fixture
 def client(monkeypatch):
     async def _ok_hmac(_request, _body):
@@ -21,7 +71,7 @@ def client(monkeypatch):
         return {"sub": "user-1"}, "tok"
 
     async def _rls(_token):
-        return object()
+        return MockClient()
 
     async def _ws(_client, _uid):
         return "ws-1"
@@ -131,43 +181,43 @@ def test_job_not_ready(client, monkeypatch):
     assert res.status_code == 409
 
 
-def test_invalid_persona(client, monkeypatch):
-    async def _get_persona(_client, _pid):
-        return None
-
-    monkeypatch.setattr(db_personas, "get_persona", _get_persona)
-    res = _post(client)
-    assert res.status_code == 403
-
-
-def test_missing_brand_prompt(client, monkeypatch):
-    async def _brand(_client, _pid):
-        return {"custom_system_prompt": None}
-
-    monkeypatch.setattr(db_brand, "get_brand_config_for_persona", _brand)
-    res = _post(client)
-    assert res.status_code == 409
+def test_invalid_persona(client):
+    MockClient.mock_invalid_persona = True
+    try:
+        res = _post(client)
+        assert res.status_code == 403
+    finally:
+        MockClient.mock_invalid_persona = False
 
 
-def test_all_personas_fail_returns_502_with_campaign_id(client, monkeypatch):
-    async def _no_connections(_client, _pid):
-        return []
-
-    monkeypatch.setattr(db_connections, "get_connections_for_persona", _no_connections)
-    res = _post(client)
-    assert res.status_code == 502
-    body = res.json()
-    assert body["campaign_id"] == "camp-1"
-    assert "error" in body
+def test_missing_brand_prompt(client):
+    MockClient.mock_missing_prompt = True
+    try:
+        res = _post(client)
+        assert res.status_code == 409
+    finally:
+        MockClient.mock_missing_prompt = False
 
 
-def test_partial_success(client, monkeypatch):
-    async def _connections(_client, pid):
-        return [] if pid == "p2" else [{"platform": "linkedin", "needs_reauth": False}]
+def test_all_personas_fail_returns_502_with_campaign_id(client):
+    MockClient.mock_no_connections = True
+    try:
+        res = _post(client)
+        assert res.status_code == 502
+        body = res.json()
+        assert body["campaign_id"] == "camp-1"
+        assert "error" in body
+    finally:
+        MockClient.mock_no_connections = False
 
-    monkeypatch.setattr(db_connections, "get_connections_for_persona", _connections)
-    res = _post(client, persona_ids=["p1", "p2"])
-    assert res.status_code == 200
-    body = res.json()
-    assert body["status"] == "generation_partial"
-    assert len(body["variants"]) == 1
+
+def test_partial_success(client):
+    MockClient.mock_partial_success = True
+    try:
+        res = _post(client, persona_ids=["p1", "p2"])
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "generation_partial"
+        assert len(body["variants"]) == 1
+    finally:
+        MockClient.mock_partial_success = False

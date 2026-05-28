@@ -249,3 +249,208 @@ async def publish_variant(variant_id: str, request: Request):
             status_code=http_status,
             content={"error": error_detail, "error_code": error_code},
         )
+
+
+class ScheduleRequest(BaseModel):
+    scheduled_at: str
+
+
+@router.post("/posts/{variant_id}/schedule")
+async def schedule_post(
+    variant_id: str, req: ScheduleRequest, request: Request
+) -> dict:
+    body = await request.body()
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    variant = await db_posts.get_post_variant(client, variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Post variant not found")
+    if variant["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        scheduled_dt = datetime.fromisoformat(req.scheduled_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail="scheduled_at must be an ISO 8601 datetime string"
+        ) from exc
+
+    if scheduled_dt <= datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=400, detail="scheduled_at must be in the future"
+        )
+
+    if variant["status"] not in EDITABLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot schedule a variant with status '{variant['status']}'",
+        )
+
+    await db_posts.update_post_variant(
+        client, variant_id, {"status": "scheduled", "scheduled_at": req.scheduled_at}
+    )
+    return {"status": "scheduled", "scheduled_at": req.scheduled_at}
+
+
+@router.post("/posts/{variant_id}/cancel")
+async def cancel_post(variant_id: str, request: Request) -> dict:
+    body = await request.body()
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    variant = await db_posts.get_post_variant(client, variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Post variant not found")
+    if variant["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if variant["status"] != "scheduled":
+        raise HTTPException(
+            status_code=409,
+            detail="Only scheduled variants can be cancelled",
+        )
+
+    await db_posts.update_post_variant(
+        client, variant_id, {"status": "cancelled", "scheduled_at": None}
+    )
+    return {"status": "cancelled"}
+
+
+class PatchPostRequest(BaseModel):
+    body: str = Field(min_length=1)
+
+
+PLATFORM_CHAR_LIMITS = {"linkedin": 3000, "x": 280}
+
+
+@router.patch("/posts/{variant_id}")
+async def patch_post(
+    variant_id: str, req: PatchPostRequest, request: Request
+) -> dict:
+    body = await request.body()
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    variant = await db_posts.get_post_variant(client, variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Post variant not found")
+    if variant["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    limit = PLATFORM_CHAR_LIMITS.get(variant["platform"], 3000)
+    if len(req.body) > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Body exceeds limit of {limit} characters for {variant['platform']}",
+        )
+
+    await db_posts.update_post_variant(client, variant_id, {"body": req.body})
+    return {"saved": True}
+
+
+class UpdateMediaRequest(BaseModel):
+    media_asset_ids: list[str]
+
+
+@router.put("/posts/{variant_id}/media")
+async def update_post_media(
+    variant_id: str, req: UpdateMediaRequest, request: Request
+) -> dict:
+    body = await request.body()
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    variant = await db_posts.get_post_variant(client, variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Post variant not found")
+    if variant["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if len(req.media_asset_ids) > 4:
+        raise HTTPException(
+            status_code=400, detail="Maximum 4 media attachments per post variant"
+        )
+
+    try:
+        await db_media.set_variant_media(client, variant_id, req.media_asset_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"saved": True}
+
+
+class RevertRequest(BaseModel):
+    revision_number: int
+
+
+@router.post("/posts/{variant_id}/revert")
+async def revert_post(
+    variant_id: str, req: RevertRequest, request: Request
+) -> dict:
+    body = await request.body()
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    variant = await db_posts.get_post_variant(client, variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Post variant not found")
+    if variant["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if variant["status"] not in EDITABLE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Can't revert a post that's {variant['status']}.",
+        )
+
+    revisions = await db_revisions.list_variant_revisions(client, variant_id)
+    target = None
+    for r in revisions:
+        if r["revision_number"] == req.revision_number:
+            target = r
+            break
+
+    if not target:
+        raise HTTPException(status_code=404, detail="Revision not found")
+
+    # Snapshot current body before overwriting it
+    new_snapshot = await db_revisions.snapshot_variant_body(
+        client,
+        variant_id=variant_id,
+        workspace_id=workspace_id,
+        body=variant["body"],
+        instruction=f"reverted to revision {target['revision_number']}",
+    )
+
+    await db_posts.update_post_variant(client, variant_id, {"body": target["body"]})
+    return {
+        "body": target["body"],
+        "revision_number": new_snapshot["revision_number"],
+    }
+

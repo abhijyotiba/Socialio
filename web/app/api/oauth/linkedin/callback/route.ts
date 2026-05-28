@@ -1,19 +1,17 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { exchangeCodeForTokens, getUserInfo } from '@/lib/adapters/linkedin'
-import { createSecret } from '@/lib/security/vault'
+import { workerLinkedinCallback } from '@/lib/worker-client'
 import { getWorkspaceForUser } from '@/lib/db/workspaces'
-import { upsertSocialConnection } from '@/lib/db/social-connections'
 import { getPersona } from '@/lib/db/personas'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session || !session.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const user = session.user
 
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
@@ -29,15 +27,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid state' }, { status: 400 })
   }
 
-  // [B5] Use indexOf + slice — safe against UUIDs or future format changes.
-  // Never use split(':')[1] — would silently return undefined on malformed state.
   const colonIdx = savedState.indexOf(':')
   if (colonIdx === -1) {
     return NextResponse.json({ error: 'Invalid state format' }, { status: 400 })
   }
   const personaId = savedState.slice(colonIdx + 1)
-  // Reject malformed persona ids before they hit the DB — keeps error messages
-  // crisp and prevents wasted lookups on garbage input.
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!personaId || !UUID_RE.test(personaId)) {
     return NextResponse.json({ error: 'Invalid state format' }, { status: 400 })
@@ -48,68 +42,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Workspace not found' }, { status: 403 })
   }
 
-  // Defense in depth — re-validate persona ownership even though we validated at start
   const persona = await getPersona(personaId)
   if (!persona || persona.workspace_id !== workspace.workspace_id) {
     return NextResponse.json({ error: 'Persona mismatch' }, { status: 403 })
   }
 
-  let tokens
   try {
-    tokens = await exchangeCodeForTokens(code)
+    const res = await workerLinkedinCallback(code, personaId, session.access_token)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'LinkedIn token exchange failed' }))
+      return NextResponse.json({ error: data.error || 'LinkedIn token exchange failed' }, { status: res.status })
+    }
   } catch {
     return NextResponse.json({ error: 'LinkedIn token exchange failed' }, { status: 502 })
   }
 
-  // Delete cookie only after successful exchange — user can retry on failure
   cookieStore.delete('linkedin_oauth_state')
-
-  const admin = createAdminClient()
-  const workspaceId = workspace.workspace_id
-
-  const accessVaultId = await createSecret(
-    admin,
-    tokens.access_token,
-    `linkedin:access:${workspaceId}:${personaId}`
-  )
-
-  let refreshVaultId: string | null = null
-  if (tokens.refresh_token) {
-    refreshVaultId = await createSecret(
-      admin,
-      tokens.refresh_token,
-      `linkedin:refresh:${workspaceId}:${personaId}`
-    )
-  }
-
-  let platformUserId: string | null = null
-  let platformUsername: string | null = null
-  try {
-    const info = await getUserInfo(tokens.access_token)
-    platformUserId = info.sub
-    platformUsername = info.name ?? info.email ?? null
-  } catch {
-    // Profile fetch failure is non-fatal; connection is still stored.
-  }
-
-  const tokenExpiresAt = new Date(
-    Date.now() + tokens.expires_in * 1000
-  ).toISOString()
-
-  await upsertSocialConnection(
-    {
-      workspace_id: workspaceId,
-      persona_id: personaId,
-      platform: 'linkedin',
-      platform_user_id: platformUserId,
-      platform_username: platformUsername,
-      access_token_vault_id: accessVaultId,
-      refresh_token_vault_id: refreshVaultId,
-      token_expires_at: tokenExpiresAt,
-      needs_reauth: false,
-    },
-    admin
-  )
 
   return NextResponse.redirect(
     new URL(`/settings/personas/${personaId}/connections?linkedin=connected`, request.url)

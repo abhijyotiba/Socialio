@@ -116,3 +116,65 @@ async def refresh_token(refresh_token_value: str) -> dict:
         "expires_in": data.get("expires_in"),
         "new_refresh_token": data.get("refresh_token"),
     }
+
+
+async def exchange_code_for_tokens(code: str, code_verifier: str) -> dict:
+    import base64
+    import os
+
+    creds = base64.b64encode(
+        f"{os.environ['X_CLIENT_ID']}:{os.environ['X_CLIENT_SECRET']}".encode()
+    ).decode()
+    params = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": os.environ["X_REDIRECT_URI"],
+        "code_verifier": code_verifier,
+    }
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        res = await client.post(
+            "https://api.twitter.com/2/oauth2/token",
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": f"Basic {creds}",
+            },
+            data=params,
+        )
+    if res.status_code >= 400:
+        raise PublishError(
+            f"X token exchange failed: {res.status_code}",
+            classify_error(res.status_code),
+        )
+    return res.json()
+
+
+async def get_user_info(access_token: str) -> dict:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        res = await client.get(
+            "https://api.twitter.com/2/users/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if res.status_code >= 400:
+        raise PublishError(
+            f"X userinfo fetch failed: {res.status_code}",
+            classify_error(res.status_code),
+        )
+    return res.json()
+
+
+def build_authorization_url(state: str, code_challenge: str) -> str:
+    import os
+    from urllib.parse import urlencode
+
+    params = {
+        "response_type": "code",
+        "client_id": os.environ["X_CLIENT_ID"],
+        "redirect_uri": os.environ["X_REDIRECT_URI"],
+        "scope": "tweet.read tweet.write users.read offline.access",
+        "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+    }
+    return f"https://twitter.com/i/oauth2/authorize?{urlencode(params)}"
+
+

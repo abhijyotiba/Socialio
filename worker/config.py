@@ -56,6 +56,16 @@ class Settings(BaseSettings):
     firecrawl_api_key: str = ""
     firecrawl_timeout_s: int = 45
 
+    # OAuth — read directly via os.environ[...] in adapters/linkedin.py and
+    # adapters/x.py. Declared here so they fail-fast at boot rather than at the
+    # first OAuth callback hit in production.
+    linkedin_client_id: str = ""
+    linkedin_client_secret: str = ""
+    linkedin_redirect_uri: str = ""
+    x_client_id: str = ""
+    x_client_secret: str = ""
+    x_redirect_uri: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

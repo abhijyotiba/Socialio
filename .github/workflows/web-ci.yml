@@ -47,3 +47,14 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # Catches SSR/RSC boundary bugs that typecheck alone misses (e.g. a
+      # client-only API touched from a Server Component). Netlify runs its own
+      # build on deploy; this gives faster feedback on PRs.
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+          WORKER_URL: http://placeholder.local
+          WORKER_SHARED_SECRET: placeholder

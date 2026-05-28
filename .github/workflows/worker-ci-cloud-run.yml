@@ -19,6 +19,13 @@ name: Worker CI & Deploy — Cloud Run
 #   CLOUDINARY_API_KEY
 #   CLOUDINARY_API_SECRET
 #   CRON_SECRET
+#   LINKEDIN_CLIENT_ID
+#   LINKEDIN_CLIENT_SECRET
+#   LINKEDIN_REDIRECT_URI   — must point at the web Netlify callback URL
+#   X_CLIENT_ID
+#   X_CLIENT_SECRET
+#   X_REDIRECT_URI          — must point at the web Netlify callback URL
+#   FIRECRAWL_API_KEY       — recommended (cloud egress is often blocked from scraping)
 #
 # One-time GCP setup (run in Cloud Shell or gcloud CLI):
 #   gcloud services enable run.googleapis.com artifactregistry.googleapis.com
@@ -124,7 +131,14 @@ jobs:
           CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }},\
           CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }},\
           CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }},\
-          CRON_SECRET=${{ secrets.CRON_SECRET }}"
+          CRON_SECRET=${{ secrets.CRON_SECRET }},\
+          LINKEDIN_CLIENT_ID=${{ secrets.LINKEDIN_CLIENT_ID }},\
+          LINKEDIN_CLIENT_SECRET=${{ secrets.LINKEDIN_CLIENT_SECRET }},\
+          LINKEDIN_REDIRECT_URI=${{ secrets.LINKEDIN_REDIRECT_URI }},\
+          X_CLIENT_ID=${{ secrets.X_CLIENT_ID }},\
+          X_CLIENT_SECRET=${{ secrets.X_CLIENT_SECRET }},\
+          X_REDIRECT_URI=${{ secrets.X_REDIRECT_URI }},\
+          FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}"
 
       - name: Print service URL
         run: |

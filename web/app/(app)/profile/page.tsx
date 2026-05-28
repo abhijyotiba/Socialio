@@ -1,27 +1,19 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { format, formatDistanceToNow } from "date-fns";
 import {
-  Loader2, Mail, Calendar, Building2, Globe, Tag, Zap,
-  CheckCheck, Edit2, LogOut, ExternalLink, Wifi, WifiOff,
+  Mail, Calendar, Building2, Globe, Tag, Zap,
+  ExternalLink, Wifi, WifiOff,
   RefreshCw, ArrowRight, ShieldCheck, Sparkles,
 } from "lucide-react";
-import { SkeletonProfile } from "@/components/app/SkeletonDashboard";
 import Link from "next/link";
-import { format, formatDistanceToNow } from "date-fns";
-
-type ProfileData = {
-  user: { id: string; email: string; created_at: string };
-  workspace: { id: string; name: string | null; role: string; created_at: string | null } | null;
-  brand: { brand_name: string; industry: string | null; website_url: string | null; tone_tags: string[] } | null;
-  connections: {
-    linkedin: { connected: boolean; username: string | null; expires_at: string | null } | null;
-    x: { connected: boolean; username: string | null; expires_at: string | null } | null;
-  };
-  stats: { published: number; scheduled: number; drafts: number };
-};
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getWorkspaceForUser } from "@/lib/db/workspaces";
+import { getDefaultPersona } from "@/lib/db/personas";
+import { getBrandConfigForPersona } from "@/lib/db/brand-configs";
+import { getSocialConnectionForPersona } from "@/lib/db/social-connections";
+import { countVariantsByStatus } from "@/lib/db/posts";
+import { DisplayNameEditor } from "./_components/DisplayNameEditor";
+import { SignOutButton } from "./_components/SignOutButton";
 
 function getInitials(email: string) {
   const name = email.split("@")[0] ?? "";
@@ -34,74 +26,85 @@ function getDisplayName(email: string) {
   return email.split("@")[0]?.replace(/[._-]/g, " ") ?? "";
 }
 
-export default function ProfilePage() {
-  const [data, setData] = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default async function ProfilePage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  const [editingName, setEditingName] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [savingName, setSavingName] = useState(false);
-  const [nameSuccess, setNameSuccess] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
+  const userEmail = user.email ?? "";
+  const userCreatedAt = user.created_at;
+  const storedDisplayName =
+    (user.user_metadata as { display_name?: string } | null)?.display_name ?? null;
 
-  const router = useRouter();
+  const workspace = await getWorkspaceForUser(user.id);
+  const defaultPersona = workspace
+    ? await getDefaultPersona(workspace.workspace_id)
+    : null;
 
-  useEffect(() => {
-    fetch("/api/profile")
-      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-      .then((d: ProfileData) => {
-        setData(d);
-        setDisplayName(getDisplayName(d.user.email));
-        setLoading(false);
-      })
-      .catch(() => { setError("Failed to load profile."); setLoading(false); });
-  }, []);
+  const [brandConfig, linkedinConn, xConn, scheduledCount, publishedCount, draftCount] =
+    workspace
+      ? await Promise.all([
+          defaultPersona ? getBrandConfigForPersona(defaultPersona.id) : Promise.resolve(null),
+          defaultPersona
+            ? getSocialConnectionForPersona(defaultPersona.id, "linkedin")
+            : Promise.resolve(null),
+          defaultPersona
+            ? getSocialConnectionForPersona(defaultPersona.id, "x")
+            : Promise.resolve(null),
+          countVariantsByStatus(workspace.workspace_id, "scheduled"),
+          countVariantsByStatus(workspace.workspace_id, "published"),
+          countVariantsByStatus(workspace.workspace_id, "draft"),
+        ])
+      : [null, null, null, 0, 0, 0];
 
-  async function handleSaveName() {
-    if (!displayName.trim()) return;
-    setSavingName(true);
-    setNameError(null);
-    try {
-      const res = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_name: displayName.trim() }),
-      });
-      if (!res.ok) { const d = await res.json(); setNameError(d.error ?? "Save failed"); return; }
-      setNameSuccess(true);
-      setEditingName(false);
-      setTimeout(() => setNameSuccess(false), 3000);
-    } catch { setNameError("Network error"); }
-    finally { setSavingName(false); }
-  }
+  const workspaceMeta = workspace
+    ? {
+        id: workspace.workspace_id,
+        name: (workspace.workspaces as { name?: string } | null)?.name ?? null,
+        role: workspace.role,
+      }
+    : null;
 
-  async function handleSignOut() {
-    setSigningOut(true);
-    const supabase = createBrowserSupabase();
-    await supabase.auth.signOut();
-    router.push("/login");
-  }
+  const stats = {
+    published: publishedCount,
+    scheduled: scheduledCount,
+    drafts: draftCount,
+  };
 
-  if (loading) {
-    return <SkeletonProfile />;
-  }
-  if (error || !data) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-sm text-red-500">{error ?? "Something went wrong."}</p>
-        <button onClick={() => window.location.reload()} className="text-sm font-medium text-indigo-600 underline">Retry</button>
-      </div>
-    );
-  }
+  const brand = brandConfig
+    ? {
+        brand_name: brandConfig.brand_name,
+        industry: brandConfig.industry,
+        website_url: brandConfig.website_url,
+        tone_tags: brandConfig.tone_tags ?? [],
+      }
+    : null;
 
-  const { user, workspace, brand, connections, stats } = data;
-  const initials = getInitials(user.email);
-  const memberSince = user.created_at ? format(new Date(user.created_at), "MMM d, yyyy") : "—";
-  const memberAge = user.created_at ? formatDistanceToNow(new Date(user.created_at)) : "";
-  const linkedinActive = connections.linkedin?.connected ?? false;
-  const xActive = connections.x?.connected ?? false;
+  const linkedin = linkedinConn
+    ? {
+        connected: !linkedinConn.needs_reauth,
+        username: linkedinConn.platform_username,
+      }
+    : null;
+  const xData = xConn
+    ? {
+        connected: !xConn.needs_reauth,
+        username: xConn.platform_username,
+      }
+    : null;
+
+  const initials = getInitials(userEmail);
+  const displayNameInitial = storedDisplayName ?? getDisplayName(userEmail);
+  const memberSince = userCreatedAt
+    ? format(new Date(userCreatedAt), "MMM d, yyyy")
+    : "—";
+  const memberAge = userCreatedAt
+    ? formatDistanceToNow(new Date(userCreatedAt))
+    : "";
+  const linkedinActive = linkedin?.connected ?? false;
+  const xActive = xData?.connected ?? false;
   const connectedCount = [linkedinActive, xActive].filter(Boolean).length;
   const totalPosts = stats.published + stats.scheduled + stats.drafts;
 
@@ -129,50 +132,12 @@ export default function ProfilePage() {
             </div>
 
             <div className="pt-1">
-              {/* Name */}
-              {editingName ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    autoFocus
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSaveName();
-                      if (e.key === "Escape") setEditingName(false);
-                    }}
-                    className="h-9 rounded-lg border border-white/30 bg-white/10 px-3 text-sm font-bold text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/40 backdrop-blur-sm"
-                  />
-                  <button onClick={handleSaveName} disabled={savingName}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white/20 px-3 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30 disabled:opacity-50">
-                    {savingName ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
-                    Save
-                  </button>
-                  <button onClick={() => setEditingName(false)}
-                    className="text-xs font-medium text-white/60 transition hover:text-white/90">Cancel</button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <h1 className="font-display text-xl font-bold capitalize text-white">
-                    {displayName || getDisplayName(user.email)}
-                  </h1>
-                  <button onClick={() => setEditingName(true)}
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-white/50 transition hover:bg-white/10 hover:text-white">
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {nameError && <p className="mt-1 text-xs text-red-300">{nameError}</p>}
-              {nameSuccess && (
-                <p className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-300">
-                  <CheckCheck className="h-3 w-3" /> Name updated
-                </p>
-              )}
+              <DisplayNameEditor initial={displayNameInitial} />
 
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="flex items-center gap-1.5 text-sm text-indigo-200">
                   <Mail className="h-3.5 w-3.5" />
-                  {user.email}
+                  {userEmail}
                 </span>
               </div>
 
@@ -181,10 +146,10 @@ export default function ProfilePage() {
                   <Calendar className="h-3 w-3" />
                   Joined {memberSince}
                 </span>
-                {workspace?.role && (
+                {workspaceMeta?.role && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-100 backdrop-blur-sm">
                     <ShieldCheck className="h-3 w-3" />
-                    {workspace.role}
+                    {workspaceMeta.role}
                   </span>
                 )}
                 {brand?.brand_name && (
@@ -197,23 +162,15 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Quick sign-out */}
-          <button
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white/80 backdrop-blur-sm transition hover:bg-white/20 hover:text-white disabled:opacity-50 shrink-0"
-          >
-            {signingOut ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
-            Sign out
-          </button>
+          <SignOutButton />
         </div>
 
         {/* Stat row inside hero */}
         <div className="relative mt-6 grid grid-cols-3 gap-3">
           {[
-            { label: "Posts Published", value: stats.published, icon: "🚀" },
-            { label: "In Queue", value: stats.scheduled, icon: "📅" },
-            { label: "Drafts", value: stats.drafts, icon: "📝" },
+            { label: "Posts Published", value: stats.published },
+            { label: "In Queue", value: stats.scheduled },
+            { label: "Drafts", value: stats.drafts },
           ].map((s) => (
             <div key={s.label} className="rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm text-center">
               <p className="text-2xl font-black text-white">{s.value}</p>
@@ -268,7 +225,7 @@ export default function ProfilePage() {
                     </a>
                   </div>
                 )}
-                {brand.tone_tags?.length > 0 && (
+                {brand.tone_tags.length > 0 && (
                   <div className="flex items-start justify-between gap-4 px-5 py-3">
                     <span className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
                       <Tag className="h-3 w-3" /> Tone
@@ -302,7 +259,6 @@ export default function ProfilePage() {
             </div>
 
             <div className="p-5">
-              {/* Activity bar */}
               {totalPosts > 0 ? (
                 <div>
                   <div className="flex overflow-hidden rounded-full h-2.5">
@@ -358,18 +314,18 @@ export default function ProfilePage() {
               </div>
               <h2 className="text-sm font-bold text-slate-900">Workspace</h2>
             </div>
-            {workspace ? (
+            {workspaceMeta ? (
               <div className="divide-y divide-slate-50">
                 <div className="flex items-center justify-between px-5 py-3">
                   <span className="text-xs text-slate-500">ID</span>
                   <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-600">
-                    {workspace.id.slice(0, 8)}…
+                    {workspaceMeta.id.slice(0, 8)}…
                   </span>
                 </div>
                 <div className="flex items-center justify-between px-5 py-3">
                   <span className="text-xs text-slate-500">Role</span>
                   <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-indigo-600">
-                    {workspace.role}
+                    {workspaceMeta.role}
                   </span>
                 </div>
                 <div className="flex items-center justify-between px-5 py-3">
@@ -415,7 +371,7 @@ export default function ProfilePage() {
                       : <span className="flex items-center gap-0.5 text-[10px] font-bold text-slate-400"><WifiOff className="h-2.5 w-2.5" /> Not connected</span>}
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    {connections.linkedin?.username ? `@${connections.linkedin.username}` : "Connect to publish"}
+                    {linkedin?.username ? `@${linkedin.username}` : "Connect to publish"}
                   </p>
                 </div>
                 <a href="/api/oauth/linkedin/start"
@@ -439,7 +395,7 @@ export default function ProfilePage() {
                       : <span className="flex items-center gap-0.5 text-[10px] font-bold text-slate-400"><WifiOff className="h-2.5 w-2.5" /> Not connected</span>}
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    {connections.x?.username ? `@${connections.x.username}` : "Connect to publish"}
+                    {xData?.username ? `@${xData.username}` : "Connect to publish"}
                   </p>
                 </div>
                 <a href="/api/oauth/x/start"
@@ -464,9 +420,9 @@ export default function ProfilePage() {
               <h2 className="text-sm font-bold text-slate-900">Quick Links</h2>
             </div>
             {[
-              { label: "Brand settings", desc: "Voice, prompt & tone", href: "/settings/brand", color: "text-indigo-600 bg-indigo-50" },
-              { label: "Posting schedule", desc: "Configure time slots", href: "/settings/schedule", color: "text-violet-600 bg-violet-50" },
-              { label: "Post queue", desc: "Manage upcoming posts", href: "/queue", color: "text-emerald-600 bg-emerald-50" },
+              { label: "Brand settings", desc: "Voice, prompt & tone", href: "/settings/brand" },
+              { label: "Posting schedule", desc: "Configure time slots", href: "/settings/schedule" },
+              { label: "Post queue", desc: "Manage upcoming posts", href: "/queue" },
             ].map((l) => (
               <Link key={l.href} href={l.href}
                 className="flex items-center justify-between px-5 py-3.5 border-b border-slate-50 last:border-0 transition hover:bg-slate-50/60 group">

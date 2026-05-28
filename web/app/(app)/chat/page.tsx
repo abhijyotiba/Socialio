@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { createClient } from "@/lib/supabase/client";
 import { VariantCard } from "./_components/VariantCard";
 import { TypingIndicator } from "./_components/TypingIndicator";
 import { UserBubble } from "./_components/UserBubble";
@@ -100,7 +100,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!activeJobId || !isGenerating) return;
-    const supabase = createBrowserSupabase();
+    const supabase = createClient();
     const channel = supabase
       .channel(`gen-${activeJobId}`)
       .on(

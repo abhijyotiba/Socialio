@@ -32,6 +32,8 @@ services:
     envVars:
       # All secrets must be set in the Render dashboard (sync: false).
       # The keys here just document what is required.
+
+      # Core — request signing + Supabase access
       - key: WORKER_SHARED_SECRET
         sync: false
       - key: SUPABASE_URL
@@ -40,21 +42,41 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: GROQ_API_KEY
+      - key: CRON_SECRET
         sync: false
-      - key: GEMINI_API_KEY
-        sync: false
+
+      # Media + LLM
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: CRON_SECRET
+      - key: GROQ_API_KEY
         sync: false
-      # Optional
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # OAuth — required for LinkedIn / X publishing.
+      # Without these, /oauth/* callbacks crash at runtime.
+      - key: LINKEDIN_CLIENT_ID
+        sync: false
+      - key: LINKEDIN_CLIENT_SECRET
+        sync: false
+      - key: LINKEDIN_REDIRECT_URI
+        sync: false
+      - key: X_CLIENT_ID
+        sync: false
+      - key: X_CLIENT_SECRET
+        sync: false
+      - key: X_REDIRECT_URI
+        sync: false
+
+      # Scraping fallback — recommended in prod (cloud egress is often blocked).
       - key: FIRECRAWL_API_KEY
         sync: false
+
+      # Model selection (non-secret defaults)
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
       - key: GEMINI_MODEL

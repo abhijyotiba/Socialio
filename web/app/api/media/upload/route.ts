@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { uploadToCloudinary } from "@/lib/adapters/cloudinary";
-import { createUserUploadMediaAsset } from "@/lib/db/media-assets";
+import { workerUploadMedia } from "@/lib/worker-client";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -15,15 +13,10 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const workspace = await getWorkspaceForUser(user.id);
-  if (!workspace) {
-    return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
   }
 
   let formData: FormData;
@@ -57,35 +50,17 @@ export async function POST(request: Request) {
     );
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const folder = `user-uploads/${workspace.workspace_id}`;
-
-  let cloudinaryResult;
   try {
-    cloudinaryResult = await uploadToCloudinary(buffer, file.type, folder);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Upload failed";
-    return NextResponse.json({ error: message }, { status: 502 });
-  }
-
-  // Persist as a media_asset row (no ingestion_job_id — user upload)
-  let asset;
-  try {
-    asset = await createUserUploadMediaAsset({
-      workspace_id: workspace.workspace_id,
-      cloudinary_url: cloudinaryResult.secure_url,
-      cloudinary_id: cloudinaryResult.public_id,
-      format: cloudinaryResult.format,
-      bytes: cloudinaryResult.bytes,
-      width: cloudinaryResult.width ?? null,
-      height: cloudinaryResult.height ?? null,
-    });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to save asset record" },
-      { status: 500 }
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const res = await workerUploadMedia(
+      buffer,
+      file.type,
+      session.access_token
     );
+    const data = await res.json().catch(() => ({ error: "Worker error" }));
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    return NextResponse.json({ error: "Worker error" }, { status: 502 });
   }
-
-  return NextResponse.json({ asset }, { status: 201 });
 }
+

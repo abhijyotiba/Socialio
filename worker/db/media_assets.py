@@ -99,3 +99,59 @@ async def get_variant_media_urls(
         if asset and asset.get("cloudinary_url"):
             urls.append(asset["cloudinary_url"])
     return urls
+
+
+async def set_variant_media(
+    client: AsyncClient, post_variant_id: str, media_asset_ids: list[str]
+) -> None:
+    if len(media_asset_ids) > 4:
+        raise ValueError("Maximum 4 media attachments per post variant")
+
+    if media_asset_ids:
+        rows = [
+            {
+                "post_variant_id": post_variant_id,
+                "media_asset_id": asset_id,
+                "position": index,
+            }
+            for index, asset_id in enumerate(media_asset_ids)
+        ]
+        # Upsert new rows. Postgrest-py upsert uses on_conflict mapping.
+        await client.table("post_variant_media").upsert(
+            rows, on_conflict="post_variant_id,media_asset_id"
+        ).execute()
+
+    # Delete any links that are no longer selected
+    query = client.table("post_variant_media").delete().eq("post_variant_id", post_variant_id)
+    if media_asset_ids:
+        query = query.not_.in_("media_asset_id", media_asset_ids)
+    await query.execute()
+
+
+async def create_user_upload_media_asset(
+    client: AsyncClient,
+    workspace_id: str,
+    cloudinary_url: str,
+    cloudinary_id: str,
+    format_name: str,
+    bytes_size: int,
+    width: int | None,
+    height: int | None,
+) -> dict[str, Any]:
+    row = {
+        "workspace_id": workspace_id,
+        "ingestion_job_id": None,
+        "cloudinary_url": cloudinary_url,
+        "cloudinary_id": cloudinary_id,
+        "resource_type": "image",
+        "format": format_name,
+        "bytes": bytes_size,
+        "width": width,
+        "height": height,
+    }
+    res = await client.table("media_assets").insert(row).execute()
+    if not res.data:
+        raise ValueError("Failed to insert media asset")
+    return res.data[0]
+
+

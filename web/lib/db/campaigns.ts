@@ -95,20 +95,6 @@ export async function getCampaignWithPersonas(id: string): Promise<CampaignWithP
   return data as unknown as CampaignWithPersonas
 }
 
-export async function countRecentCampaigns(
-  workspaceId: string,
-  windowSeconds: number
-): Promise<number> {
-  const supabase = await createClient()
-  const since = new Date(Date.now() - windowSeconds * 1000).toISOString()
-  const { count } = await supabase
-    .from('campaigns')
-    .select('id', { count: 'exact', head: true })
-    .eq('workspace_id', workspaceId)
-    .gte('created_at', since)
-  return count ?? 0
-}
-
 export type CampaignListRow = CampaignRow & {
   persona_count: number
   pending_count: number

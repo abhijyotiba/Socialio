@@ -38,3 +38,17 @@ async def snapshot_variant_body(
         .execute()
     )
     return res.data[0]
+
+
+async def list_variant_revisions(
+    client: AsyncClient, variant_id: str
+) -> list[dict[str, Any]]:
+    res = (
+        await client.table("post_variant_revisions")
+        .select("*")
+        .eq("post_variant_id", variant_id)
+        .order("revision_number", desc=True)
+        .execute()
+    )
+    return res.data or []
+

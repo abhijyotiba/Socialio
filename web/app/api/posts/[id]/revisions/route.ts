@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getPostVariant, updatePostVariant } from "@/lib/db/posts";
-import {
-  listVariantRevisions,
-  snapshotVariantBody,
-} from "@/lib/db/post-variant-revisions";
+import { getPostVariant } from "@/lib/db/posts";
+import { listRevisionsForVariant } from "@/lib/db/post-variant-revisions";
+import { workerRevertPost } from "@/lib/worker-client";
+
+const revertSchema = z.object({
+  revision_number: z.number().int().positive(),
+});
 
 export async function GET(
   _request: Request,
@@ -32,38 +33,26 @@ export async function GET(
     return NextResponse.json({ error: "Post variant not found" }, { status: 404 });
   }
 
-  const revisions = await listVariantRevisions(id);
+  const revisions = await listRevisionsForVariant(id);
   return NextResponse.json({ revisions });
 }
 
-const revertBodySchema = z.object({
-  revision_number: z.number().int().min(1),
-});
-
-/**
- * Revert: copies the body of an older revision into post_variants.body, and
- * snapshots the current body first so we never destroy history.
- */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const workspace = await getWorkspaceForUser(user.id);
-  if (!workspace) {
-    return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
-  }
-
-  const { id } = await params;
-
-  const parsed = revertBodySchema.safeParse(await request.json());
+  const parsed = revertSchema.safeParse(
+    await request.json().catch(() => null)
+  );
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.flatten() },
@@ -71,39 +60,16 @@ export async function POST(
     );
   }
 
-  const variant = await getPostVariant(id);
-  if (!variant || variant.workspace_id !== workspace.workspace_id) {
-    return NextResponse.json({ error: "Post variant not found" }, { status: 404 });
-  }
-  if (
-    variant.status !== "draft" &&
-    variant.status !== "scheduled" &&
-    variant.status !== "failed"
-  ) {
-    return NextResponse.json(
-      { error: `Can't revert a post that's ${variant.status}.` },
-      { status: 409 }
+  try {
+    const res = await workerRevertPost(
+      id,
+      parsed.data.revision_number,
+      session.access_token
     );
+    const data = await res.json().catch(() => ({ error: "Worker error" }));
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    return NextResponse.json({ error: "Worker error" }, { status: 502 });
   }
-
-  const revisions = await listVariantRevisions(id);
-  const target = revisions.find(
-    (r) => r.revision_number === parsed.data.revision_number
-  );
-  if (!target) {
-    return NextResponse.json({ error: "Revision not found" }, { status: 404 });
-  }
-
-  // Snapshot current body before overwriting it. The instruction string makes
-  // the audit trail readable: "reverted to revision N".
-  const newRevision = await snapshotVariantBody({
-    variantId: variant.id,
-    workspaceId: workspace.workspace_id,
-    body: variant.body,
-    instruction: `reverted to revision ${target.revision_number}`,
-  });
-
-  await updatePostVariant(variant.id, { body: target.body });
-
-  return NextResponse.json({ body: target.body, revision_number: newRevision.revision_number });
 }
+

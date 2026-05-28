@@ -1,27 +1,18 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { randomBytes, createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
-import { buildAuthorizationUrl } from '@/lib/adapters/x'
 import { getWorkspaceForUser } from '@/lib/db/workspaces'
-import { getDefaultPersona, getPersona } from '@/lib/db/personas'
-
-function generateCodeVerifier(): string {
-  return randomBytes(32).toString('base64url')
-}
-
-function generateCodeChallenge(verifier: string): string {
-  return createHash('sha256').update(verifier).digest('base64url')
-}
+import { getDefaultPersona } from '@/lib/db/personas'
+import { workerFetch } from '@/lib/worker-client'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session || !session.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const workspace = await getWorkspaceForUser(user.id)
+  const workspace = await getWorkspaceForUser(session.user.id)
   if (!workspace) {
     return NextResponse.json({ error: 'Workspace not found' }, { status: 403 })
   }
@@ -36,16 +27,16 @@ export async function GET(request: Request) {
     personaId = defaultPersona.id
   }
 
-  // [A10] Validate the persona actually belongs to this workspace
-  const persona = await getPersona(personaId)
-  if (!persona || persona.workspace_id !== workspace.workspace_id) {
-    return NextResponse.json({ error: 'Persona not found' }, { status: 404 })
+  const res = await workerFetch(`/oauth/x/auth-url?persona_id=${personaId}`, {
+    method: 'GET',
+    accessToken: session.access_token
+  })
+
+  if (!res.ok) {
+     return NextResponse.json({ error: 'Failed to generate auth url' }, { status: 502 })
   }
 
-  // [A1] State format: "<32-char hex>:<persona-uuid>"
-  const state = `${randomBytes(16).toString('hex')}:${personaId}`
-  const codeVerifier = generateCodeVerifier()
-  const codeChallenge = generateCodeChallenge(codeVerifier)
+  const { auth_url, state, code_verifier } = await res.json()
 
   const cookieStore = await cookies()
   cookieStore.set('x_oauth_state', state, {
@@ -55,7 +46,7 @@ export async function GET(request: Request) {
     maxAge: 600,
     path: '/',
   })
-  cookieStore.set('x_code_verifier', codeVerifier, {
+  cookieStore.set('x_code_verifier', code_verifier, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -63,5 +54,5 @@ export async function GET(request: Request) {
     path: '/',
   })
 
-  return NextResponse.redirect(buildAuthorizationUrl(state, codeChallenge))
+  return NextResponse.redirect(auth_url)
 }

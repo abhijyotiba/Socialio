@@ -1,6 +1,3 @@
-"use client";
-
-import { useEffect, useRef, useState, useId } from "react";
 import { format, formatDistanceToNow, isToday, isTomorrow } from "date-fns";
 import {
   Plus,
@@ -12,48 +9,21 @@ import {
   LayoutDashboard,
   CalendarClock,
 } from "lucide-react";
-import { SkeletonDashboard } from "@/components/app/SkeletonDashboard";
 import Link from "next/link";
-
-type PostMetrics = {
-  impressions: number | null;
-  likes: number | null;
-  comments: number | null;
-  shares: number | null;
-  last_synced_at: string | null;
-};
-
-type VariantWithMetrics = {
-  id: string;
-  platform: string;
-  status: string;
-  published_at: string | null;
-  persona_id: string | null;
-  post_metrics: PostMetrics[] | PostMetrics | null;
-};
-
-type PersonaSummary = {
-  id: string;
-  name: string;
-  avatar_color: string;
-  is_default: boolean;
-};
-
-type QueueItem = {
-  id: string;
-  platform: string;
-  status: string;
-  scheduled_at: string | null;
-  content: string;
-  created_at: string;
-};
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getWorkspaceForUser } from "@/lib/db/workspaces";
+import { getPersonasForWorkspace, getPersona } from "@/lib/db/personas";
+import {
+  listPublishedVariantsWithMetrics,
+  listScheduledVariants,
+  type PublishedVariantWithMetrics,
+  type ScheduledVariantRow,
+} from "@/lib/db/posts";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function getMetric(m: PostMetrics[] | PostMetrics | null): PostMetrics | null {
-  if (!m) return null;
-  return Array.isArray(m) ? (m[0] ?? null) : m;
-}
+type PostMetrics = NonNullable<PublishedVariantWithMetrics["post_metrics"]>;
 
 function fmtNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -73,8 +43,9 @@ function smoothPath(pts: { x: number; y: number }[]): string {
   return d;
 }
 
-function LineChart({ data }: { data: number[] }) {
-  const uid = useId().replace(/:/g, "x");
+// `gradientId` must be unique within the rendered page. Caller passes a stable
+// string (no useId needed; component is server-rendered).
+function LineChart({ data, gradientId }: { data: number[]; gradientId: string }) {
   const W = 560;
   const H = 180;
   const padL = 40;
@@ -102,7 +73,7 @@ function LineChart({ data }: { data: number[] }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full">
       <defs>
-        <linearGradient id={`lg-${uid}`} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#6366f1" stopOpacity="0.12" />
           <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
         </linearGradient>
@@ -110,17 +81,14 @@ function LineChart({ data }: { data: number[] }) {
 
       {yTicks.map((t, i) => (
         <g key={i}>
-          <line
-            x1={padL} y1={t.y} x2={W - padR} y2={t.y}
-            stroke="#f1f5f9" strokeWidth="1"
-          />
+          <line x1={padL} y1={t.y} x2={W - padR} y2={t.y} stroke="#f1f5f9" strokeWidth="1" />
           <text x={padL - 8} y={t.y + 4} textAnchor="end" fontSize="9" fill="#94a3b8">
             {t.val >= 1000 ? `${(t.val / 1000).toFixed(0)}k` : t.val}
           </text>
         </g>
       ))}
 
-      <path d={area} fill={`url(#lg-${uid})`} />
+      <path d={area} fill={`url(#${gradientId})`} />
       <path d={line} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
 
       {pts.map((p, i) => (
@@ -143,8 +111,15 @@ function LineChart({ data }: { data: number[] }) {
   );
 }
 
-function MiniSparkline({ data, color = "#6366f1" }: { data: number[]; color?: string }) {
-  const uid = useId().replace(/:/g, "x");
+function MiniSparkline({
+  data,
+  color,
+  gradientId,
+}: {
+  data: number[];
+  color: string;
+  gradientId: string;
+}) {
   const W = 100;
   const H = 36;
   const max = Math.max(...data, 1);
@@ -158,18 +133,18 @@ function MiniSparkline({ data, color = "#6366f1" }: { data: number[]; color?: st
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full" preserveAspectRatio="none">
       <defs>
-        <linearGradient id={`sp-${uid}`} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.2" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={area} fill={`url(#sp-${uid})`} />
+      <path d={area} fill={`url(#${gradientId})`} />
       <path d={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function formatQueueDate(item: QueueItem): string {
+function formatQueueDate(item: ScheduledVariantRow): string {
   const date = item.scheduled_at
     ? new Date(item.scheduled_at)
     : new Date(item.created_at);
@@ -200,75 +175,63 @@ function PlatformIcon({ platform, size = "sm" }: { platform: string; size?: "sm"
   );
 }
 
-export default function DashboardPage() {
-  const [metrics, setMetrics] = useState<VariantWithMetrics[] | null>(null);
-  const [queue, setQueue] = useState<QueueItem[] | null>(null);
-  const [personas, setPersonas] = useState<PersonaSummary[]>([]);
-  // null = "All personas" filter; a string filters to that persona only.
-  const [activePersonaId, setActivePersonaId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function getMetric(m: PostMetrics | null): PostMetrics | null {
+  return m;
+}
 
-  // Initial load — fetch personas alongside metrics/queue.
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/metrics").then((r) => { if (!r.ok) throw new Error("metrics"); return r.json(); }),
-      fetch("/api/queue").then((r) => { if (!r.ok) throw new Error("queue"); return r.json(); }),
-      fetch("/api/personas").then((r) => (r.ok ? r.json() : { personas: [] })),
-    ])
-      .then(([m, q, p]) => {
-        setMetrics(Array.isArray(m) ? m : []);
-        setQueue(Array.isArray(q) ? q : []);
-        setPersonas(p.personas ?? []);
-        setLoading(false);
-      })
-      .catch(() => { setError("Failed to load dashboard."); setLoading(false); });
-  }, []);
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ persona_id?: string }>;
+}) {
+  const { persona_id: activePersonaId } = await searchParams;
 
-  // Re-fetch metrics when the persona filter changes. Skipped on the very
-  // first run because the initial load already populated `metrics`.
-  const initialMount = useRef(true);
-  useEffect(() => {
-    if (initialMount.current) {
-      initialMount.current = false;
-      return;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const workspace = await getWorkspaceForUser(user.id);
+  if (!workspace) redirect("/onboarding");
+
+  // Validate persona scoping when filtering. Silently fall back to "all" on
+  // mismatch — the UI just stops filtering rather than throwing in the user's
+  // face.
+  let validPersonaId: string | undefined;
+  if (activePersonaId) {
+    const persona = await getPersona(activePersonaId);
+    if (persona && persona.workspace_id === workspace.workspace_id) {
+      validPersonaId = activePersonaId;
     }
-    const url = activePersonaId
-      ? `/api/metrics?persona_id=${encodeURIComponent(activePersonaId)}`
-      : "/api/metrics";
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((m) => setMetrics(Array.isArray(m) ? m : []))
-      .catch(() => {});
-  }, [activePersonaId]);
-
-  if (loading) {
-    return <SkeletonDashboard />;
   }
 
-  if (error) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-sm text-red-500">{error}</p>
-        <button onClick={() => window.location.reload()} className="text-sm font-medium text-indigo-600 underline">Retry</button>
-      </div>
-    );
-  }
+  const [metrics, queue, personas] = await Promise.all([
+    listPublishedVariantsWithMetrics(validPersonaId),
+    listScheduledVariants(),
+    getPersonasForWorkspace(workspace.workspace_id),
+  ]);
 
-  const publishedCount = metrics?.length ?? 0;
-  const totalImpressions = metrics?.reduce((acc, v) => acc + (getMetric(v.post_metrics)?.impressions ?? 0), 0) ?? 0;
-  const totalLikes = metrics?.reduce((acc, v) => acc + (getMetric(v.post_metrics)?.likes ?? 0), 0) ?? 0;
+  const publishedCount = metrics.length;
+  const totalImpressions = metrics.reduce(
+    (acc, v) => acc + (getMetric(v.post_metrics)?.impressions ?? 0),
+    0
+  );
+  const totalLikes = metrics.reduce(
+    (acc, v) => acc + (getMetric(v.post_metrics)?.likes ?? 0),
+    0
+  );
 
   const hasRealData = totalImpressions > 0 || totalLikes > 0;
-  const impressionVals = (metrics ?? [])
+  const impressionVals = metrics
     .slice(0, 7)
     .map((v) => getMetric(v.post_metrics)?.impressions ?? 0);
-  const likeVals = (metrics ?? [])
+  const likeVals = metrics
     .slice(0, 7)
     .map((v) => getMetric(v.post_metrics)?.likes ?? 0);
 
-  const queueItems = (queue ?? []).slice(0, 4);
-  const queueCount = (queue ?? []).length;
+  const queueItems = queue.slice(0, 4);
+  const queueCount = queue.length;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 pb-10 page-enter">
@@ -300,24 +263,24 @@ export default function DashboardPage() {
           <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
             View
           </span>
-          <button
-            type="button"
-            onClick={() => setActivePersonaId(null)}
+          <Link
+            href="/dashboard"
+            scroll={false}
             className={`inline-flex h-7 items-center rounded-full px-3 text-[11px] font-semibold transition ${
-              activePersonaId === null
+              !validPersonaId
                 ? "bg-slate-900 text-white shadow-sm"
                 : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
             }`}
           >
             All personas
-          </button>
+          </Link>
           {personas.map((p) => {
-            const active = activePersonaId === p.id;
+            const active = validPersonaId === p.id;
             return (
-              <button
+              <Link
                 key={p.id}
-                type="button"
-                onClick={() => setActivePersonaId(p.id)}
+                href={`/dashboard?persona_id=${encodeURIComponent(p.id)}`}
+                scroll={false}
                 className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold transition ${
                   active
                     ? "text-white shadow-sm"
@@ -330,7 +293,7 @@ export default function DashboardPage() {
                   style={{ backgroundColor: active ? "#ffffff" : p.avatar_color }}
                 />
                 {p.name}
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -373,7 +336,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 h-9">
-            <MiniSparkline data={impressionVals} color="#6366f1" />
+            <MiniSparkline data={impressionVals} color="#6366f1" gradientId="sp-impressions" />
           </div>
         </div>
 
@@ -395,7 +358,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 h-9">
-            <MiniSparkline data={likeVals} color="#8b5cf6" />
+            <MiniSparkline data={likeVals} color="#8b5cf6" gradientId="sp-likes" />
           </div>
         </div>
       </div>
@@ -415,7 +378,7 @@ export default function DashboardPage() {
           </div>
           <div className="h-[200px] px-3 pb-3 pt-2">
             {hasRealData ? (
-              <LineChart data={impressionVals} />
+              <LineChart data={impressionVals} gradientId="lc-engagement" />
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <p className="text-xs font-semibold text-slate-700">No metrics yet</p>
@@ -466,7 +429,7 @@ export default function DashboardPage() {
                     <PlatformIcon platform={item.platform} size="xs" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold text-slate-800">
-                        {item.content || "—"}
+                        {item.body || "—"}
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
                         <Clock className="h-3 w-3 text-indigo-400" />
@@ -505,7 +468,7 @@ export default function DashboardPage() {
             <span className="text-[11px] text-slate-400">{publishedCount} total</span>
           </div>
           <ul className="divide-y divide-slate-100">
-            {(metrics ?? []).slice(0, 4).map((v) => {
+            {metrics.slice(0, 4).map((v) => {
               const m = getMetric(v.post_metrics);
               return (
                 <li key={v.id} className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-slate-50/70">
