@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getPostVariant } from "@/lib/db/posts";
+import { getPostVariant, getVariantSource } from "@/lib/db/posts";
 import { getVariantMedia } from "@/lib/db/post-variant-media";
 import { workerPatchPost } from "@/lib/worker-client";
+
+const patchSchema = z.object({
+  body: z.string().min(1).max(10_000),
+});
 
 export async function GET(
   _request: Request,
@@ -24,37 +29,10 @@ export async function GET(
   if (variant.workspace_id !== workspace.workspace_id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const media = await getVariantMedia(id);
-
-  // Resolve source info: post_variant → content_item → ingestion_job
-  let source: {
-    type: string;
-    url?: string;
-    text?: string;
-    title?: string;
-  } | null = null;
-
-  const { data: contentItem } = await supabase
-    .from("content_items")
-    .select("ingestion_job_id")
-    .eq("id", variant.content_item_id)
-    .single();
-
-  if (contentItem?.ingestion_job_id) {
-    const { data: job } = await supabase
-      .from("ingestion_jobs")
-      .select("source_type, source_url, source_text, extracted_title")
-      .eq("id", contentItem.ingestion_job_id)
-      .single();
-    if (job) {
-      source = {
-        type: job.source_type,
-        url: job.source_url ?? undefined,
-        text: job.source_text ?? undefined,
-        title: job.extracted_title ?? undefined,
-      };
-    }
-  }
+  const [media, source] = await Promise.all([
+    getVariantMedia(id),
+    getVariantSource(variant.content_item_id),
+  ]);
 
   return NextResponse.json({
     id: variant.id,
@@ -85,13 +63,16 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = await request.json().catch(() => null);
-  if (!payload || typeof payload.body !== "string") {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  const parsed = patchSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   try {
-    const res = await workerPatchPost(id, payload.body, session.access_token);
+    const res = await workerPatchPost(id, parsed.data.body, session.access_token);
     const data = await res.json().catch(() => ({ error: "Worker error" }));
     return NextResponse.json(data, { status: res.status });
   } catch {

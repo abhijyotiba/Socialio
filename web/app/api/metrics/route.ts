@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import {
   assertPersonaInWorkspace,
   PersonaGuardError,
 } from "@/lib/auth/persona-guard";
 import { getAuthenticatedUser } from "@/lib/auth/auth-header";
+import { listPublishedVariantsWithMetrics } from "@/lib/db/posts";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-
   const user = await getAuthenticatedUser();
 
   if (!user) {
@@ -34,34 +32,15 @@ export async function GET(request: Request) {
     }
   }
 
-  let query = supabase
-    .from("post_variants")
-    .select(`
-      id,
-      platform,
-      status,
-      published_at,
-      persona_id,
-      post_metrics (
-        impressions,
-        likes,
-        comments,
-        shares,
-        last_synced_at
-      )
-    `)
-    .eq("status", "published")
-    .order("published_at", { ascending: false });
-
-  if (personaId) {
-    query = query.eq("persona_id", personaId);
+  try {
+    const variants = await listPublishedVariantsWithMetrics(
+      personaId ?? undefined
+    );
+    return NextResponse.json(variants);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Query failed" },
+      { status: 500 }
+    );
   }
-
-  const { data: variants, error } = await query;
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json(variants);
 }

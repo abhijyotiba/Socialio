@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { workerSchedulePost } from "@/lib/worker-client";
+
+const scheduleSchema = z.object({
+  scheduled_at: z.string().datetime(),
+});
 
 // Thin proxy: the worker owns scheduling (validation, status update) under RLS.
 export async function POST(
@@ -16,15 +21,20 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = await request.json().catch(() => null);
-  if (!payload) {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  const parsed = scheduleSchema.safeParse(
+    await request.json().catch(() => null)
+  );
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   try {
     const res = await workerSchedulePost(
       id,
-      payload.scheduled_at,
+      parsed.data.scheduled_at,
       session.access_token
     );
     const data = await res.json().catch(() => ({ error: "Worker error" }));

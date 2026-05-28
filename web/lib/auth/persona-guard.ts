@@ -33,11 +33,3 @@ export async function assertPersonaInWorkspace(
   return persona
 }
 
-export async function assertPersonasInWorkspace(
-  personaIds: readonly string[],
-  workspaceId: string
-): Promise<PersonaRow[]> {
-  return Promise.all(
-    personaIds.map((id) => assertPersonaInWorkspace(id, workspaceId))
-  )
-}

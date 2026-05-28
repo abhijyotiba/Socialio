@@ -54,31 +54,3 @@ describe('assertPersonaInWorkspace', () => {
   })
 })
 
-describe('assertPersonasInWorkspace', () => {
-  beforeEach(() => {
-    getPersonaMock.mockReset()
-  })
-
-  it('resolves to all personas on success', async () => {
-    const { assertPersonasInWorkspace } = await import(
-      '@/lib/auth/persona-guard'
-    )
-    getPersonaMock
-      .mockResolvedValueOnce({ id: 'p1', workspace_id: 'w1' })
-      .mockResolvedValueOnce({ id: 'p2', workspace_id: 'w1' })
-    const result = await assertPersonasInWorkspace(['p1', 'p2'], 'w1')
-    expect(result).toHaveLength(2)
-  })
-
-  it('rejects the whole batch if any persona mismatches', async () => {
-    const { assertPersonasInWorkspace, PersonaGuardError } = await import(
-      '@/lib/auth/persona-guard'
-    )
-    getPersonaMock
-      .mockResolvedValueOnce({ id: 'p1', workspace_id: 'w1' })
-      .mockResolvedValueOnce({ id: 'p2', workspace_id: 'w-other' })
-    await expect(
-      assertPersonasInWorkspace(['p1', 'p2'], 'w1')
-    ).rejects.toBeInstanceOf(PersonaGuardError)
-  })
-})

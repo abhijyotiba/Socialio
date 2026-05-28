@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getPostVariant } from "@/lib/db/posts";
 import { getVariantMedia } from "@/lib/db/post-variant-media";
 import { workerUpdatePostMedia } from "@/lib/worker-client";
+
+const putSchema = z.object({
+  media_asset_ids: z.array(z.string().uuid()).max(4),
+});
 
 export async function GET(
   _request: Request,
@@ -54,15 +59,18 @@ export async function PUT(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = await request.json().catch(() => null);
-  if (!payload || !Array.isArray(payload.media_asset_ids)) {
-    return NextResponse.json({ error: "Invalid media_asset_ids" }, { status: 400 });
+  const parsed = putSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   try {
     const res = await workerUpdatePostMedia(
       id,
-      payload.media_asset_ids,
+      parsed.data.media_asset_ids,
       session.access_token
     );
     const data = await res.json().catch(() => ({ error: "Worker error" }));

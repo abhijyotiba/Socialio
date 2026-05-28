@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { getPostVariant } from "@/lib/db/posts";
+import { listRevisionsForVariant } from "@/lib/db/post-variant-revisions";
 import { workerRevertPost } from "@/lib/worker-client";
+
+const revertSchema = z.object({
+  revision_number: z.number().int().positive(),
+});
 
 export async function GET(
   _request: Request,
@@ -27,13 +33,8 @@ export async function GET(
     return NextResponse.json({ error: "Post variant not found" }, { status: 404 });
   }
 
-  const { data: revisions } = await supabase
-    .from("post_variant_revisions")
-    .select("*")
-    .eq("post_variant_id", id)
-    .order("revision_number", { ascending: false });
-
-  return NextResponse.json({ revisions: revisions ?? [] });
+  const revisions = await listRevisionsForVariant(id);
+  return NextResponse.json({ revisions });
 }
 
 export async function POST(
@@ -49,15 +50,20 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = await request.json().catch(() => null);
-  if (!payload || typeof payload.revision_number !== "number") {
-    return NextResponse.json({ error: "Invalid revision_number" }, { status: 400 });
+  const parsed = revertSchema.safeParse(
+    await request.json().catch(() => null)
+  );
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   try {
     const res = await workerRevertPost(
       id,
-      payload.revision_number,
+      parsed.data.revision_number,
       session.access_token
     );
     const data = await res.json().catch(() => ({ error: "Worker error" }));
