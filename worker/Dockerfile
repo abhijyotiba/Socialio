@@ -12,8 +12,9 @@ RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 
 WORKDIR /app
 
-# Install uv (fast Python package manager) as root.
-RUN pip install --no-cache-dir uv
+# Install uv (fast Python package manager) as root. Pin to a known-good major
+# so a uv release doesn't silently change resolution behaviour mid-flight.
+RUN pip install --no-cache-dir 'uv>=0.7,<0.8'
 
 # Copy dependency manifests first so Docker can cache this layer.
 COPY pyproject.toml uv.lock ./
