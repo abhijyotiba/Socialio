@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { randomBytes } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
-import { buildAuthorizationUrl } from '@/lib/adapters/linkedin'
 import { getWorkspaceForUser } from '@/lib/db/workspaces'
-import { getDefaultPersona, getPersona } from '@/lib/db/personas'
+import { getDefaultPersona } from '@/lib/db/personas'
+import { workerFetch } from '@/lib/worker-client'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session || !session.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const workspace = await getWorkspaceForUser(user.id)
+  const workspace = await getWorkspaceForUser(session.user.id)
   if (!workspace) {
     return NextResponse.json({ error: 'Workspace not found' }, { status: 403 })
   }
@@ -28,14 +27,16 @@ export async function GET(request: Request) {
     personaId = defaultPersona.id
   }
 
-  // [A10] Validate the persona actually belongs to this workspace
-  const persona = await getPersona(personaId)
-  if (!persona || persona.workspace_id !== workspace.workspace_id) {
-    return NextResponse.json({ error: 'Persona not found' }, { status: 404 })
+  const res = await workerFetch(`/oauth/linkedin/auth-url?persona_id=${personaId}`, {
+    method: 'GET',
+    accessToken: session.access_token
+  })
+
+  if (!res.ok) {
+     return NextResponse.json({ error: 'Failed to generate auth url' }, { status: 502 })
   }
 
-  // [A1] State format: "<32-char hex>:<persona-uuid>"
-  const state = `${randomBytes(16).toString('hex')}:${personaId}`
+  const { auth_url, state } = await res.json()
 
   const cookieStore = await cookies()
   cookieStore.set('linkedin_oauth_state', state, {
@@ -46,5 +47,5 @@ export async function GET(request: Request) {
     path: '/',
   })
 
-  return NextResponse.redirect(buildAuthorizationUrl(state))
+  return NextResponse.redirect(auth_url)
 }

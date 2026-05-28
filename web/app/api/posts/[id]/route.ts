@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getPostVariant, updatePostVariant } from "@/lib/db/posts";
+import { getPostVariant } from "@/lib/db/posts";
 import { getVariantMedia } from "@/lib/db/post-variant-media";
+import { workerPatchPost } from "@/lib/worker-client";
 
 export async function GET(
   _request: Request,
@@ -72,34 +72,29 @@ export async function GET(
   });
 }
 
-const PLATFORM_CHAR_LIMITS: Record<string, number> = { linkedin: 3000, x: 280 };
-
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const workspace = await getWorkspaceForUser(user.id);
-  if (!workspace) return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
+  const payload = await request.json().catch(() => null);
+  if (!payload || typeof payload.body !== "string") {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  }
 
-  const { id } = await params;
-  const variant = await getPostVariant(id);
-  if (!variant) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (variant.workspace_id !== workspace.workspace_id)
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  const charLimit = PLATFORM_CHAR_LIMITS[variant.platform] ?? 3000;
-  const patchSchema = z.object({ body: z.string().min(1).max(charLimit) });
-
-  const parsed = patchSchema.safeParse(await request.json());
-  if (!parsed.success)
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-
-  await updatePostVariant(id, { body: parsed.data.body });
-  return NextResponse.json({ saved: true });
+  try {
+    const res = await workerPatchPost(id, payload.body, session.access_token);
+    const data = await res.json().catch(() => ({ error: "Worker error" }));
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    return NextResponse.json({ error: "Worker error" }, { status: 502 });
+  }
 }

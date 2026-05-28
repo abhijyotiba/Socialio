@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { workerFetch } from "@/lib/worker-client";
 import type { Json } from "@/lib/db/types";
 
 // 4KB is the natural cap for a typical V8 stack trace; beyond that the
@@ -54,19 +54,20 @@ export async function logError(
   );
 
   try {
-    const admin = createAdminClient();
-    await admin.from("error_events").insert({
-      source: context.source,
-      origin: context.origin ?? null,
-      workspace_id: context.workspaceId ?? null,
-      user_id: context.userId ?? null,
-      message,
-      stack,
-      // Caller-supplied metadata is typed as Record<string, unknown> for
-      // ergonomics; cast to Json at the boundary. Anything actually
-      // non-serializable would surface at runtime as a Postgres error,
-      // which the surrounding try/catch swallows.
-      metadata: (context.metadata ?? {}) as Json,
+    await workerFetch("/system/log-error", {
+      method: "POST",
+      accessToken: "", // No JWT needed, worker verifies HMAC request signature
+      json: {
+        source: context.source,
+        origin: context.origin ?? null,
+        message,
+        stack,
+        metadata: {
+            ...context.metadata,
+            workspace_id: context.workspaceId ?? null,
+            user_id: context.userId ?? null,
+        }
+      },
     });
   } catch (writeErr) {
     // Don't recurse — just yell at stderr.
@@ -78,6 +79,7 @@ export async function logError(
         message:
           writeErr instanceof Error ? writeErr.message : "error log write failed",
       })
+
     );
   }
 }

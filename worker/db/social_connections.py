@@ -77,3 +77,15 @@ async def update_connection_tokens(
     await client.table("social_connections").update(updates).eq(
         "id", connection_id
     ).execute()
+
+
+async def upsert_social_connection(
+    client: AsyncClient, values: dict[str, Any]
+) -> dict[str, Any]:
+    res = (
+        await client.table("social_connections")
+        .upsert(values, on_conflict="persona_id,platform")
+        .execute()
+    )
+    return res.data[0]
+

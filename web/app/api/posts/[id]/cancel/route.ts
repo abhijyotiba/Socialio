@@ -1,44 +1,27 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getPostVariant, updatePostVariant } from "@/lib/db/posts";
+import { workerCancelPost } from "@/lib/worker-client";
 
+// Thin proxy: the worker owns cancel post (validation, status update) under RLS.
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const workspace = await getWorkspaceForUser(user.id);
-  if (!workspace) {
-    return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
+  try {
+    const res = await workerCancelPost(id, session.access_token);
+    const data = await res.json().catch(() => ({ error: "Worker error" }));
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    return NextResponse.json({ error: "Worker error" }, { status: 502 });
   }
-
-  const { id } = await params;
-  const variant = await getPostVariant(id);
-  if (!variant) {
-    return NextResponse.json({ error: "Post variant not found" }, { status: 404 });
-  }
-  if (variant.workspace_id !== workspace.workspace_id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  if (variant.status !== "scheduled") {
-    return NextResponse.json(
-      { error: "Only scheduled variants can be cancelled" },
-      { status: 409 }
-    );
-  }
-
-  await updatePostVariant(id, {
-    status: "cancelled",
-    scheduled_at: null,
-  });
-
-  return NextResponse.json({ status: "cancelled" });
 }
+

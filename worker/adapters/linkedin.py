@@ -179,3 +179,68 @@ async def refresh_token(refresh_token_value: str) -> dict:
         "expires_in": data.get("expires_in"),
         "new_refresh_token": data.get("refresh_token"),
     }
+
+
+async def exchange_code_for_tokens(code: str) -> dict:
+    import os
+
+    params = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": os.environ["LINKEDIN_REDIRECT_URI"],
+        "client_id": os.environ["LINKEDIN_CLIENT_ID"],
+        "client_secret": os.environ["LINKEDIN_CLIENT_SECRET"],
+    }
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        res = await client.post(
+            "https://www.linkedin.com/oauth/v2/accessToken",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=params,
+        )
+    if res.status_code >= 400:
+        raise PublishError(
+            f"LinkedIn token exchange failed: {res.status_code}",
+            classify_error(res.status_code),
+        )
+    data = res.json()
+    return {
+        "access_token": data["access_token"],
+        "expires_in": data.get("expires_in"),
+        "refresh_token": data.get("refresh_token"),
+        "refresh_token_expires_in": data.get("refresh_token_expires_in"),
+    }
+
+
+def build_authorization_url(state: str) -> str:
+    import os
+    from urllib.parse import urlencode
+
+    params = {
+        "response_type": "code",
+        "client_id": os.environ["LINKEDIN_CLIENT_ID"],
+        "redirect_uri": os.environ["LINKEDIN_REDIRECT_URI"],
+        "scope": "openid profile email w_member_social",
+        "state": state,
+    }
+    return f"https://www.linkedin.com/oauth/v2/authorization?{urlencode(params)}"
+
+        raise PublishError(
+            f"LinkedIn token exchange failed: {res.status_code}",
+            classify_error(res.status_code),
+        )
+    return res.json()
+
+
+async def get_user_info(access_token: str) -> dict:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        res = await client.get(
+            "https://api.linkedin.com/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if res.status_code >= 400:
+        raise PublishError(
+            f"LinkedIn userinfo fetch failed: {res.status_code}",
+            classify_error(res.status_code),
+        )
+    return res.json()
+

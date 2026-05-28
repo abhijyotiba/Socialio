@@ -4,21 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import {
   getScheduleSlotsForWorkspace,
-  createScheduleSlot,
   getNextSlotsForWorkspace,
 } from "@/lib/db/posting-schedules";
 import { getPersona } from "@/lib/db/personas";
+import { workerCreateScheduleSlot } from "@/lib/worker-client";
 
 const platformSchema = z.enum(["linkedin", "x"]);
-
-const createSchema = z.object({
-  platform: platformSchema,
-  hour: z.number().int().min(0).max(23),
-  minute: z.union([z.literal(0), z.literal(30)]),
-  days_of_week: z.array(z.number().int().min(0).max(6)).min(1),
-  timezone: z.string().min(1),
-  persona_id: z.string().uuid().optional(),
-});
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -59,29 +50,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const workspace = await getWorkspaceForUser(user.id);
-  if (!workspace) return NextResponse.json({ error: "Workspace not found" }, { status: 403 });
-
-  const parsed = createSchema.safeParse(await request.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const payload = await request.json().catch(() => null);
+  if (!payload) {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (parsed.data.persona_id) {
-    const persona = await getPersona(parsed.data.persona_id);
-    if (!persona || persona.workspace_id !== workspace.workspace_id) {
-      return NextResponse.json({ error: "Persona not found" }, { status: 404 });
-    }
+  try {
+    const res = await workerCreateScheduleSlot(payload, session.access_token);
+    const data = await res.json().catch(() => ({ error: "Worker error" }));
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    return NextResponse.json({ error: "Worker error" }, { status: 502 });
   }
-
-  const slot = await createScheduleSlot({
-    workspace_id: workspace.workspace_id,
-    ...parsed.data,
-  });
-
-  return NextResponse.json(slot, { status: 201 });
 }
+

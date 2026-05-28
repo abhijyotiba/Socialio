@@ -96,6 +96,7 @@ def test_url_happy_path_scrapes_and_writes_media(client, monkeypatch):
         return SimpleNamespace(title="Title", text="Body", media_urls=["http://img/1"])
 
     media_written = {}
+    updates = {}
 
     async def _upload(urls, ws):
         return [
@@ -114,17 +115,27 @@ def test_url_happy_path_scrapes_and_writes_media(client, monkeypatch):
         media_written["job_id"] = job_id
         media_written["count"] = len(items)
 
+    async def _mock_update(_client, _job_id, patch):
+        updates.update(patch)
+        return None
+
     monkeypatch.setattr(ingest_route.scrape, "fetch_html", _fetch)
     monkeypatch.setattr(ingest_route.extract, "parse", _parse)
     monkeypatch.setattr(ingest_route.upload, "to_cloudinary", _upload)
     monkeypatch.setattr(db_media, "create_media_assets", _create_media)
+    monkeypatch.setattr(db_ingestion, "update_job", _mock_update)
 
     res = client.post(
         "/ingest", json={"source_type": "url", "source_url": "https://example.com/a"}
     )
     assert res.status_code == 200
     body = res.json()
-    assert body["extracted_title"] == "Title"
-    assert body["extracted_text"] == "Body"
-    assert len(body["media"]) == 1
+    assert body["status"] == "processing"
+    assert body["extracted_title"] == ""
+    assert body["extracted_text"] == ""
+    assert len(body["media"]) == 0
+    assert updates["extracted_title"] == "Title"
+    assert updates["extracted_text"] == "Body"
+    assert updates["stage"] == "done"
     assert media_written == {"job_id": "job-1", "count": 1}
+

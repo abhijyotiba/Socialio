@@ -49,18 +49,6 @@ export async function getPostVariant(
   return data;
 }
 
-export async function updatePostVariant(
-  id: string,
-  patch: Partial<PostVariantRow>
-): Promise<void> {
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("post_variants")
-    .update(patch)
-    .eq("id", id);
-  if (error) throw error;
-}
-
 export async function listContentItemsForJob(
   jobId: string
 ): Promise<ContentItemRow[]> {

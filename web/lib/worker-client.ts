@@ -1,6 +1,6 @@
 import { createHmac } from "crypto";
 
-function signBody(body: string): string {
+function signBody(body: string | Buffer): string {
   return (
     "sha256=" +
     createHmac("sha256", process.env.WORKER_SHARED_SECRET!)
@@ -120,3 +120,138 @@ export async function workerRegeneratePost(
 
 // Voice analysis (`/brand/voice-profile`) now runs in-process in the worker,
 // so the dedicated HTTP voice client was removed.
+
+// ── Post mutations (all now owned by the worker) ──────────────────────────────
+
+// Schedule a post variant (status → 'scheduled', sets scheduled_at).
+export async function workerSchedulePost(
+  variantId: string,
+  scheduledAt: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/posts/${encodeURIComponent(variantId)}/schedule`, {
+    method: "POST",
+    accessToken,
+    json: { scheduled_at: scheduledAt },
+  });
+}
+
+// Cancel a scheduled post variant (status → 'cancelled').
+export async function workerCancelPost(
+  variantId: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/posts/${encodeURIComponent(variantId)}/cancel`, {
+    method: "POST",
+    accessToken,
+  });
+}
+
+// Edit a post variant's body text.
+export async function workerPatchPost(
+  variantId: string,
+  body: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/posts/${encodeURIComponent(variantId)}`, {
+    method: "PATCH",
+    accessToken,
+    json: { body },
+  });
+}
+
+// Update (replace) the ordered media attachments for a post variant.
+export async function workerUpdatePostMedia(
+  variantId: string,
+  mediaAssetIds: string[],
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/posts/${encodeURIComponent(variantId)}/media`, {
+    method: "PUT",
+    accessToken,
+    json: { media_asset_ids: mediaAssetIds },
+  });
+}
+
+// Revert a post variant to a historical revision number.
+export async function workerRevertPost(
+  variantId: string,
+  revisionNumber: number,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/posts/${encodeURIComponent(variantId)}/revert`, {
+    method: "POST",
+    accessToken,
+    json: { revision_number: revisionNumber },
+  });
+}
+
+// ── Posting schedule slots (mutations owned by the worker) ───────────────────
+
+// Create a new posting schedule slot.
+export async function workerCreateScheduleSlot(
+  payload: unknown,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch("/schedule-slots", {
+    method: "POST",
+    accessToken,
+    json: payload,
+  });
+}
+
+// Delete a posting schedule slot.
+export async function workerDeleteScheduleSlot(
+  slotId: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/schedule-slots/${encodeURIComponent(slotId)}`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
+// Upload raw media buffer to the worker.
+export async function workerUploadMedia(
+  fileBuffer: Buffer,
+  mimeType: string,
+  accessToken: string
+): Promise<Response> {
+  return fetch(`${process.env.WORKER_URL}/media/upload`, {
+    method: "POST",
+    headers: {
+      "X-Worker-Signature": signBody(fileBuffer),
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": mimeType,
+    },
+    body: new Uint8Array(fileBuffer),
+    signal: AbortSignal.timeout(60_000),
+  });
+}
+
+export async function workerLinkedinCallback(
+  code: string,
+  personaId: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch("/oauth/linkedin/callback", {
+    method: "POST",
+    accessToken,
+    json: { code, persona_id: personaId },
+  });
+}
+
+export async function workerXCallback(
+  code: string,
+  personaId: string,
+  codeVerifier: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch("/oauth/x/callback", {
+    method: "POST",
+    accessToken,
+    json: { code, persona_id: personaId, code_verifier: codeVerifier },
+  });
+}
+
+
