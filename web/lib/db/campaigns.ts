@@ -19,7 +19,7 @@ export type CampaignWithPersonas = CampaignRow & {
       slug: string
       // brand_configs is joined to surface the persona's current voice
       // version. Returned as an array by PostgREST even though the FK is
-      // unique; CampaignDetail picks element 0.
+      // unique; callers pick element 0.
       brand_configs?: Array<{ current_prompt_version_id: string | null }>
         | { current_prompt_version_id: string | null }
         | null
@@ -65,9 +65,7 @@ export async function getCampaignWithPersonas(id: string): Promise<CampaignWithP
 
   // PostgREST nests the joined post_variants row under `post_variants` (and
   // sometimes wraps it in an array). The CampaignWithPersonas type promises a
-  // flattened shape, so unwrap here in one place rather than at every call
-  // site. Keeping the raw `post_variants` field around so existing tolerant
-  // readers (CampaignDetail uses it as a fallback) continue to work.
+  // flattened shape, so unwrap here in one place rather than at every call site.
   type RawVariant = {
     id: string
     platform: string

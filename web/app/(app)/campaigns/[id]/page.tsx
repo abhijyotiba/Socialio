@@ -4,7 +4,7 @@ import { getCampaignWithPersonas } from "@/lib/db/campaigns";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { CampaignDetail } from "./_components/CampaignDetail";
+import { CampaignReview } from "./_components/CampaignReview";
 
 export default async function CampaignDetailPage({
   params,
@@ -33,7 +33,7 @@ export default async function CampaignDetailPage({
         <ChevronLeft className="h-3.5 w-3.5" />
         Back to campaigns
       </Link>
-      <CampaignDetail initial={campaign} />
+      <CampaignReview initial={campaign} />
     </div>
   );
 }
