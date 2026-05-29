@@ -316,6 +316,154 @@ git commit -m "feat(worker): matrix cell expansion + dedup hashing"
 
 ---
 
+## Phase 1.5 — LLM concurrency limit (backend capacity safeguard)
+
+> **Why this exists:** the atomization matrix issues many LLM calls (1 extract + 1 per rendered cell). Under concurrent load — several users atomizing, or the refill cron rendering a batch — unbounded calls would blow the Groq/Gemini per-key requests-per-minute limit, which is the worker's #1 capacity bottleneck (not CPU, not architecture). A single global semaphore around `generate()` caps in-flight LLM calls process-wide, so traffic spikes queue instead of failing. This is the agreed safeguard in place of any microservice split; the DB-driven cron already gives us a durable queue, so this is the only capacity change v1 needs. See `Future improvements/autonomous_content_engine_deferred.md` D10 for the horizontal-scaling path beyond this.
+
+### Task 1.5.1: Global semaphore around `generate()`
+
+**Files:**
+- Modify: `worker/config.py` (add `llm_max_concurrency` setting)
+- Modify: `worker/adapters/llm.py` (wrap `generate` in a module-level semaphore)
+- Test: `worker/tests/test_llm_concurrency.py`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `worker/tests/test_llm_concurrency.py`:
+
+```python
+import asyncio
+import pytest
+from unittest.mock import patch
+
+
+@pytest.mark.asyncio
+async def test_generate_caps_in_flight_calls_at_the_limit():
+    """With the limiter set to 2, no more than 2 underlying provider calls run
+    concurrently even when 5 generate() coroutines are launched at once."""
+    import adapters.llm as llm
+
+    in_flight = 0
+    peak = 0
+
+    async def fake_groq(system_prompt, user_message):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0.02)  # hold the slot so overlap is observable
+        in_flight -= 1
+        return "ok"
+
+    # Force a known small limit for the test, independent of env config.
+    with patch.object(llm, "_LLM_SEMAPHORE", asyncio.Semaphore(2)), \
+         patch("adapters.llm.groq_generate", side_effect=fake_groq):
+        results = await asyncio.gather(
+            *(llm.generate(system_prompt="s", user_message="m") for _ in range(5))
+        )
+
+    assert results == ["ok"] * 5
+    assert peak <= 2  # the limiter held the line
+
+
+@pytest.mark.asyncio
+async def test_generate_still_falls_back_to_gemini_under_the_limiter():
+    """The semaphore must not change the Groq→Gemini fallback contract."""
+    import adapters.llm as llm
+
+    async def boom(system_prompt, user_message):
+        raise RuntimeError("groq down")
+
+    async def ok_gemini(system_prompt, user_message):
+        return "from gemini"
+
+    with patch.object(llm, "_LLM_SEMAPHORE", asyncio.Semaphore(2)), \
+         patch("adapters.llm.groq_generate", side_effect=boom), \
+         patch("adapters.llm.gemini_generate", side_effect=ok_gemini):
+        out = await llm.generate(system_prompt="s", user_message="m")
+
+    assert out == "from gemini"
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd worker && uv run pytest tests/test_llm_concurrency.py -v`
+Expected: FAIL with `AttributeError: module 'adapters.llm' has no attribute '_LLM_SEMAPHORE'`
+
+- [ ] **Step 3: Add the config setting**
+
+In `worker/config.py`, add this field to the `Settings` class alongside the other LLM settings (after the `gemini_model` line):
+
+```python
+    # Cap on concurrent in-flight LLM provider calls process-wide. Protects the
+    # Groq/Gemini per-key rate limits when many cells render at once. Tune up as
+    # provider quota allows; keep conservative by default.
+    llm_max_concurrency: int = 5
+```
+
+- [ ] **Step 4: Wrap `generate` in the semaphore**
+
+Rewrite `worker/adapters/llm.py` to introduce a module-level semaphore and acquire it around the provider calls (keep the existing Groq→Gemini fallback exactly):
+
+```python
+import asyncio
+
+import structlog
+from fastapi import HTTPException
+
+from adapters.groq import groq_generate
+from adapters.gemini import gemini_generate
+from config import settings
+
+logger = structlog.get_logger()
+
+# Process-wide cap on concurrent LLM calls. The atomization matrix can issue
+# many calls at once (refill cron batch); this queues them instead of blowing
+# the provider's per-key rate limit. Created once at import, shared by all
+# coroutines in this worker process.
+_LLM_SEMAPHORE = asyncio.Semaphore(settings.llm_max_concurrency)
+
+
+async def generate(system_prompt: str, user_message: str) -> str:
+    """Call Groq; fall back to Gemini on any exception. Bounded by a global
+    semaphore so concurrent callers can't exceed the provider rate limit."""
+    async with _LLM_SEMAPHORE:
+        try:
+            return await groq_generate(system_prompt, user_message)
+        except Exception as exc:
+            logger.warning("groq_failed_falling_back_to_gemini", error=str(exc))
+            try:
+                return await gemini_generate(system_prompt, user_message)
+            except Exception as gemini_exc:
+                logger.error("gemini_also_failed", error=str(gemini_exc))
+                raise HTTPException(
+                    status_code=502,
+                    detail="Both primary and fallback AI models failed to generate a response. Please try again later.",
+                )
+```
+
+- [ ] **Step 5: Run test to verify it passes**
+
+Run: `cd worker && uv run pytest tests/test_llm_concurrency.py tests/test_llm.py -v`
+Expected: PASS — both new tests AND the existing `test_llm.py` (confirms the fallback contract is unchanged).
+
+- [ ] **Step 6: Add the env var to `.env.example`**
+
+Per CLAUDE.md §B.7 (every env var goes in `.env.example` with a one-line comment), add:
+
+```
+# Max concurrent LLM provider calls (protects Groq/Gemini rate limits). Default 5.
+LLM_MAX_CONCURRENCY=
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add worker/config.py worker/adapters/llm.py worker/tests/test_llm_concurrency.py .env.example
+git commit -m "feat(worker): global LLM concurrency limit (rate-limit safeguard)"
+```
+
+---
+
 ## Phase 2 — Worker stage A: extract ideas (LLM)
 
 ### Task 2.1: `atomize.py` — extract atomic ideas from asset text
@@ -1354,6 +1502,8 @@ git commit -m "feat(worker): cadence upsert route (/content-engine/cadence)"
 ## Phase 7 — Worker: refill-and-schedule cron (the autopilot loop)
 
 This drains the reservoir into scheduled variants, respecting the autopilot toggle, and fires the low-reservoir nudge.
+
+> **Capacity note:** this cron fans out across active cadences with `asyncio.gather`, and each cadence renders up to `per_cadence_limit` cells. The *actual* LLM concurrency is bounded by the global semaphore added in Phase 1.5 (it wraps `render_cell`'s underlying `generate()` call), so even a burst of active cadences cannot exceed the provider rate limit — calls queue on the semaphore. `per_cadence_limit` (default 5) is the per-run drain depth, deliberately small so each cron tick is bounded work; the reservoir is drained gradually across ticks, not all at once.
 
 ### Task 7.1: `run_refill_and_schedule` in `cron/jobs.py`
 

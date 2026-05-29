@@ -124,6 +124,29 @@ validated; nothing from them changes v1 scope. Templates (this item) are the onl
 
 ---
 
+## D10 — Backend horizontal scaling + web/worker process split
+**What:** Capacity headroom beyond the v1 LLM concurrency limiter (which ships in v1 — Phase 1.5 of the plan).
+Two future levers, in order of when they'll bite:
+1. **Horizontal scale the worker:** bump `min_machines_running` and run 2–3 copies of the *same* worker image
+   on Fly. Already safe to do — the publisher's `claim_due_variants()` uses `FOR UPDATE SKIP LOCKED`, and the
+   refill cron's reservoir drain uses the same DB-as-queue model, so multiple workers won't double-process.
+   This is a config change, not a rewrite.
+2. **Split the cron/background workers from the web-facing API** into a separate Fly *process group* (same
+   codebase, same deploy, different entrypoint) so a flood of atomize/refill work can't starve user-facing
+   request latency, and the two can scale independently.
+
+**Why deferred:** v1's real bottleneck is the LLM provider rate limit, handled by the Phase 1.5 semaphore. CPU,
+RAM, and request contention don't bite until well past current scale. CLAUDE.md §5.6 ("keep the Python island;
+resist splitting until a specific pain point justifies it") governs here — full microservices are explicitly
+not warranted pre-scale (no independent-scaling need, no team-boundary need; they'd add deploy targets, network
+hops, and duplicated auth for no current benefit).
+
+**Revisit when:** (1) LLM quota is raised but a single worker still can't keep the reservoir full → scale out
+(lever 1). (2) User-facing request P95 latency degrades during heavy cron runs → process split (lever 2).
+Do NOT jump to lever 2 before observing (2) in real traffic. Decision context: 2026-05-30 capacity review.
+
+---
+
 ## D6 — Learning loop: feed engagement back into idea/format selection
 **What:** Close the loop — measure which ideas/formats/angles/platforms actually performed, and bias future
 matrix expansion + ordering toward winners.
