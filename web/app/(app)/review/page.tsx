@@ -1,7 +1,12 @@
 import { Inbox } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { listPendingApprovalVariants } from "@/lib/db/content-engine";
+import {
+  getCadencesForWorkspace,
+  getReservoirForPersona,
+  listPendingApprovalVariants,
+} from "@/lib/db/content-engine";
+import { LowFuelBanner, type LowFuelPlatform } from "@/components/app/LowFuelBanner";
 import { ReviewList } from "./_components/ReviewList";
 
 export default async function ReviewPage() {
@@ -25,6 +30,19 @@ export default async function ReviewPage() {
     angle: v.content_items?.angle ?? null,
   }));
 
+  // Surface the low-fuel nudge here too: for each active cadence whose reservoir
+  // is below its threshold, warn the user to feed the engine.
+  const cadences = await getCadencesForWorkspace(workspace.workspace_id);
+  const activeCadences = cadences.filter((c) => c.active);
+  const reservoirs = await Promise.all(
+    activeCadences.map((c) => getReservoirForPersona(c.persona_id, c.platform))
+  );
+  const low: LowFuelPlatform[] = activeCadences.flatMap((c, i) =>
+    reservoirs[i] < c.low_reservoir_threshold
+      ? [{ platform: c.platform, reservoir: reservoirs[i], threshold: c.low_reservoir_threshold }]
+      : []
+  );
+
   return (
     <div className="space-y-5 page-enter">
       <div className="flex items-center gap-3">
@@ -40,6 +58,8 @@ export default async function ReviewPage() {
           </p>
         </div>
       </div>
+
+      <LowFuelBanner low={low} />
 
       <ReviewList initial={items} />
     </div>

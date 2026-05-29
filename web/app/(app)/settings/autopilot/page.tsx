@@ -7,6 +7,7 @@ import {
   getReservoirForPersona,
 } from "@/lib/db/content-engine";
 import { CadenceForm } from "./_components/CadenceForm";
+import { LowFuelBanner, type LowFuelPlatform } from "@/components/app/LowFuelBanner";
 
 export default async function AutopilotSettingsPage() {
   const supabase = await createClient();
@@ -43,6 +44,22 @@ export default async function AutopilotSettingsPage() {
     getReservoirForPersona(persona.id, "x"),
   ]);
 
+  // A platform is "low" only when its cadence is active and the reservoir has
+  // fallen below that cadence's threshold — the same condition the refill cron
+  // nudges on.
+  const low: LowFuelPlatform[] = (
+    [
+      ["linkedin", liReservoir],
+      ["x", xReservoir],
+    ] as const
+  ).flatMap(([platform, reservoir]) => {
+    const cadence = byPlatform(platform);
+    if (cadence && cadence.active && reservoir < cadence.low_reservoir_threshold) {
+      return [{ platform, reservoir, threshold: cadence.low_reservoir_threshold }];
+    }
+    return [];
+  });
+
   return (
     <div className="space-y-5 page-enter">
       {/* Header */}
@@ -59,6 +76,8 @@ export default async function AutopilotSettingsPage() {
           </p>
         </div>
       </div>
+
+      <LowFuelBanner low={low} />
 
       {/* Reservoir indicator */}
       <div className="flex flex-wrap gap-3">
