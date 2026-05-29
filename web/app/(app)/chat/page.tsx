@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { VariantCard } from "./_components/VariantCard";
 import { TypingIndicator } from "./_components/TypingIndicator";
 import { UserBubble } from "./_components/UserBubble";
 import { AiMessage } from "./_components/AiMessage";
 import { ExtractionCard } from "./_components/ExtractionCard";
 import { ChatInput } from "./_components/ChatInput";
-import { CampaignBatchCard } from "./_components/CampaignBatchCard";
 import { parseInput } from "@/lib/chat/parse-input";
 import type { Database } from "@/lib/db/types";
 
 type PersonaRow = Database["public"]["Tables"]["personas"]["Row"];
 type Media = { cloudinary_url: string; cloudinary_id: string };
-type Variant = { id: string; platform: string; body: string };
 
 type ChatMessage =
   | { id: string; type: "user"; text: string; isUrl: boolean }
@@ -26,24 +24,11 @@ type ChatMessage =
       title: string;
       text: string;
       media: Media[];
-      // User's angle/instruction typed alongside the URL, carried through
-      // to generation. Undefined when the user pasted only a bare URL.
       userAngle?: string;
       generationError?: string;
       generated?: boolean;
     }
-  | { id: string; type: "ai-generating"; jobId: string; stage: string }
-  | { id: string; type: "ai-variants"; variants: Variant[]; jobId: string }
-  | { id: string; type: "ai-campaign"; campaignId: string }
   | { id: string; type: "ai-error"; message: string };
-
-
-const STAGE_LABELS: Record<string, string> = {
-  analyzing: "Analyzing content…",
-  generating: "Writing posts…",
-  storing: "Saving drafts…",
-  done: "Done!",
-};
 
 let _uid = 0;
 function uid() {
@@ -51,6 +36,7 @@ function uid() {
 }
 
 export default function ChatPage() {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [platforms, setPlatforms] = useState<("linkedin" | "x")[]>([]);
@@ -59,7 +45,6 @@ export default function ChatPage() {
   const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,36 +75,6 @@ export default function ChatPage() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!activeJobId || !isGenerating) return;
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`gen-${activeJobId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "ingestion_jobs",
-          filter: `id=eq.${activeJobId}`,
-        },
-        (payload) => {
-          const stage = (payload.new as { stage: string }).stage;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.type === "ai-generating" && m.jobId === activeJobId
-                ? { ...m, stage }
-                : m
-            )
-          );
-        }
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [activeJobId, isGenerating]);
-
   function addMessage(msg: ChatMessage) {
     setMessages((prev) => [...prev, msg]);
   }
@@ -134,8 +89,6 @@ export default function ChatPage() {
     );
   }
 
-  // Default to all selected personas; fall back to the first persona if the
-  // user deselected everything.
   function resolvePersonaIds(): string[] {
     if (selectedPersonaIds.length > 0) return selectedPersonaIds;
     return personas[0] ? [personas[0].id] : [];
@@ -145,7 +98,7 @@ export default function ChatPage() {
     jobId: string,
     personaIds: string[],
     userAngle: string | null
-  ): Promise<{ ok: boolean; data: { campaign_id?: string; variants?: unknown[]; error?: string } }> {
+  ): Promise<{ ok: boolean; data: { campaign_id?: string; error?: string } }> {
     const res = await fetch("/api/campaigns", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -159,27 +112,6 @@ export default function ChatPage() {
     return { ok: res.ok, data: await res.json() };
   }
 
-  function buildGenerationResult(
-    id: string,
-    jobId: string,
-    isMultiPersona: boolean,
-    data: { campaign_id?: string; variants?: unknown[] }
-  ): ChatMessage {
-    if (isMultiPersona) {
-      return { id, type: "ai-campaign", campaignId: data.campaign_id ?? "" };
-    }
-    return {
-      id,
-      type: "ai-variants",
-      jobId,
-      variants: ((data.variants ?? []) as {
-        variant_id: string;
-        platform: string;
-        body: string;
-      }[]).map((v) => ({ id: v.variant_id, platform: v.platform, body: v.body })),
-    };
-  }
-
   async function handleSubmit() {
     const text = input.trim();
     if (!text || isExtracting || isGenerating) return;
@@ -188,14 +120,11 @@ export default function ChatPage() {
 
     addMessage({ id: uid(), type: "user", text, isUrl: Boolean(url) });
 
-    // Prompt-only — nothing to scrape, generate straight from the prompt.
     if (!url) {
       await handlePromptOnly(text);
       return;
     }
 
-    // URL present — extract it. Any text alongside the URL becomes the angle,
-    // remembered on the extraction card and applied when the user generates.
     const { angle } = parseInput(text);
     setIsExtracting(true);
     const typingId = uid();
@@ -209,68 +138,78 @@ export default function ChatPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        replaceMessage(typingId, {
-          id: typingId,
-          type: "ai-error",
-          message: data.error ?? "Extraction failed.",
-        });
+        replaceMessage(typingId, { id: typingId, type: "ai-error", message: data.error ?? "Extraction failed." });
         return;
       }
-      setActiveJobId(data.job_id);
 
-      // Poll the job status until it transitions to "done" or "failed"
-      let jobData = data;
-      const startTime = Date.now();
-      const timeoutMs = 60000; // 60s timeout for full scrape + upload
-
+      const jobId = data.job_id;
       const INGEST_STAGE_LABELS: Record<string, string> = {
         pending: "Starting ingestion...",
         scraping: "Scraping URL...",
         uploading_media: "Uploading media assets...",
       };
 
-      while (
-        jobData.status === "processing" ||
-        (jobData.stage !== "done" && jobData.stage !== "failed")
-      ) {
-        if (Date.now() - startTime > timeoutMs) {
-          throw new Error("Extraction timed out.");
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const checkRes = await fetch(`/api/ingest/${data.job_id}`);
-        if (!checkRes.ok) {
-          throw new Error("Failed to check extraction status.");
-        }
-        jobData = await checkRes.json();
-        
-        if (jobData.stage === "done" || jobData.stage === "failed") {
-          break;
+      type JobRow = { stage: string; extracted_title?: string; extracted_text?: string; media?: Media[]; error?: string };
+
+      const finalJob = await new Promise<JobRow>((resolve, reject) => {
+        const supabase = createClient();
+        let settled = false;
+
+        const timeout = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          supabase.removeChannel(channel);
+          reject(new Error("Extraction timed out."));
+        }, 60000);
+
+        function settle(job: JobRow) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          supabase.removeChannel(channel);
+          resolve(job);
         }
 
-        const stageLabel = INGEST_STAGE_LABELS[jobData.stage] ?? "Extracting content...";
-        replaceMessage(typingId, {
-          id: typingId,
-          type: "ai-typing",
-          label: stageLabel,
-        });
-      }
+        const channel = supabase
+          .channel(`ingest-${jobId}`)
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "ingestion_jobs", filter: `id=eq.${jobId}` },
+            (payload) => {
+              const job = payload.new as JobRow;
+              if (job.stage === "done" || job.stage === "failed") {
+                settle(job);
+              } else {
+                replaceMessage(typingId, { id: typingId, type: "ai-typing", label: INGEST_STAGE_LABELS[job.stage] ?? "Extracting content..." });
+              }
+            }
+          )
+          .subscribe(async (status) => {
+            // One-shot check after subscribe in case the job finished before
+            // the channel was ready (fast scrape race condition).
+            if (status === "SUBSCRIBED") {
+              const checkRes = await fetch(`/api/ingest/${jobId}`).catch(() => null);
+              if (!checkRes?.ok) return;
+              const job: JobRow = await checkRes.json().catch(() => null);
+              if (job && (job.stage === "done" || job.stage === "failed")) {
+                settle(job);
+              }
+            }
+          });
+      });
 
-      if (jobData.stage === "failed") {
-        replaceMessage(typingId, {
-          id: typingId,
-          type: "ai-error",
-          message: jobData.error ?? "Extraction failed.",
-        });
+      if (finalJob.stage === "failed") {
+        replaceMessage(typingId, { id: typingId, type: "ai-error", message: finalJob.error ?? "Extraction failed." });
         return;
       }
 
       replaceMessage(typingId, {
         id: typingId,
         type: "ai-extracted",
-        jobId: data.job_id,
-        title: jobData.extracted_title || "",
-        text: jobData.extracted_text || "",
-        media: jobData.media || [],
+        jobId,
+        title: finalJob.extracted_title || "",
+        text: finalJob.extracted_text || "",
+        media: finalJob.media || [],
         userAngle: angle || undefined,
       });
     } catch (err) {
@@ -284,22 +223,14 @@ export default function ChatPage() {
     }
   }
 
-  // Prompt-only flow (no URL): skip the extraction card entirely. Create a
-  // text ingestion job (no scraping — the worker echoes the text), then
-  // generate with the prompt as the angle/topic.
   async function handlePromptOnly(prompt: string) {
     if (platforms.length === 0 || isGenerating) return;
     const personaIds = resolvePersonaIds();
     if (personaIds.length === 0) return;
     setIsGenerating(true);
 
-    const isMultiPersona = personaIds.length > 1;
     const generatingId = uid();
-    addMessage(
-      isMultiPersona
-        ? { id: generatingId, type: "ai-typing", label: "Generating for all personas…" }
-        : { id: generatingId, type: "ai-generating", jobId: "prompt", stage: "generating" }
-    );
+    addMessage({ id: generatingId, type: "ai-typing", label: "Generating posts…" });
 
     try {
       const ingestRes = await fetch("/api/ingest", {
@@ -309,33 +240,18 @@ export default function ChatPage() {
       });
       const ingestData = await ingestRes.json();
       if (!ingestRes.ok) {
-        replaceMessage(generatingId, {
-          id: generatingId,
-          type: "ai-error",
-          message: ingestData.error ?? "Couldn't start generation.",
-        });
+        replaceMessage(generatingId, { id: generatingId, type: "ai-error", message: ingestData.error ?? "Couldn't start generation." });
         return;
       }
 
       const { ok, data } = await callCampaigns(ingestData.job_id, personaIds, prompt);
-      if (!ok) {
-        replaceMessage(generatingId, {
-          id: generatingId,
-          type: "ai-error",
-          message: data.error ?? "Generation failed.",
-        });
+      if (!ok || !data.campaign_id) {
+        replaceMessage(generatingId, { id: generatingId, type: "ai-error", message: data.error ?? "Generation failed." });
         return;
       }
-      replaceMessage(
-        generatingId,
-        buildGenerationResult(generatingId, ingestData.job_id, isMultiPersona, data)
-      );
+      router.push(`/campaigns/${data.campaign_id}`);
     } catch {
-      replaceMessage(generatingId, {
-        id: generatingId,
-        type: "ai-error",
-        message: "Network error. Please try again.",
-      });
+      replaceMessage(generatingId, { id: generatingId, type: "ai-error", message: "Network error. Please try again." });
     } finally {
       setIsGenerating(false);
     }
@@ -347,17 +263,13 @@ export default function ChatPage() {
     if (personaIds.length === 0) return;
     setIsGenerating(true);
 
-    const isMultiPersona = personaIds.length > 1;
     const generatingId = uid();
-    addMessage(
-      isMultiPersona
-        ? { id: generatingId, type: "ai-typing", label: "Generating for all personas…" }
-        : { id: generatingId, type: "ai-generating", jobId, stage: "analyzing" }
-    );
+    addMessage({ id: generatingId, type: "ai-typing", label: "Generating posts…" });
 
     try {
       const { ok, data } = await callCampaigns(jobId, personaIds, userAngle ?? null);
-      if (!ok) {
+      if (!ok || !data.campaign_id) {
+        // Show error on the extraction card, remove the generating indicator
         setMessages((prev) =>
           prev
             .filter((m) => m.id !== generatingId)
@@ -369,17 +281,15 @@ export default function ChatPage() {
         );
         return;
       }
-
-      const replacement = buildGenerationResult(generatingId, jobId, isMultiPersona, data);
+      // Mark extraction card as done, then navigate
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === generatingId
-            ? replacement
-            : m.type === "ai-extracted" && m.jobId === jobId
-              ? { ...m, generated: true }
-              : m
-        )
+        prev
+          .filter((m) => m.id !== generatingId)
+          .map((m) =>
+            m.type === "ai-extracted" && m.jobId === jobId ? { ...m, generated: true } : m
+          )
       );
+      router.push(`/campaigns/${data.campaign_id}`);
     } catch {
       setMessages((prev) =>
         prev
@@ -489,41 +399,6 @@ export default function ChatPage() {
                     selectedPersonaIds={selectedPersonaIds}
                     onTogglePersona={togglePersona}
                   />
-                );
-              }
-              if (msg.type === "ai-generating") {
-                return (
-                  <TypingIndicator
-                    key={msg.id}
-                    label={STAGE_LABELS[msg.stage] ?? "Generating…"}
-                  />
-                );
-              }
-              if (msg.type === "ai-variants") {
-                return (
-                  <div key={msg.id} className="space-y-3 animate-message-in">
-                    <AiMessage>
-                      <p className="text-sm font-medium text-slate-700">
-                        Here are your drafts — ready to publish or schedule.
-                      </p>
-                    </AiMessage>
-                    {msg.variants.map((v, i) => (
-                      <div
-                        key={v.id}
-                        className="pl-11 animate-message-in"
-                        style={{ animationDelay: `${i * 0.08}s` }}
-                      >
-                        <VariantCard variant={v} jobId={msg.jobId} />
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-              if (msg.type === "ai-campaign") {
-                return (
-                  <div key={msg.id} className="pl-11 animate-message-in">
-                    <CampaignBatchCard campaignId={msg.campaignId} />
-                  </div>
                 );
               }
               return null;
