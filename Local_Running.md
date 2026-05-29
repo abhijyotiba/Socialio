@@ -93,5 +93,14 @@ In production, these are called by an external scheduler. For local development 
     ```bash
     curl -X POST http://localhost:8000/cron/cleanup-orphaned-media -H "Authorization: Bearer <YOUR_CRON_SECRET>"
     ```
+*   **Refill & Schedule — Content Engine autopilot (`/cron/refill-and-schedule`)**:
+    ```bash
+    curl -X POST http://localhost:8000/cron/refill-and-schedule -H "Authorization: Bearer <YOUR_CRON_SECRET>"
+    ```
+    Drains each active cadence's reservoir: renders the next planned matrix cells into
+    post variants (autopilot → `draft`; manual → `pending_approval`) and fires the
+    low-reservoir nudge. **Recommended production interval: hourly** — the reservoir drains
+    slowly, so minute-level scheduling is unnecessary. Add this to the same external
+    scheduler that drives the other `/cron/*` endpoints.
 
 Make sure to replace `<YOUR_CRON_SECRET>` with the value defined in your env files.
