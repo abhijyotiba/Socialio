@@ -99,6 +99,31 @@ automatically. Adds setup surface.
 
 ---
 
+## D9 — Named templates as matrix presets (not input forms)
+**What:** Competitors (Buffer/Hootsuite/SocialBee and QuillFlow/"SocialAI") offer named templates like "Product
+Launch", "Thought Leadership", "Viral Thread". Theirs are **input-side prompt presets** (pick template → fill a
+form → get a post) — the form-based model we're explicitly trying to beat. Our version: a template = a **named
+bias over the atomization matrix** (output-side), e.g. "Thought Leadership" = prefer `contrarian` + `hot_take`
++ `framework` cells; "Product Launch" = the narrative-blueprint shape (see D3). Same word, rides our engine
+instead of bolting a form onto it.
+
+**Why deferred:** The matrix already varies output automatically, so templates are a refinement, not core.
+Adding named modes at setup also adds config that cuts slightly against "set it once". Worth doing once the
+base engine is proven and we want a familiar on-ramp users have been trained to expect.
+
+**Revisit when:** Base engine is solid; user research shows people want to steer the *style mix* of their queue,
+or want a recognizable "mode" picker. Implement as a preset that weights cell selection in `order_planned_posts`
+/ the matrix-expand step. Composes with D3 (narrative blueprints) and D8 (user-configurable format mix).
+
+**Competitive note (2026-05-30):** Reviewed a competitor positioned as "SocialAI – AI-Powered Social Media
+Automation Tool" (quillflow.netlify.app). Its visible feature set (AI studio, calendar, multi-platform
+publishing, brand voice, repurposing, workspaces, analytics) is at roughly our V1 level — we already have or
+have planned all of it. The *gaps* an outside reviewer wanted it to fill (agent mode = auto-generate a content
+plan, performance learning, deep repurposing engine) are exactly this Autonomous Content Engine. Direction is
+validated; nothing from them changes v1 scope. Templates (this item) are the only borrowable idea, deferred.
+
+---
+
 ## D6 — Learning loop: feed engagement back into idea/format selection
 **What:** Close the loop — measure which ideas/formats/angles/platforms actually performed, and bias future
 matrix expansion + ordering toward winners.
