@@ -64,3 +64,48 @@ async def generate_variants(
         body = await generate(system_prompt=brand_system_prompt, user_message=user_message)
         results.append({"platform": platform, "body": body.strip()})
     return results
+
+
+_FORMAT_HINTS: dict[str, str] = {
+    "hot_take": "a bold, opinionated hot take",
+    "how_to": "a practical step-by-step how-to",
+    "personal_story": "a short first-person story with a lesson",
+    "question": "an engaging question that invites replies",
+    "myth_buster": "a myth-vs-reality correction",
+    "thread": "a multi-point thread (numbered points)",
+}
+
+_ANGLE_HINTS: dict[str, str] = {
+    "beginner": "for an audience new to the topic",
+    "expert": "for an experienced, expert audience",
+    "contrarian": "taking a contrarian stance against common wisdom",
+    "practical": "focused on practical, immediately actionable value",
+}
+
+
+async def render_cell(
+    essence: str,
+    source_quote: str,
+    fmt: str,
+    angle: str,
+    platform: str,
+    brand_system_prompt: str,
+) -> str:
+    """Stage B — render ONE matrix cell into a finished post body."""
+    if not essence.strip():
+        raise ValueError("render_cell requires an idea essence")
+
+    platform_hint = _PLATFORM_HINTS.get(platform, platform)
+    format_hint = _FORMAT_HINTS.get(fmt, fmt)
+    angle_hint = _ANGLE_HINTS.get(angle, angle)
+
+    user_message = (
+        f"Write a {platform_hint}.\n\n"
+        f"Form: write it as {format_hint} ({fmt}).\n"
+        f"Angle: {angle_hint} ({angle}).\n\n"
+        f"Express this single idea:\n{essence}\n\n"
+        f"Stay truthful to this source quote (do not invent facts):\n{source_quote}\n\n"
+        "Return only the post text — no labels, no quotation marks."
+    )
+    body = await generate(system_prompt=brand_system_prompt, user_message=user_message)
+    return body.strip()
