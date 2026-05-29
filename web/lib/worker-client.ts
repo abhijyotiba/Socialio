@@ -283,4 +283,18 @@ export async function workerUpsertCadence(
   });
 }
 
+// Batch-review action on a pending_approval post variant: approve → draft,
+// reject → cancelled.
+export async function workerReviewPost(
+  variantId: string,
+  action: "approve" | "reject",
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/posts/${encodeURIComponent(variantId)}/review`, {
+    method: "POST",
+    accessToken,
+    json: { action },
+  });
+}
+
 

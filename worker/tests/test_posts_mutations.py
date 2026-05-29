@@ -90,6 +90,64 @@ def test_cancel_post_not_scheduled(client):
     assert res.status_code == 409
 
 
+def test_review_approve_moves_pending_to_draft(client, monkeypatch):
+    captured = {}
+
+    async def _get_pending(_client, pid):
+        return {
+            "id": pid, "workspace_id": "ws-1", "platform": "linkedin",
+            "body": "x", "status": "pending_approval",
+        }
+
+    async def _update(_client, _pid, patch):
+        captured.update(patch)
+
+    monkeypatch.setattr(db_posts, "get_post_variant", _get_pending)
+    monkeypatch.setattr(db_posts, "update_post_variant", _update)
+    res = client.post("/posts/var-1/review", json={"action": "approve"})
+    assert res.status_code == 200
+    assert res.json()["status"] == "draft"
+    assert captured["status"] == "draft"
+
+
+def test_review_reject_moves_pending_to_cancelled(client, monkeypatch):
+    captured = {}
+
+    async def _get_pending(_client, pid):
+        return {
+            "id": pid, "workspace_id": "ws-1", "platform": "linkedin",
+            "body": "x", "status": "pending_approval",
+        }
+
+    async def _update(_client, _pid, patch):
+        captured.update(patch)
+
+    monkeypatch.setattr(db_posts, "get_post_variant", _get_pending)
+    monkeypatch.setattr(db_posts, "update_post_variant", _update)
+    res = client.post("/posts/var-1/review", json={"action": "reject"})
+    assert res.status_code == 200
+    assert res.json()["status"] == "cancelled"
+    assert captured["status"] == "cancelled"
+
+
+def test_review_rejects_non_pending_variant(client):
+    # default mock status is "draft" — not reviewable
+    res = client.post("/posts/var-1/review", json={"action": "approve"})
+    assert res.status_code == 409
+
+
+def test_review_rejects_bad_action(client, monkeypatch):
+    async def _get_pending(_client, pid):
+        return {
+            "id": pid, "workspace_id": "ws-1", "platform": "linkedin",
+            "body": "x", "status": "pending_approval",
+        }
+
+    monkeypatch.setattr(db_posts, "get_post_variant", _get_pending)
+    res = client.post("/posts/var-1/review", json={"action": "maybe"})
+    assert res.status_code == 400
+
+
 def test_patch_post_happy_path(client):
     res = client.patch("/posts/var-1", json={"body": "updated content"})
     assert res.status_code == 200
