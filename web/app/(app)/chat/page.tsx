@@ -9,6 +9,7 @@ import { AiMessage } from "./_components/AiMessage";
 import { ExtractionCard } from "./_components/ExtractionCard";
 import { ChatInput } from "./_components/ChatInput";
 import { CampaignBatchCard } from "./_components/CampaignBatchCard";
+import { parseInput } from "@/lib/chat/parse-input";
 import type { Database } from "@/lib/db/types";
 
 type PersonaRow = Database["public"]["Tables"]["personas"]["Row"];
@@ -36,15 +37,6 @@ type ChatMessage =
   | { id: string; type: "ai-campaign"; campaignId: string }
   | { id: string; type: "ai-error"; message: string };
 
-// Pulls the first URL out of free text. The remainder (URL stripped, trimmed)
-// is the user's angle/instruction. No URL → the whole text is the angle.
-function parseInput(text: string): { url: string | null; angle: string } {
-  const match = text.match(/https?:\/\/[^\s]+/);
-  if (!match) return { url: null, angle: text.trim() };
-  const url = match[0];
-  const angle = text.replace(url, "").trim();
-  return { url, angle };
-}
 
 const STAGE_LABELS: Record<string, string> = {
   analyzing: "Analyzing content…",
