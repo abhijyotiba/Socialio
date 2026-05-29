@@ -205,7 +205,7 @@ export type Database = {
           {
             foreignKeyName: "brand_configs_workspace_id_fkey"
             columns: ["workspace_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -365,37 +365,183 @@ export type Database = {
           },
         ]
       }
-      content_items: {
+      content_cadences: {
         Row: {
+          active: boolean
+          autopilot_enabled: boolean
           created_at: string
           id: string
-          ingestion_job_id: string | null
-          prompt_version_id: string | null
-          summary: string | null
+          last_low_nudge_at: string | null
+          low_reservoir_threshold: number
+          persona_id: string
+          platform: string
+          posts_per_week: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          active?: boolean
+          autopilot_enabled?: boolean
+          created_at?: string
+          id?: string
+          last_low_nudge_at?: string | null
+          low_reservoir_threshold?: number
+          persona_id: string
+          platform: string
+          posts_per_week?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          active?: boolean
+          autopilot_enabled?: boolean
+          created_at?: string
+          id?: string
+          last_low_nudge_at?: string | null
+          low_reservoir_threshold?: number
+          persona_id?: string
+          platform?: string
+          posts_per_week?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_cadences_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_cadences_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_ideas: {
+        Row: {
+          created_at: string
+          essence: string
+          id: string
+          idea_type: string
+          ingestion_job_id: string
+          source_quote: string
+          strength: number
+          suitable_angles: Json
+          suitable_formats: Json
           workspace_id: string
         }
         Insert: {
           created_at?: string
+          essence: string
           id?: string
-          ingestion_job_id?: string | null
-          prompt_version_id?: string | null
-          summary?: string | null
+          idea_type: string
+          ingestion_job_id: string
+          source_quote: string
+          strength?: number
+          suitable_angles?: Json
+          suitable_formats?: Json
           workspace_id: string
         }
         Update: {
           created_at?: string
+          essence?: string
           id?: string
+          idea_type?: string
+          ingestion_job_id?: string
+          source_quote?: string
+          strength?: number
+          suitable_angles?: Json
+          suitable_formats?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_ideas_ingestion_job_id_fkey"
+            columns: ["ingestion_job_id"]
+            isOneToOne: false
+            referencedRelation: "ingestion_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_ideas_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_items: {
+        Row: {
+          angle: string | null
+          created_at: string
+          format: string | null
+          id: string
+          idea_id: string | null
+          ingestion_job_id: string | null
+          matrix_cell_hash: string | null
+          persona_id: string | null
+          platform: string | null
+          prompt_version_id: string | null
+          status: string | null
+          summary: string | null
+          workspace_id: string
+        }
+        Insert: {
+          angle?: string | null
+          created_at?: string
+          format?: string | null
+          id?: string
+          idea_id?: string | null
           ingestion_job_id?: string | null
+          matrix_cell_hash?: string | null
+          persona_id?: string | null
+          platform?: string | null
           prompt_version_id?: string | null
+          status?: string | null
+          summary?: string | null
+          workspace_id: string
+        }
+        Update: {
+          angle?: string | null
+          created_at?: string
+          format?: string | null
+          id?: string
+          idea_id?: string | null
+          ingestion_job_id?: string | null
+          matrix_cell_hash?: string | null
+          persona_id?: string | null
+          platform?: string | null
+          prompt_version_id?: string | null
+          status?: string | null
           summary?: string | null
           workspace_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "content_items_idea_id_fkey"
+            columns: ["idea_id"]
+            isOneToOne: false
+            referencedRelation: "content_ideas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "content_items_ingestion_job_id_fkey"
             columns: ["ingestion_job_id"]
             isOneToOne: false
             referencedRelation: "ingestion_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
             referencedColumns: ["id"]
           },
           {
@@ -603,24 +749,6 @@ export type Database = {
           },
         ]
       }
-      platform_limits: {
-        Row: {
-          daily_post_limit: number
-          platform: string
-          updated_at: string
-        }
-        Insert: {
-          daily_post_limit: number
-          platform: string
-          updated_at?: string
-        }
-        Update: {
-          daily_post_limit?: number
-          platform?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       personas: {
         Row: {
           avatar_color: string
@@ -661,6 +789,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_limits: {
+        Row: {
+          daily_post_limit: number
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          daily_post_limit: number
+          platform: string
+          updated_at?: string
+        }
+        Update: {
+          daily_post_limit?: number
+          platform?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       post_metrics: {
         Row: {

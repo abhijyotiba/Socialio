@@ -327,6 +327,45 @@ async def cancel_post(variant_id: str, request: Request) -> dict:
     return {"status": "cancelled"}
 
 
+class ReviewRequest(BaseModel):
+    action: str  # "approve" | "reject"
+
+
+@router.post("/posts/{variant_id}/review")
+async def review_post(
+    variant_id: str, req: ReviewRequest, request: Request
+) -> dict:
+    """Batch-review action for content-engine posts awaiting approval.
+    approve → 'draft' (re-enters the normal publish/schedule flow);
+    reject  → 'cancelled'."""
+    body = await request.body()
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    if req.action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="action must be 'approve' or 'reject'")
+
+    variant = await db_posts.get_post_variant(client, variant_id)
+    if not variant:
+        raise HTTPException(status_code=404, detail="Post variant not found")
+    if variant["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if variant["status"] != "pending_approval":
+        raise HTTPException(
+            status_code=409,
+            detail="Only posts awaiting approval can be reviewed.",
+        )
+
+    new_status = "draft" if req.action == "approve" else "cancelled"
+    await db_posts.update_post_variant(client, variant_id, {"status": new_status})
+    return {"status": new_status}
+
+
 class PatchPostRequest(BaseModel):
     body: str = Field(min_length=1)
 

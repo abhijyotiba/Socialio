@@ -33,3 +33,10 @@ async def cleanup_orphaned_media(request: Request):
     verify_cron(request)
     svc = await service_client()
     return await jobs.run_cleanup_orphaned_media(svc)
+
+
+@router.post("/refill-and-schedule")
+async def refill_and_schedule(request: Request):
+    verify_cron(request)
+    svc = await service_client()
+    return await jobs.run_refill_and_schedule(svc)

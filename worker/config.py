@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemini-1.5-flash"
 
+    # Cap on concurrent in-flight LLM provider calls process-wide. Protects the
+    # Groq/Gemini per-key rate limits when many cells render at once. Tune up as
+    # provider quota allows; keep conservative by default.
+    llm_max_concurrency: int = 5
+
     firecrawl_api_key: str = ""
     firecrawl_timeout_s: int = 45
 

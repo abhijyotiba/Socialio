@@ -254,4 +254,47 @@ export async function workerXCallback(
   });
 }
 
+// ── Content engine (atomization matrix + cadence) ─────────────────────────────
+
+// Atomize an ingested asset into the matrix (extract ideas + materialize cells).
+// The worker owns the LLM extraction and the content_ideas/content_items writes.
+// Generous timeout: one LLM extraction call plus a bulk materialize.
+export async function workerAtomize(
+  payload: { ingestion_job_id: string; persona_id: string; platforms: string[] },
+  accessToken: string
+): Promise<Response> {
+  return workerFetch("/content-engine/atomize", {
+    method: "POST",
+    accessToken,
+    json: payload,
+    timeoutMs: 60_000,
+  });
+}
+
+// Upsert the "set it once" cadence config for a persona+platform.
+export async function workerUpsertCadence(
+  payload: unknown,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch("/content-engine/cadence", {
+    method: "PUT",
+    accessToken,
+    json: payload,
+  });
+}
+
+// Batch-review action on a pending_approval post variant: approve → draft,
+// reject → cancelled.
+export async function workerReviewPost(
+  variantId: string,
+  action: "approve" | "reject",
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/posts/${encodeURIComponent(variantId)}/review`, {
+    method: "POST",
+    accessToken,
+    json: { action },
+  });
+}
+
 

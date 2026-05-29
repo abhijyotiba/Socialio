@@ -27,6 +27,8 @@ type ChatMessage =
       userAngle?: string;
       generationError?: string;
       generated?: boolean;
+      atomizeState?: "idle" | "running" | "done";
+      atomizeResult?: string;
     }
   | { id: string; type: "ai-error"; message: string };
 
@@ -305,6 +307,47 @@ export default function ChatPage() {
     }
   }
 
+  async function handleAtomize(jobId: string) {
+    if (platforms.length === 0) return;
+    const personaIds = resolvePersonaIds();
+    if (personaIds.length === 0) return;
+
+    const setState = (
+      patch: Partial<{ atomizeState: "idle" | "running" | "done"; atomizeResult?: string; generationError?: string }>
+    ) =>
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.type === "ai-extracted" && m.jobId === jobId ? { ...m, ...patch } : m
+        )
+      );
+
+    setState({ atomizeState: "running", generationError: undefined });
+    try {
+      const res = await fetch("/api/content-engine/atomize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingestion_job_id: jobId,
+          persona_id: personaIds[0],
+          platforms,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setState({ atomizeState: "idle", generationError: data.error ?? "Atomize failed." });
+        return;
+      }
+      const ideas = data.ideas_extracted ?? 0;
+      const cells = data.cells_materialized ?? 0;
+      setState({
+        atomizeState: "done",
+        atomizeResult: `Extracted ${ideas} idea${ideas === 1 ? "" : "s"} → ${cells} post${cells === 1 ? "" : "s"} queued. They'll roll out at your cadence.`,
+      });
+    } catch {
+      setState({ atomizeState: "idle", generationError: "Network error. Please try again." });
+    }
+  }
+
   function togglePlatform(p: "linkedin" | "x") {
     setPlatforms((prev) =>
       prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
@@ -392,6 +435,9 @@ export default function ChatPage() {
                     connectedPlatforms={connectedPlatforms}
                     onTogglePlatform={togglePlatform}
                     onGenerate={() => handleGenerate(msg.jobId, msg.userAngle)}
+                    onAtomize={() => handleAtomize(msg.jobId)}
+                    atomizeState={msg.atomizeState}
+                    atomizeResult={msg.atomizeResult}
                     userAngle={msg.userAngle}
                     generationError={msg.generationError}
                     generated={msg.generated}

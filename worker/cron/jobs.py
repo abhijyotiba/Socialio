@@ -11,12 +11,16 @@ from supabase import AsyncClient
 
 from adapters import cloudinary, linkedin, x
 from db import audit_events as db_audit
+from db import brand_configs as db_brand
 from db import campaigns as db_campaigns
+from db import content_cadences as db_cadences
+from db import content_cells as db_cells
 from db import media_assets as db_media
 from db import metrics as db_metrics
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from db import social_connections as db_connections
+from pipeline.generate import render_cell
 from publish.upload_media import upload_media_for_platform
 from security import vault
 
@@ -340,3 +344,108 @@ async def run_cleanup_orphaned_media(svc: AsyncClient) -> dict:
 
     await db_media.delete_media_assets_by_ids(svc, deleted_ids)
     return {"deleted": len(deleted_ids), "failed": failed_count}
+
+
+# ---------------------------------------------------------------------------
+# refill-and-schedule — the autopilot loop
+# ---------------------------------------------------------------------------
+
+
+async def _refill_one_cadence(
+    svc: AsyncClient, cadence: dict, per_cadence_limit: int
+) -> dict:
+    persona_id = cadence["persona_id"]
+    platform = cadence["platform"]
+
+    reservoir = await db_cells.count_reservoir(svc, persona_id, platform)
+
+    # Fire the low-fuel nudge BEFORE the queue empties (and only once per drain
+    # cycle — last_low_nudge_at gates re-nudging on every cron tick).
+    nudged = 0
+    if reservoir < cadence["low_reservoir_threshold"] and not cadence.get("last_low_nudge_at"):
+        await db_audit.insert_audit_event(
+            svc,
+            {
+                "workspace_id": cadence["workspace_id"],
+                "persona_id": persona_id,
+                "entity_type": "cadence",
+                "entity_id": cadence["id"],
+                "event_type": "cadence.low_reservoir",
+                "metadata": {"platform": platform, "reservoir": reservoir},
+            },
+        )
+        await db_cadences.mark_low_nudge_sent(svc, cadence["id"])
+        nudged = 1
+
+    cells = await db_cells.next_planned_cells(
+        svc, persona_id, platform, per_cadence_limit
+    )
+    if not cells:
+        return {"rendered": 0, "nudged": nudged}
+
+    brand = await db_brand.get_brand_config_for_persona(svc, persona_id)
+    brand_prompt = (brand or {}).get("custom_system_prompt") or ""
+    if not brand_prompt:
+        log.warning("refill_skipped_no_brand", persona_id=persona_id)
+        return {"rendered": 0, "nudged": nudged}
+
+    # autopilot ON → variant is publishable immediately (draft → publish-due cron
+    # path); OFF → it waits in the batch-review screen as pending_approval.
+    variant_status = "draft" if cadence["autopilot_enabled"] else "pending_approval"
+
+    rendered = 0
+    for cell in cells:
+        idea = cell.get("content_ideas") or {}
+        essence = idea.get("essence") or ""
+        source_quote = idea.get("source_quote") or ""
+        if not essence:
+            continue
+        body = await render_cell(
+            essence=essence,
+            source_quote=source_quote,
+            fmt=cell["format"],
+            angle=cell["angle"],
+            platform=platform,
+            brand_system_prompt=brand_prompt,
+        )
+        content_item = await db_posts.create_content_item(
+            svc,
+            {
+                "workspace_id": cell["workspace_id"],
+                "persona_id": persona_id,
+                "idea_id": cell["idea_id"],
+            },
+        )
+        await db_posts.create_post_variants(
+            svc,
+            [
+                {
+                    "workspace_id": cell["workspace_id"],
+                    "persona_id": persona_id,
+                    "content_item_id": content_item["id"],
+                    "platform": platform,
+                    "body": body,
+                    "status": variant_status,
+                }
+            ],
+        )
+        await db_cells.mark_cell_rendered(svc, cell["id"])
+        rendered += 1
+
+    return {"rendered": rendered, "nudged": nudged}
+
+
+async def run_refill_and_schedule(
+    svc: AsyncClient, per_cadence_limit: int = 5
+) -> dict:
+    cadences = await db_cadences.list_active_cadences(svc)
+    results = await asyncio.gather(
+        *(_refill_one_cadence(svc, c, per_cadence_limit) for c in cadences),
+        return_exceptions=True,
+    )
+    rendered = sum(r["rendered"] for r in results if isinstance(r, dict))
+    nudged = sum(r["nudged"] for r in results if isinstance(r, dict))
+    failed = sum(1 for r in results if isinstance(r, BaseException))
+    if failed:
+        log.warning("refill_partial_failure", failed=failed)
+    return {"cadences": len(cadences), "rendered": rendered, "nudged": nudged, "failed": failed}

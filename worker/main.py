@@ -17,6 +17,7 @@ from routes.schedule_slots import router as schedule_slots_router
 from routes.media import router as media_router
 from routes.oauth import router as oauth_router
 from routes.system import router as system_router
+from routes.content_engine import router as content_engine_router
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 structlog.configure(
@@ -56,6 +57,7 @@ app.include_router(schedule_slots_router)
 app.include_router(media_router)
 app.include_router(oauth_router)
 app.include_router(system_router)
+app.include_router(content_engine_router)
 
 
 

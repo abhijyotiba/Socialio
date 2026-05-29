@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, memo } from "react";
-import { Sparkles, ChevronDown, ChevronUp, Image as ImageIcon, Link2 } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, Image as ImageIcon, Link2, Zap, Loader2 } from "lucide-react";
 import { AiMessage } from "./AiMessage";
 import { PersonaSelector } from "./PersonaSelector";
 import type { Database } from "@/lib/db/types";
@@ -17,6 +17,9 @@ type Props = {
   connectedPlatforms: ("linkedin" | "x")[];
   onTogglePlatform: (p: "linkedin" | "x") => void;
   onGenerate: () => void;
+  onAtomize?: () => void;
+  atomizeState?: "idle" | "running" | "done";
+  atomizeResult?: string;
   userAngle?: string;
   generationError?: string;
   generated?: boolean;
@@ -56,6 +59,9 @@ export const ExtractionCard = memo(function ExtractionCard({
   connectedPlatforms,
   onTogglePlatform,
   onGenerate,
+  onAtomize,
+  atomizeState = "idle",
+  atomizeResult,
   userAngle,
   generationError,
   generated,
@@ -182,15 +188,34 @@ export const ExtractionCard = memo(function ExtractionCard({
                 );
               })}
 
+              {onAtomize && (
+                <button
+                  onClick={onAtomize}
+                  disabled={platforms.length === 0 || atomizeState === "running"}
+                  className="ml-auto flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-3 py-1.5 text-xs font-bold text-indigo-600 transition hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-40"
+                  title="Atomize this asset into many posts and fill your queue"
+                >
+                  {atomizeState === "running" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Zap className="h-3 w-3" />
+                  )}
+                  {atomizeState === "running" ? "Atomizing…" : "Atomize into queue"}
+                </button>
+              )}
+
               <button
                 onClick={onGenerate}
                 disabled={platforms.length === 0}
-                className="ml-auto flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-40"
+                className={`${onAtomize ? "" : "ml-auto "}flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-40`}
               >
                 <Sparkles className="h-3 w-3" />
                 Generate
               </button>
             </div>
+          )}
+          {atomizeState === "done" && atomizeResult && (
+            <p className="mt-2 text-xs text-emerald-600">✓ {atomizeResult}</p>
           )}
           {generationError && (
             <p className="mt-2 text-xs text-red-500">{generationError}</p>
