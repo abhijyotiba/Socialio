@@ -83,3 +83,44 @@ async def test_mark_cell_rendered_updates_status():
     await mark_cell_rendered(client, "c1")
     chain.update.assert_called_once()
     chain.eq.assert_any_call("id", "c1")
+
+
+# ─── content_cadences ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_upsert_cadence_uses_persona_platform_conflict():
+    client, chain = _fake_client_returning([{"id": "cad1"}])
+    from db.content_cadences import upsert_cadence
+    row = await upsert_cadence(client, {
+        "workspace_id": "w1", "persona_id": "p1", "platform": "linkedin",
+        "posts_per_week": 5, "autopilot_enabled": True,
+    })
+    assert row["id"] == "cad1"
+    assert chain.upsert.called
+
+
+@pytest.mark.asyncio
+async def test_list_active_cadences_filters_active():
+    client, chain = _fake_client_returning([{"id": "cad1", "active": True}])
+    from db.content_cadences import list_active_cadences
+    rows = await list_active_cadences(client)
+    assert len(rows) == 1
+    chain.eq.assert_any_call("active", True)
+
+
+@pytest.mark.asyncio
+async def test_list_cadences_for_workspace_filters_by_workspace():
+    client, chain = _fake_client_returning([{"id": "cad1"}])
+    from db.content_cadences import list_cadences_for_workspace
+    rows = await list_cadences_for_workspace(client, "w1")
+    assert len(rows) == 1
+    chain.eq.assert_any_call("workspace_id", "w1")
+
+
+@pytest.mark.asyncio
+async def test_mark_low_nudge_sent_updates_timestamp():
+    client, chain = _fake_client_returning([{"id": "cad1"}])
+    from db.content_cadences import mark_low_nudge_sent
+    await mark_low_nudge_sent(client, "cad1")
+    chain.update.assert_called_once()
+    chain.eq.assert_any_call("id", "cad1")
