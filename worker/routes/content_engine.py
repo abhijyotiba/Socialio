@@ -1,10 +1,11 @@
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import verify_hmac, verify_user
+from db import content_cadences as db_cadences
 from db import content_cells as db_cells
 from db import content_ideas as db_ideas
 from db import brand_configs as db_brand
@@ -114,3 +115,38 @@ async def atomize(req: AtomizeRequest, request: Request) -> dict:
         brand_system_prompt=brand["custom_system_prompt"],
         platforms=req.platforms,
     )
+
+
+class CadenceRequest(BaseModel):
+    persona_id: str
+    platform: Literal["linkedin", "x"]
+    posts_per_week: int = Field(ge=1, le=21)
+    autopilot_enabled: bool = False
+    active: bool = True
+    low_reservoir_threshold: int = Field(default=5, ge=0)
+
+
+@router.put("/cadence")
+async def upsert_cadence_route(req: CadenceRequest, request: Request) -> dict:
+    body = await request.body()
+    await verify_hmac(request, body)
+    claims, token = await verify_user(request)
+
+    client = await rls_client(token)
+    workspace_id = await get_workspace_id_for_user(client, claims["sub"])
+    if not workspace_id:
+        raise HTTPException(status_code=403, detail="Workspace not found")
+
+    row = await db_cadences.upsert_cadence(
+        client,
+        {
+            "workspace_id": workspace_id,
+            "persona_id": req.persona_id,
+            "platform": req.platform,
+            "posts_per_week": req.posts_per_week,
+            "autopilot_enabled": req.autopilot_enabled,
+            "active": req.active,
+            "low_reservoir_threshold": req.low_reservoir_threshold,
+        },
+    )
+    return {"cadence": row}

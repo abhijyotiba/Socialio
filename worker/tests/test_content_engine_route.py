@@ -61,3 +61,31 @@ async def test_atomize_with_no_ideas_materializes_nothing():
     assert result["cells_materialized"] == 0
     mock_save.assert_not_called()
     mock_mat.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cadence_payload_validation_rejects_bad_platform():
+    from routes.content_engine import CadenceRequest
+    import pydantic
+    with pytest.raises(pydantic.ValidationError):
+        CadenceRequest(persona_id="p1", platform="facebook", posts_per_week=3,
+                       autopilot_enabled=False, active=True)
+
+
+@pytest.mark.asyncio
+async def test_cadence_payload_validation_rejects_out_of_range_cadence():
+    from routes.content_engine import CadenceRequest
+    import pydantic
+    with pytest.raises(pydantic.ValidationError):
+        CadenceRequest(persona_id="p1", platform="linkedin", posts_per_week=99,
+                       autopilot_enabled=False, active=True)
+
+
+@pytest.mark.asyncio
+async def test_cadence_payload_accepts_valid():
+    from routes.content_engine import CadenceRequest
+    req = CadenceRequest(persona_id="p1", platform="linkedin", posts_per_week=5,
+                         autopilot_enabled=True, active=True)
+    assert req.posts_per_week == 5
+    assert req.platform == "linkedin"
+    assert req.low_reservoir_threshold == 5  # default
