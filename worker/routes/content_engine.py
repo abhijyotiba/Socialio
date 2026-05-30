@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from auth import verify_hmac, verify_user
+from db import campaigns as db_campaigns
 from db import content_cadences as db_cadences
 from db import content_cells as db_cells
 from db import content_ideas as db_ideas
@@ -69,9 +70,31 @@ async def run_atomize(
             )
 
     materialized = await db_cells.materialize_cells(client, cells)
+
+    # Find-or-create the autopilot campaign for this asset. One per asset:
+    # re-atomizing the same asset reuses it (idempotent).
+    campaign = await db_campaigns.get_autopilot_campaign_for_job(
+        client, ingestion_job_id
+    )
+    if campaign is None:
+        campaign = await db_campaigns.create_campaign(
+            client,
+            {
+                "workspace_id": workspace_id,
+                "ingestion_job_id": ingestion_job_id,
+                "title": title or "Autopilot",
+                "kind": "autopilot",
+                "status": "pending_approval",
+            },
+        )
+        await db_campaigns.create_campaign_personas(
+            client, campaign["id"], [persona_id]
+        )
+
     return {
         "ideas_extracted": len(saved),
         "cells_materialized": len(materialized),
+        "campaign_id": campaign["id"],
     }
 
 
