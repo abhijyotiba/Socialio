@@ -141,6 +141,36 @@ async def get_campaign_personas(
     return res.data or []
 
 
+async def get_autopilot_campaign_for_job(
+    client: AsyncClient, ingestion_job_id: str
+) -> dict[str, Any] | None:
+    """The single autopilot campaign for an asset, or None. Used by atomize
+    (find-or-create) and the refill cron (link variant)."""
+    res = (
+        await client.table("campaigns")
+        .select("*")
+        .eq("ingestion_job_id", ingestion_job_id)
+        .eq("kind", "autopilot")
+        .maybe_single()
+        .execute()
+    )
+    return res.data
+
+
+async def get_campaign_persona(
+    client: AsyncClient, campaign_id: str, persona_id: str
+) -> dict[str, Any] | None:
+    res = (
+        await client.table("campaign_personas")
+        .select("id, persona_id, approval_status")
+        .eq("campaign_id", campaign_id)
+        .eq("persona_id", persona_id)
+        .maybe_single()
+        .execute()
+    )
+    return res.data
+
+
 async def update_campaign_persona_approval(
     client: AsyncClient, campaign_persona_id: str, status: str
 ) -> None:
