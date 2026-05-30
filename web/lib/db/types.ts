@@ -316,6 +316,7 @@ export type Database = {
           generation_started_at: string | null
           id: string
           ingestion_job_id: string
+          kind: string
           status: string
           title: string | null
           updated_at: string
@@ -329,6 +330,7 @@ export type Database = {
           generation_started_at?: string | null
           id?: string
           ingestion_job_id: string
+          kind?: string
           status?: string
           title?: string | null
           updated_at?: string
@@ -342,6 +344,7 @@ export type Database = {
           generation_started_at?: string | null
           id?: string
           ingestion_job_id?: string
+          kind?: string
           status?: string
           title?: string | null
           updated_at?: string
