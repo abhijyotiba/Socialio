@@ -5,6 +5,10 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { CampaignReview } from "./_components/CampaignReview";
+import {
+  AutopilotVariantList,
+  type AutopilotVariant,
+} from "./_components/AutopilotVariantList";
 
 export default async function CampaignDetailPage({
   params,
@@ -24,6 +28,24 @@ export default async function CampaignDetailPage({
   const campaign = await getCampaignWithPersonas(id);
   if (!campaign || campaign.workspace_id !== workspace.workspace_id) notFound();
 
+  // Autopilot campaigns review per-post; manual campaigns use the per-persona
+  // CampaignReview. Branching here (a Server Component, no hooks) keeps each
+  // path's hooks isolated — the heavy realtime CampaignReview never mounts for
+  // autopilot.
+  const isAutopilot = campaign.kind === "autopilot";
+  const autopilotVariants: AutopilotVariant[] = isAutopilot
+    ? campaign.campaign_personas.flatMap((cp) =>
+        cp.variants.map((v) => ({
+          id: v.post_variant_id,
+          platform: v.platform,
+          body: v.body,
+          status: v.status,
+          format: null,
+          angle: null,
+        }))
+      )
+    : [];
+
   return (
     <div className="space-y-6 page-enter">
       <Link
@@ -33,7 +55,21 @@ export default async function CampaignDetailPage({
         <ChevronLeft className="h-3.5 w-3.5" />
         Back to campaigns
       </Link>
-      <CampaignReview initial={campaign} />
+      {isAutopilot ? (
+        <div className="space-y-4">
+          <div>
+            <h1 className="font-display text-xl font-bold text-slate-900">
+              {campaign.title?.trim() || "Autopilot"}
+            </h1>
+            <p className="text-xs text-slate-400">
+              Posts the engine generated from this asset.
+            </p>
+          </div>
+          <AutopilotVariantList initial={autopilotVariants} />
+        </div>
+      ) : (
+        <CampaignReview initial={campaign} />
+      )}
     </div>
   );
 }
