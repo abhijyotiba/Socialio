@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable} h-full antialiased`}>
       {/* suppressHydrationWarning: browser extensions (e.g. crypto wallets) inject attributes into <body> */}
-      <body className="min-h-full font-sans" suppressHydrationWarning>
+      <body className="min-h-full font-sans antialiased grid-bg" suppressHydrationWarning>
         {children}
       </body>
     </html>

@@ -38,6 +38,17 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-faint-foreground: var(--faint-foreground);
+  --color-border-strong: var(--border-strong);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-grey-1: var(--grey-1);
+  --color-grey-2: var(--grey-2);
+  --color-grey-3: var(--grey-3);
+  --color-grey-4: var(--grey-4);
+  --color-grey-5: var(--grey-5);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,72 +60,66 @@
 
 :root {
   --app-font-mono: "Cascadia Code", "Consolas", "Courier New", monospace;
-  --background: oklch(0.98 0.008 264);
-  --foreground: oklch(0.23 0.02 264);
-  --card: oklch(0.995 0.006 264);
-  --card-foreground: oklch(0.23 0.02 264);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.23 0.02 264);
-  --primary: oklch(0.53 0.22 275);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.95 0.01 264);
-  --secondary-foreground: oklch(0.3 0.02 264);
-  --muted: oklch(0.95 0.008 264);
-  --muted-foreground: oklch(0.5 0.015 264);
-  --accent: oklch(0.93 0.03 275);
-  --accent-foreground: oklch(0.33 0.05 275);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.01 264);
-  --input: oklch(0.9 0.01 264);
-  --ring: oklch(0.66 0.12 275);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.2 0.03 280);
-  --sidebar-foreground: oklch(0.96 0.01 280);
-  --sidebar-primary: oklch(0.56 0.24 284);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.29 0.04 280);
-  --sidebar-accent-foreground: oklch(0.97 0.01 280);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.67 0.13 282);
-}
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Canvas + surfaces */
+  --background: oklch(0.16 0.004 270);      /* near black */
+  --foreground: oklch(0.96 0.003 270);      /* near white */
+  --surface: oklch(0.20 0.004 270);         /* lifted panel */
+  --surface-2: oklch(0.235 0.004 270);      /* higher panel */
+  --card: oklch(0.20 0.004 270);
+  --card-foreground: oklch(0.96 0.003 270);
+  --popover: oklch(0.235 0.004 270);
+  --popover-foreground: oklch(0.96 0.003 270);
+
+  /* Text ramp */
+  --muted: oklch(0.235 0.004 270);
+  --muted-foreground: oklch(0.62 0.006 270); /* secondary */
+  --faint-foreground: oklch(0.45 0.006 270); /* tertiary / labels */
+
+  /* THE accent — electric red-orange, used surgically */
+  --accent: oklch(0.66 0.21 32);
+  --accent-foreground: oklch(0.16 0.004 270);
+  --primary: oklch(0.66 0.21 32);
+  --primary-foreground: oklch(0.16 0.004 270);
+
+  /* Secondary surfaces (neutral chips/buttons) */
+  --secondary: oklch(0.255 0.004 270);
+  --secondary-foreground: oklch(0.92 0.003 270);
+
+  /* Borders */
+  --border: oklch(1 0 0 / 8%);
+  --border-strong: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.66 0.21 32 / 60%);
+
+  /* Status (restrained on dark) */
+  --destructive: oklch(0.62 0.20 25);
+  --success: oklch(0.70 0.16 155);
+  --warning: oklch(0.78 0.15 80);
+
+  /* Greyscale ramp (NUCLEUS node-distribution bars / charts) */
+  --grey-1: oklch(0.92 0.003 270);
+  --grey-2: oklch(0.70 0.004 270);
+  --grey-3: oklch(0.52 0.004 270);
+  --grey-4: oklch(0.38 0.004 270);
+  --grey-5: oklch(0.28 0.004 270);
+  --chart-1: var(--grey-1);
+  --chart-2: var(--grey-2);
+  --chart-3: var(--grey-3);
+  --chart-4: var(--grey-4);
+  --chart-5: var(--grey-5);
+
+  --radius: 0.5rem;
+
+  /* Sidebar = same near-black family */
+  --sidebar: oklch(0.18 0.004 270);
+  --sidebar-foreground: oklch(0.94 0.003 270);
+  --sidebar-primary: oklch(0.66 0.21 32);
+  --sidebar-primary-foreground: oklch(0.16 0.004 270);
+  --sidebar-accent: oklch(0.25 0.004 270);
+  --sidebar-accent-foreground: oklch(0.96 0.003 270);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.66 0.21 32 / 60%);
 }
 
 @layer base {
@@ -124,15 +129,30 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(circle at 10% 0%, rgba(106, 79, 255, 0.12), transparent 30%),
-      radial-gradient(circle at 90% 100%, rgba(59, 130, 246, 0.08), transparent 28%);
+      radial-gradient(900px 600px at 85% -10%, oklch(0.66 0.21 32 / 0.07), transparent 60%),
+      radial-gradient(700px 500px at 0% 110%, oklch(0.66 0.21 32 / 0.04), transparent 55%);
+    background-attachment: fixed;
   }
   html {
     @apply font-sans;
+    color-scheme: dark;
   }
   ::selection {
-    background: rgba(99, 102, 241, 0.24);
+    background: oklch(0.66 0.21 32 / 0.30);
+    color: oklch(0.98 0 0);
   }
+  /* Dark scrollbars */
+  * {
+    scrollbar-color: oklch(0.40 0.004 270) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-thumb {
+    background: oklch(0.34 0.004 270);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: oklch(0.44 0.004 270); }
 }
 
 /* ── Keyframes ──────────────────────────────────────────── */
@@ -188,9 +208,9 @@
 .skeleton {
   background: linear-gradient(
     90deg,
-    oklch(0.93 0.005 264) 0px,
-    oklch(0.97 0.003 264) 300px,
-    oklch(0.93 0.005 264) 600px
+    oklch(0.22 0.004 270) 0px,
+    oklch(0.27 0.004 270) 300px,
+    oklch(0.22 0.004 270) 600px
   );
   background-size: 600px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -203,7 +223,7 @@
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 .card-lift:hover {
-  box-shadow: 0 8px 30px -8px rgba(99, 102, 241, 0.18), 0 2px 8px -2px rgba(0,0,0,0.06);
+  box-shadow: 0 0 0 1px oklch(0.66 0.21 32 / 0.12), 0 16px 50px -18px oklch(0 0 0 / 0.7);
   transform: translateY(-2px);
 }
 
@@ -217,4 +237,80 @@
 
 .typing-dot {
   animation: typingDot 1.2s ease-in-out infinite;
+}
+
+/* ── Obsidian utilities ─────────────────────────────────── */
+
+/* Monospace data accents — numbers, metrics, IDs, timestamps */
+.mono-num {
+  font-family: var(--app-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Oversized display headlines (NUCLEUS energy) */
+.display-xl {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+.display-lg {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+/* Uppercase tracked micro-label */
+.micro-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint-foreground);
+}
+
+/* Standard hairline panel */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+.panel-2 {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+/* Hover: brighten border + faint accent glow (replaces lift+shadow) */
+.panel-hover {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+.panel-hover:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 1px oklch(0.66 0.21 32 / 0.10), 0 12px 40px -16px oklch(0 0 0 / 0.6);
+}
+
+.accent-glow {
+  box-shadow: 0 0 0 1px oklch(0.66 0.21 32 / 0.30), 0 8px 30px -10px oklch(0.66 0.21 32 / 0.45);
+}
+
+/* Subtle grid texture for the canvas / hero areas */
+.grid-bg {
+  background-image:
+    linear-gradient(oklch(1 0 0 / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(1 0 0 / 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Reduced-motion guard for all custom animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-message-in,
+  .animate-fade-up,
+  .animate-fade-in,
+  .page-enter,
+  .skeleton,
+  .typing-dot { animation: none !important; }
+  .panel-hover { transition: none; }
 }
