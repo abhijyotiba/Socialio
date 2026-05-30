@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { listCampaignsForWorkspace } from "@/lib/db/campaigns";
+import { getCadencesForWorkspace, getReservoirForPersona } from "@/lib/db/content-engine";
+import { LowFuelBanner, type LowFuelPlatform } from "@/components/app/LowFuelBanner";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Inbox, ChevronRight } from "lucide-react";
+import { Inbox, ChevronRight, Zap } from "lucide-react";
 import { ClientRelativeTime } from "./_components/ClientRelativeTime";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -34,6 +36,18 @@ export default async function CampaignsListPage() {
 
   const campaigns = await listCampaignsForWorkspace(workspace.workspace_id, 50);
 
+  // Low-fuel nudge: warn when an active cadence's reservoir is below threshold.
+  const cadences = await getCadencesForWorkspace(workspace.workspace_id);
+  const activeCadences = cadences.filter((c) => c.active);
+  const reservoirs = await Promise.all(
+    activeCadences.map((c) => getReservoirForPersona(c.persona_id, c.platform))
+  );
+  const low: LowFuelPlatform[] = activeCadences.flatMap((c, i) =>
+    reservoirs[i] < c.low_reservoir_threshold
+      ? [{ platform: c.platform, reservoir: reservoirs[i], threshold: c.low_reservoir_threshold }]
+      : []
+  );
+
   return (
     <div className="space-y-6 page-enter">
       <div className="flex items-center gap-3">
@@ -49,6 +63,8 @@ export default async function CampaignsListPage() {
           </p>
         </div>
       </div>
+
+      <LowFuelBanner low={low} />
 
       {campaigns.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
@@ -70,7 +86,12 @@ export default async function CampaignsListPage() {
                 className="flex items-center gap-4 rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/30"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900">
+                  <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-900">
+                    {c.kind === "autopilot" && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">
+                        <Zap className="h-2.5 w-2.5" /> Autopilot
+                      </span>
+                    )}
                     {c.title?.trim() || "Untitled campaign"}
                   </p>
                   <p className="mt-0.5 text-[11px] text-slate-400">

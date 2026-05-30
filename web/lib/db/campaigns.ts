@@ -110,17 +110,40 @@ export async function listCampaignsForWorkspace(
     .order('created_at', { ascending: false })
     .limit(limit)
   if (error) throw error
-  return ((data ?? []) as Array<
-    CampaignRow & {
-      campaign_personas: Array<{ approval_status: string }>
+
+  const rows = (data ?? []) as Array<
+    CampaignRow & { campaign_personas: Array<{ approval_status: string }> }
+  >
+
+  // For autopilot campaigns, "pending" means post_variants in pending_approval,
+  // not pending personas. Fetch those counts for all autopilot campaigns in the
+  // page in ONE query (grouped client-side), avoiding an N+1 per campaign.
+  const autopilotIds = rows.filter(r => r.kind === 'autopilot').map(r => r.id)
+  const pendingByCampaign = new Map<string, number>()
+  if (autopilotIds.length > 0) {
+    const { data: links, error: linkErr } = await supabase
+      .from('campaign_persona_variants')
+      .select('campaign_personas!inner(campaign_id), post_variants!inner(status)')
+      .in('campaign_personas.campaign_id', autopilotIds)
+      .eq('post_variants.status', 'pending_approval')
+    if (linkErr) throw linkErr
+    for (const link of (links ?? []) as Array<{ campaign_personas: { campaign_id: string } }>) {
+      const cid = link.campaign_personas.campaign_id
+      pendingByCampaign.set(cid, (pendingByCampaign.get(cid) ?? 0) + 1)
     }
-  >).map(row => {
+  }
+
+  return rows.map(row => {
     const { campaign_personas, ...rest } = row
     const personas = campaign_personas ?? []
+    const pending =
+      row.kind === 'autopilot'
+        ? pendingByCampaign.get(row.id) ?? 0
+        : personas.filter(p => p.approval_status === 'pending').length
     return {
       ...rest,
       persona_count: personas.length,
-      pending_count: personas.filter(p => p.approval_status === 'pending').length,
+      pending_count: pending,
     }
   })
 }

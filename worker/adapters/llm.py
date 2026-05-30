@@ -16,16 +16,22 @@ logger = structlog.get_logger()
 _LLM_SEMAPHORE = asyncio.Semaphore(settings.llm_max_concurrency)
 
 
-async def generate(system_prompt: str, user_message: str) -> str:
+async def generate(
+    system_prompt: str, user_message: str, max_tokens: int = 1024
+) -> str:
     """Call Groq; fall back to Gemini on any exception. Bounded by a global
-    semaphore so concurrent callers can't exceed the provider rate limit."""
+    semaphore so concurrent callers can't exceed the provider rate limit.
+
+    max_tokens defaults to 1024 (short single posts). Callers that need a large
+    structured output — e.g. atomize's full JSON idea list — must raise it, or
+    the response truncates into invalid JSON."""
     async with _LLM_SEMAPHORE:
         try:
-            return await groq_generate(system_prompt, user_message)
+            return await groq_generate(system_prompt, user_message, max_tokens=max_tokens)
         except Exception as exc:
             logger.warning("groq_failed_falling_back_to_gemini", error=str(exc))
             try:
-                return await gemini_generate(system_prompt, user_message)
+                return await gemini_generate(system_prompt, user_message, max_tokens=max_tokens)
             except Exception as gemini_exc:
                 logger.error("gemini_also_failed", error=str(gemini_exc))
                 raise HTTPException(

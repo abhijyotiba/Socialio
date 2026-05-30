@@ -9,10 +9,18 @@ expands sensible cells.
 import json
 import re
 
+import structlog
+
 from adapters.llm import generate
 from pipeline.matrix import FORMATS, ANGLES, IDEA_TYPES
 
+log = structlog.get_logger()
+
 _MAX_TEXT = 12000
+# The idea list (N ideas × essence + quote + metadata) is far larger than a
+# single post. The default 1024-token cap truncates the JSON mid-array → parse
+# failure → 0 ideas. Give it a generous budget.
+_ATOMIZE_MAX_TOKENS = 8000
 
 _SYSTEM = (
     "You extract atomic, reusable content ideas from source material for social "
@@ -77,14 +85,32 @@ async def extract_ideas(
     user_message = _build_user_message(title, text)
     # Brand voice steers which ideas matter, but the extraction contract is fixed.
     system_prompt = f"{_SYSTEM}\n\nBrand context:\n{brand_system_prompt}"
-    raw = await generate(system_prompt=system_prompt, user_message=user_message)
+    raw = await generate(
+        system_prompt=system_prompt,
+        user_message=user_message,
+        max_tokens=_ATOMIZE_MAX_TOKENS,
+    )
 
     try:
         parsed = json.loads(_strip_fence(raw))
     except (ValueError, TypeError):
+        # Most common cause: the model output was truncated and the JSON is
+        # incomplete. Log a preview so "0 ideas" is never a silent mystery.
+        log.warning(
+            "atomize_parse_failed",
+            raw_len=len(raw),
+            raw_tail=raw[-200:],
+        )
         return []
     if not isinstance(parsed, list):
+        log.warning("atomize_not_a_list", parsed_type=type(parsed).__name__)
         return []
 
     cleaned = [c for c in (_clean_idea(e) for e in parsed) if c is not None]
+    if not cleaned:
+        log.warning(
+            "atomize_all_filtered",
+            parsed_count=len(parsed),
+            raw_len=len(raw),
+        )
     return cleaned

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/spine/StatusBadge";
 import { PersonaGroup } from "./PersonaGroup";
+import { createNowStore } from "@/lib/hooks/now-store";
 import type { CampaignWithPersonas } from "@/lib/db/campaigns";
 
 type Props = { initial: CampaignWithPersonas };
@@ -38,13 +39,15 @@ function formatDuration(ms: number): string {
 }
 
 function useNowMs() {
+  // Create the store once per component instance (stable across renders). Its
+  // getSnapshot returns a cached value (stable between ticks) — a fresh
+  // Date.now() per call would make useSyncExternalStore re-render every frame
+  // ("Maximum update depth exceeded").
+  const store = useMemo(() => createNowStore(NOW_POLL_INTERVAL_MS), []);
   return useSyncExternalStore(
-    (onStoreChange) => {
-      const id = setInterval(onStoreChange, NOW_POLL_INTERVAL_MS);
-      return () => clearInterval(id);
-    },
-    () => Date.now(),
-    () => 0
+    store.subscribe,
+    store.getSnapshot,
+    store.getServerSnapshot
   );
 }
 

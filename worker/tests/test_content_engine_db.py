@@ -124,3 +124,34 @@ async def test_mark_low_nudge_sent_updates_timestamp():
     await mark_low_nudge_sent(client, "cad1")
     chain.update.assert_called_once()
     chain.eq.assert_any_call("id", "cad1")
+
+
+# ─── campaign lookup helpers (autopilot unification) ────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_autopilot_campaign_for_job_filters_kind_and_job():
+    # maybe_single() returns a single object (or None), not a list.
+    client, chain = _fake_client_returning({"id": "cam1", "kind": "autopilot"})
+    from db.campaigns import get_autopilot_campaign_for_job
+    row = await get_autopilot_campaign_for_job(client, "job-1")
+    assert row["id"] == "cam1"
+    chain.eq.assert_any_call("ingestion_job_id", "job-1")
+    chain.eq.assert_any_call("kind", "autopilot")
+
+
+@pytest.mark.asyncio
+async def test_get_autopilot_campaign_for_job_returns_none_when_absent():
+    client, chain = _fake_client_returning(None)
+    from db.campaigns import get_autopilot_campaign_for_job
+    row = await get_autopilot_campaign_for_job(client, "job-1")
+    assert row is None
+
+
+@pytest.mark.asyncio
+async def test_get_campaign_persona_filters_campaign_and_persona():
+    client, chain = _fake_client_returning({"id": "cp1", "persona_id": "p1"})
+    from db.campaigns import get_campaign_persona
+    row = await get_campaign_persona(client, "cam1", "p1")
+    assert row["id"] == "cp1"
+    chain.eq.assert_any_call("campaign_id", "cam1")
+    chain.eq.assert_any_call("persona_id", "p1")

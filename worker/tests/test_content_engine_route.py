@@ -16,10 +16,15 @@ async def test_atomize_orchestration_extracts_materializes_and_counts():
 
     with patch("routes.content_engine.extract_ideas", new_callable=AsyncMock) as mock_extract, \
          patch("routes.content_engine.db_ideas.create_content_ideas", new_callable=AsyncMock) as mock_save_ideas, \
-         patch("routes.content_engine.db_cells.materialize_cells", new_callable=AsyncMock) as mock_mat:
+         patch("routes.content_engine.db_cells.materialize_cells", new_callable=AsyncMock) as mock_mat, \
+         patch("routes.content_engine.db_campaigns.get_autopilot_campaign_for_job", new_callable=AsyncMock) as mock_get_cam, \
+         patch("routes.content_engine.db_campaigns.create_campaign", new_callable=AsyncMock) as mock_create_cam, \
+         patch("routes.content_engine.db_campaigns.create_campaign_personas", new_callable=AsyncMock):
         mock_extract.return_value = fake_ideas
         mock_save_ideas.return_value = [{**fake_ideas[0], "id": "idea-1"}]
         mock_mat.return_value = [{"id": "cell-1"}]
+        mock_get_cam.return_value = None
+        mock_create_cam.return_value = {"id": "cam-1"}
 
         result = await run_atomize(
             client=fake_client,
@@ -89,3 +94,61 @@ async def test_cadence_payload_accepts_valid():
     assert req.posts_per_week == 5
     assert req.platform == "linkedin"
     assert req.low_reservoir_threshold == 5  # default
+
+
+@pytest.mark.asyncio
+async def test_atomize_creates_autopilot_campaign_when_absent():
+    from routes.content_engine import run_atomize
+    fake_ideas = [{
+        "essence": "e", "idea_type": "claim", "source_quote": "q",
+        "strength": 4, "suitable_formats": ["hot_take"], "suitable_angles": ["expert"],
+    }]
+    fake_client = AsyncMock()
+    with patch("routes.content_engine.extract_ideas", new_callable=AsyncMock) as mock_extract, \
+         patch("routes.content_engine.db_ideas.create_content_ideas", new_callable=AsyncMock) as mock_save, \
+         patch("routes.content_engine.db_cells.materialize_cells", new_callable=AsyncMock) as mock_mat, \
+         patch("routes.content_engine.db_campaigns.get_autopilot_campaign_for_job", new_callable=AsyncMock) as mock_get_cam, \
+         patch("routes.content_engine.db_campaigns.create_campaign", new_callable=AsyncMock) as mock_create_cam, \
+         patch("routes.content_engine.db_campaigns.create_campaign_personas", new_callable=AsyncMock) as mock_create_cp:
+        mock_extract.return_value = fake_ideas
+        mock_save.return_value = [{**fake_ideas[0], "id": "idea-1"}]
+        mock_mat.return_value = [{"id": "cell-1"}]
+        mock_get_cam.return_value = None              # no campaign yet
+        mock_create_cam.return_value = {"id": "cam-1"}
+        mock_create_cp.return_value = [{"id": "cp-1"}]
+        result = await run_atomize(
+            client=fake_client, workspace_id="w1", persona_id="p1",
+            ingestion_job_id="job-1", title="My Asset", text="text",
+            brand_system_prompt="b", platforms=["linkedin"],
+        )
+    mock_create_cam.assert_awaited_once()
+    created = mock_create_cam.call_args[0][1]
+    assert created["kind"] == "autopilot"
+    assert created["ingestion_job_id"] == "job-1"
+    mock_create_cp.assert_awaited_once()
+    assert result["campaign_id"] == "cam-1"
+
+
+@pytest.mark.asyncio
+async def test_atomize_reuses_existing_autopilot_campaign():
+    from routes.content_engine import run_atomize
+    fake_client = AsyncMock()
+    with patch("routes.content_engine.extract_ideas", new_callable=AsyncMock) as mock_extract, \
+         patch("routes.content_engine.db_ideas.create_content_ideas", new_callable=AsyncMock) as mock_save, \
+         patch("routes.content_engine.db_cells.materialize_cells", new_callable=AsyncMock) as mock_mat, \
+         patch("routes.content_engine.db_campaigns.get_autopilot_campaign_for_job", new_callable=AsyncMock) as mock_get_cam, \
+         patch("routes.content_engine.db_campaigns.create_campaign", new_callable=AsyncMock) as mock_create_cam:
+        mock_extract.return_value = [{
+            "essence": "e", "idea_type": "claim", "source_quote": "q",
+            "strength": 4, "suitable_formats": ["hot_take"], "suitable_angles": ["expert"],
+        }]
+        mock_save.return_value = [{"id": "idea-1", "suitable_formats": ["hot_take"], "suitable_angles": ["expert"]}]
+        mock_mat.return_value = [{"id": "cell-1"}]
+        mock_get_cam.return_value = {"id": "existing-cam"}   # already exists
+        result = await run_atomize(
+            client=fake_client, workspace_id="w1", persona_id="p1",
+            ingestion_job_id="job-1", title="T", text="text",
+            brand_system_prompt="b", platforms=["linkedin"],
+        )
+    mock_create_cam.assert_not_called()
+    assert result["campaign_id"] == "existing-cam"

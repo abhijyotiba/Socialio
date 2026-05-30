@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Clock,
@@ -310,6 +311,13 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOpen = variantId !== null;
+  const [mounted, setMounted] = useState(false);
+
+  // Track mount state for portal rendering (SSR safety)
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   // Reset form when a new variantId comes in. Same trade-off as the drawer:
   // a `key={variantId}` remount in the parent would be a wider refactor for
@@ -393,6 +401,18 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onClose]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
 
   function flash(msg: string) {
     setSuccessMsg(msg);
@@ -582,26 +602,29 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
   // but the tab strip is architected to support more in the future)
   const previewPlatforms = detail ? [detail.platform] : [];
 
-  return (
+
+  if (!mounted) return null;
+
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px] transition-opacity duration-200 ${
+        className={`fixed inset-0 z-[9998] bg-slate-900/40 backdrop-blur-[2px] transition-opacity duration-200 ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
         aria-hidden
       />
 
-      {/* Modal */}
+      {/* Panel — slides in from right */}
       <div
-        className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200 ${
-          isOpen ? "opacity-100 scale-100" : "pointer-events-none opacity-0 scale-[0.97]"
+        className={`fixed inset-y-0 right-0 z-[9999] flex w-full max-w-5xl transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "translate-x-full"
         }`}
         onClick={onClose}
       >
         <div
-          className="relative flex h-[88vh] max-h-[820px] w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/10"
+          className="relative ml-auto flex flex-col lg:flex-row h-full w-full overflow-hidden border-l border-slate-200/80 bg-white shadow-2xl shadow-slate-900/10"
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
@@ -615,7 +638,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
             <X className="h-[18px] w-[18px]" />
           </button>
           {/* ── LEFT: Edit panel ──────────────────────────────── */}
-          <div className="flex w-[44%] shrink-0 flex-col border-r border-slate-100">
+          <div className="flex w-full lg:w-[44%] shrink-0 flex-col border-b lg:border-b-0 lg:border-r border-slate-100 max-h-[50vh] lg:max-h-none">
 
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
@@ -756,13 +779,6 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                         </div>
                       ))}
 
-                      {/* Skeleton placeholders while extras load */}
-                      {extrasLoading && media.length === 0 && (
-                        <>
-                          <div className="h-20 w-20 animate-pulse rounded-xl bg-slate-100" />
-                          <div className="h-20 w-20 animate-pulse rounded-xl bg-slate-100" />
-                        </>
-                      )}
                     </div>
                   </section>
 
@@ -924,7 +940,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
           </div>
 
           {/* ── RIGHT: Preview panel ──────────────────────────── */}
-          <div className="flex flex-1 flex-col bg-slate-50/60">
+          <div className="flex flex-1 flex-col bg-slate-50/60 min-h-0">
 
             {/* Preview header + tabs */}
             <div className="shrink-0 border-b border-slate-100 bg-white px-6 py-3">
@@ -998,6 +1014,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
