@@ -416,7 +416,7 @@ async def _refill_one_cadence(
                 "idea_id": cell["idea_id"],
             },
         )
-        await db_posts.create_post_variants(
+        created_variants = await db_posts.create_post_variants(
             svc,
             [
                 {
@@ -429,6 +429,40 @@ async def _refill_one_cadence(
                 }
             ],
         )
+
+        # Link the variant into the asset's autopilot campaign so it shows up in
+        # the unified Campaigns UI. Defensive find-or-create: legacy cells from
+        # before unification have no campaign yet.
+        job_id = cell.get("ingestion_job_id")
+        if job_id and created_variants:
+            campaign = await db_campaigns.get_autopilot_campaign_for_job(svc, job_id)
+            if campaign is None:
+                campaign = await db_campaigns.create_campaign(
+                    svc,
+                    {
+                        "workspace_id": cell["workspace_id"],
+                        "ingestion_job_id": job_id,
+                        "title": "Autopilot",
+                        "kind": "autopilot",
+                        "status": "pending_approval",
+                    },
+                )
+                await db_campaigns.create_campaign_personas(
+                    svc, campaign["id"], [persona_id]
+                )
+            cp = await db_campaigns.get_campaign_persona(
+                svc, campaign["id"], persona_id
+            )
+            if cp:
+                await db_campaigns.create_campaign_persona_variants(
+                    svc,
+                    cp["id"],
+                    [
+                        {"post_variant_id": v["id"], "platform": v["platform"]}
+                        for v in created_variants
+                    ],
+                )
+
         await db_cells.mark_cell_rendered(svc, cell["id"])
         rendered += 1
 
