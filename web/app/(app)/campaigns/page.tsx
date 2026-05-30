@@ -17,11 +17,11 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  generating: "bg-slate-100 text-slate-600",
-  pending_approval: "bg-amber-50 text-amber-700",
-  generation_partial: "bg-amber-50 text-amber-700",
-  approved: "bg-emerald-50 text-emerald-700",
-  failed: "bg-red-50 text-red-700",
+  generating: "bg-surface-2 text-muted-foreground",
+  pending_approval: "bg-warning/15 text-warning",
+  generation_partial: "bg-warning/15 text-warning",
+  approved: "bg-success/15 text-success",
+  failed: "bg-destructive/15 text-destructive",
 };
 
 export default async function CampaignsListPage() {
@@ -51,14 +51,14 @@ export default async function CampaignsListPage() {
   return (
     <div className="space-y-6 page-enter">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-accent ring-1 ring-inset ring-border">
           <Inbox className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="display-lg text-3xl text-foreground">
             Campaigns
           </h1>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-faint-foreground">
             Review and approve content generated for each persona.
           </p>
         </div>
@@ -67,11 +67,11 @@ export default async function CampaignsListPage() {
       <LowFuelBanner low={low} />
 
       {campaigns.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
-          <p className="text-sm font-semibold text-slate-700">No campaigns yet</p>
-          <p className="mt-1 text-xs text-slate-400">
+        <div className="rounded-2xl border border-dashed border-border bg-surface p-10 text-center">
+          <p className="text-sm font-semibold text-foreground">No campaigns yet</p>
+          <p className="mt-1 text-xs text-faint-foreground">
             Generate content from the{" "}
-            <Link href="/chat" className="text-indigo-600 hover:underline">
+            <Link href="/chat" className="text-accent hover:underline">
               Chat
             </Link>{" "}
             and it will appear here for approval.
@@ -83,19 +83,19 @@ export default async function CampaignsListPage() {
             <li key={c.id}>
               <Link
                 href={`/campaigns/${c.id}`}
-                className="flex items-center gap-4 rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/30"
+                className="flex items-center gap-4 p-4 panel panel-hover"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-slate-900">
+                  <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-foreground">
                     {c.kind === "autopilot" && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-bold text-indigo-600">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">
                         <Zap className="h-2.5 w-2.5" /> Autopilot
                       </span>
                     )}
                     {c.title?.trim() || "Untitled campaign"}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-slate-400">
-                    {c.persona_count} persona{c.persona_count !== 1 ? "s" : ""}
+                  <p className="mt-0.5 text-[11px] text-faint-foreground">
+                    <span className="mono-num">{c.persona_count}</span> persona{c.persona_count !== 1 ? "s" : ""}
                     {c.pending_count > 0 ? ` · ${c.pending_count} pending` : ""}
                     {" · "}
                     <ClientRelativeTime iso={c.created_at} />
@@ -103,12 +103,12 @@ export default async function CampaignsListPage() {
                 </div>
                 <span
                   className={`inline-flex h-6 items-center rounded-full px-2.5 text-[10px] font-semibold ${
-                    STATUS_TONE[c.status] ?? "bg-slate-100 text-slate-600"
+                    STATUS_TONE[c.status] ?? "bg-surface-2 text-muted-foreground"
                   }`}
                 >
                   {STATUS_LABEL[c.status] ?? c.status}
                 </span>
-                <ChevronRight className="h-4 w-4 text-slate-400" />
+                <ChevronRight className="h-4 w-4 text-faint-foreground" />
               </Link>
             </li>
           ))}

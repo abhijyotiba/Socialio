@@ -609,7 +609,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-[9998] bg-slate-900/40 backdrop-blur-[2px] transition-opacity duration-200 ${
+        className={`fixed inset-0 z-[9998] bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
@@ -624,7 +624,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
         onClick={onClose}
       >
         <div
-          className="relative ml-auto flex flex-col lg:flex-row h-full w-full overflow-hidden border-l border-slate-200/80 bg-white shadow-2xl shadow-slate-900/10"
+          className="relative ml-auto flex flex-col lg:flex-row h-full w-full overflow-hidden border-l border-border bg-surface shadow-2xl shadow-black/40"
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
@@ -632,24 +632,24 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
           {/* Close button — top-right of the whole modal */}
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-xl text-faint-foreground transition hover:bg-white/[0.06] hover:text-foreground"
             aria-label="Close"
           >
             <X className="h-[18px] w-[18px]" />
           </button>
           {/* ── LEFT: Edit panel ──────────────────────────────── */}
-          <div className="flex w-full lg:w-[44%] shrink-0 flex-col border-b lg:border-b-0 lg:border-r border-slate-100 max-h-[50vh] lg:max-h-none">
+          <div className="flex w-full lg:w-[44%] shrink-0 flex-col border-b lg:border-b-0 lg:border-r border-border max-h-[50vh] lg:max-h-none">
 
             {/* Header */}
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
               {plt && detail ? (
                 <div className="flex items-center gap-3">
                   <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${plt.tile} shadow-md`}>
                     {plt.icon}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{plt.label} Post</p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-sm font-bold text-foreground">{plt.label} Post</p>
+                    <p className="mono-num text-[11px] text-faint-foreground">
                       {detail.scheduled_at
                         ? `Scheduled · ${format(new Date(detail.scheduled_at), "MMM d, h:mm a")}`
                         : "Draft"}
@@ -658,10 +658,10 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 animate-pulse rounded-xl bg-slate-100" />
+                  <div className="h-10 w-10 animate-pulse rounded-xl bg-surface-2" />
                   <div className="space-y-1.5">
-                    <div className="h-3.5 w-28 animate-pulse rounded bg-slate-100" />
-                    <div className="h-2.5 w-20 animate-pulse rounded bg-slate-100" />
+                    <div className="h-3.5 w-28 animate-pulse rounded bg-surface-2" />
+                    <div className="h-2.5 w-20 animate-pulse rounded bg-surface-2" />
                   </div>
                 </div>
               )}
@@ -672,17 +672,17 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
               {/* Full blank loading only when we have no initialData at all */}
               {!detail && !fetchError && (
                 <div className="flex h-48 items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+                  <Loader2 className="h-6 w-6 animate-spin text-accent" />
                 </div>
               )}
 
               {!detail && fetchError && (
                 <div className="px-6 py-8 text-center">
-                  <AlertCircle className="mx-auto h-8 w-8 text-red-400" />
-                  <p className="mt-3 text-sm text-slate-600">{fetchError}</p>
+                  <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
+                  <p className="mt-3 text-sm text-muted-foreground">{fetchError}</p>
                   <button
                     onClick={onClose}
-                    className="mt-3 text-xs font-medium text-indigo-600 hover:underline"
+                    className="mt-3 text-xs font-medium text-accent hover:underline"
                   >
                     Close and retry
                   </button>
@@ -690,11 +690,11 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
               )}
 
               {detail && (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-border">
 
                   {/* Post content — fixed height so it stays uniform across platforms */}
                   <section className="px-6 py-5">
-                    <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                       Post Content
                     </label>
                     <textarea
@@ -702,20 +702,20 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                       value={body}
                       onChange={(e) => setBody(e.target.value)}
                       disabled={isBusy}
-                      className={`h-40 w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-relaxed text-slate-800 transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:opacity-60 ${
+                      className={`h-40 w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-relaxed text-foreground transition-all placeholder:text-faint-foreground focus:outline-none focus:ring-2 disabled:opacity-60 ${
                         charOver
-                          ? "border-red-300 bg-red-50/40 focus:border-red-400 focus:ring-red-100"
-                          : "border-slate-200 bg-slate-50/60 focus:border-indigo-400 focus:bg-white focus:ring-indigo-100"
+                          ? "border-destructive/40 bg-destructive/10 focus:border-destructive/60 focus:ring-destructive/20"
+                          : "border-input bg-surface-2 focus:border-accent/50 focus:ring-ring/30"
                       }`}
                     />
                     <div className="mt-2 flex items-center justify-end">
                       <span
-                        className={`text-[11px] font-semibold tabular-nums ${
+                        className={`mono-num text-[11px] font-semibold tabular-nums ${
                           charOver
-                            ? "text-red-500"
+                            ? "text-destructive"
                             : charCount > charLimit * 0.85
-                            ? "text-amber-500"
-                            : "text-slate-400"
+                            ? "text-warning"
+                            : "text-faint-foreground"
                         }`}
                       >
                         {charCount.toLocaleString()} / {charLimit.toLocaleString()}
@@ -726,26 +726,26 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                   {/* Attached media */}
                   <section className="px-6 py-5">
                     <div className="mb-3 flex items-center justify-between">
-                      <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                         Attached Media
-                        <span className="ml-1.5 text-slate-300">({media.length}/4)</span>
+                        <span className="mono-num ml-1.5 text-faint-foreground">({media.length}/4)</span>
                       </label>
                     </div>
 
                     {uploadError && (
-                      <p className="mb-2 text-xs text-red-500">{uploadError}</p>
+                      <p className="mb-2 text-xs text-destructive">{uploadError}</p>
                     )}
 
                     <div className="flex flex-wrap gap-3">
                       {/* Upload tile — always first, hidden once 4 images attached */}
                       {media.length < 4 && (
-                        <label className={`flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 transition hover:border-indigo-400 hover:bg-indigo-50/40 ${uploading ? "cursor-not-allowed opacity-60" : ""}`}>
+                        <label className={`flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-surface-2 transition hover:border-accent/50 hover:bg-accent/10 ${uploading ? "cursor-not-allowed opacity-60" : ""}`}>
                           {uploading ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                            <Loader2 className="h-5 w-5 animate-spin text-faint-foreground" />
                           ) : (
                             <>
-                              <UploadCloud className="h-5 w-5 text-slate-400" />
-                              <span className="text-[10px] font-medium text-slate-400">Upload</span>
+                              <UploadCloud className="h-5 w-5 text-faint-foreground" />
+                              <span className="text-[10px] font-medium text-faint-foreground">Upload</span>
                             </>
                           )}
                           <input
@@ -766,7 +766,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                           <img
                             src={m.cloudinary_url}
                             alt=""
-                            className="h-20 w-20 rounded-xl border border-slate-200 object-cover transition group-hover:brightness-90"
+                            className="h-20 w-20 rounded-xl border border-border object-cover transition group-hover:brightness-90"
                           />
                           <button
                             onClick={() => handleRemoveMedia(m.id)}
@@ -785,7 +785,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                   {/* Original source */}
                   {detail.source && (
                     <section className="px-6 py-5">
-                      <label className="mb-2.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      <label className="mb-2.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                         Original Source
                       </label>
                       {detail.source.type === "url" && detail.source.url ? (
@@ -793,7 +793,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                           href={detail.source.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-indigo-600 transition hover:border-indigo-200 hover:bg-indigo-50"
+                          className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-sm text-accent transition hover:border-accent/40 hover:bg-accent/10"
                         >
                           <Link2 className="h-3.5 w-3.5 shrink-0" />
                           <span className="flex-1 truncate text-sm">
@@ -802,9 +802,9 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                           <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" />
                         </a>
                       ) : (
-                        <div className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                          <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <p className="line-clamp-3 text-sm text-slate-600">
+                        <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-surface-2 px-4 py-3">
+                          <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint-foreground" />
+                          <p className="line-clamp-3 text-sm text-muted-foreground">
                             {detail.source.text ?? "—"}
                           </p>
                         </div>
@@ -817,18 +817,18 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
 
             {/* Footer actions */}
             {detail && (
-              <div className="shrink-0 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+              <div className="shrink-0 border-t border-border bg-white/[0.02] px-6 py-4">
 
                 {/* Scheduled time — lives in the footer above action buttons */}
                 <div className="mb-3">
-                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                     Scheduled Time
                   </label>
                   {!editingTime ? (
                     <div className="flex items-center gap-2">
-                      <div className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2">
-                        <CalendarClock className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
-                        <span className="text-xs font-semibold text-slate-700">
+                      <div className="flex flex-1 items-center gap-2 rounded-2xl border border-border bg-surface-2 px-3.5 py-2">
+                        <CalendarClock className="h-3.5 w-3.5 shrink-0 text-accent" />
+                        <span className="mono-num text-xs font-semibold text-foreground">
                           {detail.scheduled_at
                             ? format(new Date(detail.scheduled_at), "EEEE, MMM d · h:mm a")
                             : "Not scheduled"}
@@ -837,7 +837,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                       <button
                         onClick={() => setEditingTime(true)}
                         disabled={isBusy}
-                        className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40"
+                        className="shrink-0 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-accent/40 hover:text-foreground disabled:opacity-40"
                       >
                         Change
                       </button>
@@ -849,13 +849,13 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                         value={scheduledAt}
                         onChange={(e) => setScheduledAt(e.target.value)}
                         min={minScheduleTime}
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                        className="mono-num w-full rounded-2xl border border-input bg-surface-2 text-foreground px-3.5 py-2 text-xs transition focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-ring/30 [color-scheme:dark]"
                       />
                       <div className="flex items-center gap-2">
                         <button
                           onClick={handleReschedule}
                           disabled={!scheduledAt || rescheduling}
-                          className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-40"
+                          className="flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-1.5 text-xs font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-40"
                         >
                           {rescheduling ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
                           Confirm
@@ -869,7 +869,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                                 : ""
                             );
                           }}
-                          className="text-xs font-medium text-slate-400 hover:text-slate-600"
+                          className="text-xs font-medium text-faint-foreground hover:text-foreground"
                         >
                           Cancel
                         </button>
@@ -879,17 +879,17 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                 </div>
 
                 {successMsg && (
-                  <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 animate-message-in">
-                    <CheckCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-                    <p className="text-sm font-medium text-emerald-700">{successMsg}</p>
+                  <div className="mb-3 flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 animate-message-in">
+                    <CheckCheck className="h-4 w-4 shrink-0 text-success" />
+                    <p className="text-sm font-medium text-success">{successMsg}</p>
                   </div>
                 )}
                 {actionError && (
-                  <div className="mb-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 animate-message-in">
-                    <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-                    <p className="text-sm text-red-600">{actionError}</p>
+                  <div className="mb-3 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 animate-message-in">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+                    <p className="text-sm text-destructive">{actionError}</p>
                     <button
-                      className="ml-auto shrink-0 text-xs font-medium text-slate-400 hover:text-slate-600"
+                      className="ml-auto shrink-0 text-xs font-medium text-faint-foreground hover:text-foreground"
                       onClick={() => setActionError(null)}
                     >
                       Dismiss
@@ -901,7 +901,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                   <button
                     onClick={handleSaveDraft}
                     disabled={charOver || isBusy}
-                    className="mb-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-40"
+                    className="mb-2.5 flex w-full items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-xs font-semibold text-accent transition hover:bg-accent/15 disabled:opacity-40"
                   >
                     {saving ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -916,7 +916,7 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                   <button
                     onClick={handleCancelPost}
                     disabled={isBusy}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-xl border border-border px-4 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-red-400/40 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
                   >
                     {cancelling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                     Cancel post
@@ -924,15 +924,15 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                   <button
                     onClick={handlePublishNow}
                     disabled={isBusy}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-200/60 transition hover:opacity-95 disabled:opacity-40"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-accent-foreground shadow-md transition hover:brightness-110 disabled:opacity-40"
                   >
                     {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                     Publish Now
                   </button>
                 </div>
-                <p className="mt-2.5 text-center text-[10px] text-slate-400">
+                <p className="mt-2.5 text-center text-[10px] text-faint-foreground">
                   Press{" "}
-                  <kbd className="rounded bg-slate-200 px-1 py-0.5 font-mono text-[10px]">Esc</kbd>{" "}
+                  <kbd className="mono-num rounded bg-surface-2 px-1 py-0.5 text-[10px]">Esc</kbd>{" "}
                   to close
                 </p>
               </div>
@@ -940,17 +940,17 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
           </div>
 
           {/* ── RIGHT: Preview panel ──────────────────────────── */}
-          <div className="flex flex-1 flex-col bg-slate-50/60 min-h-0">
+          <div className="flex flex-1 flex-col bg-background min-h-0">
 
             {/* Preview header + tabs */}
-            <div className="shrink-0 border-b border-slate-100 bg-white px-6 py-3">
+            <div className="shrink-0 border-b border-border bg-surface px-6 py-3">
               <div className="flex items-center gap-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                   Live Preview
                 </p>
                 {/* Platform tab strip — left-aligned beside the label */}
                 {previewPlatforms.length > 0 && (
-                  <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
+                  <div className="flex items-center gap-1 rounded-xl bg-surface-2 p-0.5 ring-1 ring-border">
                     {previewPlatforms.map((platform) => {
                       const p = PLATFORM[platform];
                       if (!p) return null;
@@ -961,8 +961,8 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
                           onClick={() => setPreviewTab(platform)}
                           className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all ${
                             isActive
-                              ? "bg-white text-slate-900 shadow-sm"
-                              : "text-slate-500 hover:text-slate-700"
+                              ? "bg-surface text-foreground ring-1 ring-border"
+                              : "text-muted-foreground hover:text-foreground"
                           }`}
                         >
                           <span className={`flex h-4 w-4 items-center justify-center rounded ${p.tile}`}>
@@ -999,15 +999,15 @@ export function PostPreviewModal({ variantId, initialData, onClose, onUpdated }:
               )}
 
               {!detail && !fetchError && (
-                <div className="flex h-full items-center justify-center text-sm text-slate-300">
-                  <Loader2 className="h-5 w-5 animate-spin text-indigo-300" />
+                <div className="flex h-full items-center justify-center text-sm text-faint-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent" />
                 </div>
               )}
             </div>
 
             {/* Disclaimer */}
             {detail && (
-              <div className="shrink-0 border-t border-slate-100 bg-white px-6 py-3 text-center text-[10px] text-slate-300">
+              <div className="shrink-0 border-t border-border bg-surface px-6 py-3 text-center text-[10px] text-faint-foreground">
                 Preview only — actual formatting may vary slightly on the platform
               </div>
             )}

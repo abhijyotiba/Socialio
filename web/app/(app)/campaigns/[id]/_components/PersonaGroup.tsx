@@ -19,7 +19,7 @@ export function PersonaGroup({ cp, jobId, isGenerating, pendingAction, voiceChan
   const lockedOut = pendingAction !== null;
 
   return (
-    <li className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+    <li className="rounded-2xl panel p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div
@@ -29,9 +29,9 @@ export function PersonaGroup({ cp, jobId, isGenerating, pendingAction, voiceChan
             {cp.persona.name.charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-900">{cp.persona.name}</p>
-            <p className="text-[10px] text-slate-400">
-              {cp.variants.length} variant{cp.variants.length !== 1 ? "s" : ""}
+            <p className="text-sm font-semibold text-foreground">{cp.persona.name}</p>
+            <p className="text-[10px] text-faint-foreground">
+              <span className="mono-num">{cp.variants.length}</span> variant{cp.variants.length !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
@@ -42,7 +42,7 @@ export function PersonaGroup({ cp, jobId, isGenerating, pendingAction, voiceChan
               type="button"
               onClick={() => onReject(cp.persona.id)}
               disabled={lockedOut}
-              className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:border-slate-400 disabled:opacity-50"
+              className="inline-flex h-8 items-center rounded-lg border border-border px-3 text-xs font-semibold text-muted-foreground transition hover:border-border-strong hover:text-foreground disabled:opacity-50"
             >
               {rejectBusy ? "Rejecting…" : "Reject"}
             </button>
@@ -50,32 +50,32 @@ export function PersonaGroup({ cp, jobId, isGenerating, pendingAction, voiceChan
               type="button"
               onClick={() => onApprove(cp.persona.id)}
               disabled={lockedOut}
-              className="inline-flex h-8 items-center rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+              className="inline-flex h-8 items-center rounded-lg bg-accent px-3 text-xs font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-50"
             >
               {approveBusy ? "Approving…" : "Approve"}
             </button>
           </div>
         )}
         {cp.approval_status === "approved" && (
-          <span className="text-xs font-semibold text-emerald-600">✓ Approved</span>
+          <span className="text-xs font-semibold text-success">✓ Approved</span>
         )}
         {cp.approval_status === "rejected" && (
-          <span className="text-xs text-slate-400">Rejected</span>
+          <span className="text-xs text-faint-foreground">Rejected</span>
         )}
       </div>
 
       {voiceChanged && (
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+        <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
           This persona&apos;s voice profile has been updated since these variants were generated. Regenerate if you want the latest voice.
         </div>
       )}
 
       {isGenerating && cp.variants.length === 0 && (
-        <p className="text-xs text-slate-400">Generating…</p>
+        <p className="text-xs text-faint-foreground">Generating…</p>
       )}
 
       {cp.generation_error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{cp.generation_error}</p>
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{cp.generation_error}</p>
       )}
 
       <div className="space-y-3">

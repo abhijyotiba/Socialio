@@ -329,16 +329,16 @@ export default function ChatPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between pb-5 border-b border-slate-100/80">
+      <div className="shrink-0 flex items-center justify-between pb-5 border-b border-border">
         <div className="flex items-center gap-3.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 shadow-md shadow-indigo-500/30">
-            <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-accent ring-1 ring-border">
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <div>
-            <h1 className="font-display text-xl font-bold tracking-tight text-slate-900 leading-tight">Content Studio</h1>
-            <p className="text-xs text-slate-400 leading-tight mt-0.5">Paste a URL or share an idea to generate posts</p>
+            <h1 className="display-lg text-xl text-foreground">Content Studio</h1>
+            <p className="text-xs text-faint-foreground leading-tight mt-0.5">Paste a URL or share an idea to generate posts</p>
           </div>
         </div>
       </div>
@@ -348,17 +348,17 @@ export default function ChatPage() {
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center px-4 animate-fade-in">
             <div className="relative mb-6">
-              <div className="absolute inset-0 rounded-3xl bg-indigo-500/20 blur-2xl scale-150" />
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 shadow-xl shadow-indigo-500/40">
-                <svg className="h-9 w-9 text-white drop-shadow" viewBox="0 0 24 24" fill="currentColor">
+              <div className="absolute inset-0 rounded-3xl bg-accent/20 blur-2xl scale-150" />
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-2 text-accent ring-1 ring-border accent-glow">
+                <svg className="h-9 w-9" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-bold tracking-tight text-slate-900">
+            <p className="display-lg text-2xl text-foreground">
               What would you like to post about?
             </p>
-            <p className="mt-2 max-w-sm text-sm leading-relaxed text-slate-400">
+            <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
               Paste a URL or share an idea — SocialOS drafts platform-ready posts in seconds.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -370,7 +370,7 @@ export default function ChatPage() {
                 <button
                   key={label}
                   onClick={() => setInput(label)}
-                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 hover:shadow-md active:scale-[0.97]"
+                  className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold text-muted-foreground transition hover:border-accent/40 hover:bg-surface-2 hover:text-foreground active:scale-[0.97]"
                 >
                   <span>{icon}</span>
                   {label}
@@ -390,7 +390,7 @@ export default function ChatPage() {
               if (msg.type === "ai-error") {
                 return (
                   <AiMessage key={msg.id}>
-                    <p className="text-sm text-red-600">{msg.message}</p>
+                    <p className="text-sm text-destructive">{msg.message}</p>
                   </AiMessage>
                 );
               }

@@ -208,17 +208,17 @@ export function CampaignReview({ initial }: Props) {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="display-lg text-2xl text-foreground">
             {campaign.title?.trim() || "Untitled campaign"}
           </h1>
-          <p className="mt-1 text-xs text-slate-400">
-            {campaign.campaign_personas.length} persona{campaign.campaign_personas.length !== 1 ? "s" : ""}
+          <p className="mt-1 text-xs text-faint-foreground">
+            <span className="mono-num">{campaign.campaign_personas.length}</span> persona{campaign.campaign_personas.length !== 1 ? "s" : ""}
             {" · "}
             <StatusBadge status={campaign.status} />
           </p>
           {campaign.user_angle && (
-            <p className="mt-2 text-xs text-slate-500">
-              <span className="font-semibold text-slate-600">Angle:</span> {campaign.user_angle}
+            <p className="mt-2 text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">Angle:</span> {campaign.user_angle}
             </p>
           )}
         </div>
@@ -228,7 +228,7 @@ export function CampaignReview({ initial }: Props) {
               type="button"
               onClick={approveAll}
               disabled={pendingAction !== null}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3.5 text-xs font-semibold text-accent-foreground shadow-sm transition hover:brightness-110 disabled:opacity-50"
             >
               {pendingAction === "all" ? "Approving…" : `Approve all (${pendingPersonas.length})`}
             </button>
@@ -238,7 +238,7 @@ export function CampaignReview({ initial }: Props) {
               type="button"
               onClick={handleCancelScheduled}
               disabled={pendingAction !== null}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100 disabled:opacity-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-warning/30 bg-warning/10 px-3 text-xs font-semibold text-warning transition hover:border-warning/50 hover:bg-warning/15 disabled:opacity-50"
             >
               {pendingAction === "cancel-scheduled" ? "Cancelling…" : `Cancel scheduled (${variantStatusCounts.scheduled})`}
             </button>
@@ -248,7 +248,7 @@ export function CampaignReview({ initial }: Props) {
             onClick={handleDelete}
             disabled={!canDelete || pendingAction !== null}
             title={deleteTooltip || undefined}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-muted-foreground transition hover:border-red-400/50 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
           >
             {pendingAction === "delete" ? "Deleting…" : "Delete"}
           </button>
@@ -256,41 +256,41 @@ export function CampaignReview({ initial }: Props) {
       </div>
 
       {/* Metadata strip */}
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-xl border border-slate-200/70 bg-white px-4 py-3 text-[11px] sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-xl border border-border bg-surface px-4 py-3 text-[11px] sm:grid-cols-4">
         <div>
-          <dt className="font-semibold uppercase tracking-wide text-slate-400">Created</dt>
-          <dd className="mt-0.5 text-slate-700">
+          <dt className="font-semibold uppercase tracking-wide text-faint-foreground">Created</dt>
+          <dd className="mono-num mt-0.5 text-foreground">
             <ClientDate iso={createdAtIso} render={(d) => ({ label: relativeTime(d.toISOString()), tooltip: d.toLocaleString() })} />
           </dd>
         </div>
         {showUpdatedAt && (
           <div>
-            <dt className="font-semibold uppercase tracking-wide text-slate-400">Updated</dt>
-            <dd className="mt-0.5 text-slate-700">
+            <dt className="font-semibold uppercase tracking-wide text-faint-foreground">Updated</dt>
+            <dd className="mono-num mt-0.5 text-foreground">
               <ClientDate iso={updatedAtIso} render={(d) => ({ label: relativeTime(d.toISOString()), tooltip: d.toLocaleString() })} />
             </dd>
           </div>
         )}
         {generationDurationMs !== null && (
           <div>
-            <dt className="font-semibold uppercase tracking-wide text-slate-400">Generation</dt>
-            <dd className="mt-0.5 text-slate-700">{formatDuration(generationDurationMs)}</dd>
+            <dt className="font-semibold uppercase tracking-wide text-faint-foreground">Generation</dt>
+            <dd className="mono-num mt-0.5 text-foreground">{formatDuration(generationDurationMs)}</dd>
           </div>
         )}
         <div>
-          <dt className="font-semibold uppercase tracking-wide text-slate-400">ID</dt>
-          <dd className="mt-0.5 font-mono text-[10px] text-slate-500" title={campaign.id}>{campaign.id.slice(0, 8)}</dd>
+          <dt className="font-semibold uppercase tracking-wide text-faint-foreground">ID</dt>
+          <dd className="mono-num mt-0.5 text-[10px] text-muted-foreground" title={campaign.id}>{campaign.id.slice(0, 8)}</dd>
         </div>
         {(sourceUrl || sourcePreview) && (
           <div className="col-span-2 sm:col-span-4">
-            <dt className="font-semibold uppercase tracking-wide text-slate-400">Source</dt>
-            <dd className="mt-0.5 text-slate-700">
+            <dt className="font-semibold uppercase tracking-wide text-faint-foreground">Source</dt>
+            <dd className="mt-0.5 text-foreground">
               {sourceUrl ? (
-                <a href={sourceUrl} target="_blank" rel="noreferrer noopener" className="break-all text-indigo-600 hover:underline">
+                <a href={sourceUrl} target="_blank" rel="noreferrer noopener" className="break-all text-accent hover:underline">
                   {sourceJob?.extracted_title?.trim() || sourceUrl}
                 </a>
               ) : (
-                <span className="italic text-slate-500">{sourcePreview}</span>
+                <span className="italic text-muted-foreground">{sourcePreview}</span>
               )}
             </dd>
           </div>
@@ -298,15 +298,15 @@ export function CampaignReview({ initial }: Props) {
       </dl>
 
       {deleteError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">{deleteError}</div>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs text-destructive">{deleteError}</div>
       )}
 
       {campaign.failure_reason && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-xs font-semibold text-red-700">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+          <p className="text-xs font-semibold text-destructive">
             Campaign failed{campaign.failure_code ? ` · ${campaign.failure_code}` : ""}
           </p>
-          <p className="mt-1 text-xs text-red-600">{campaign.failure_reason}</p>
+          <p className="mt-1 text-xs text-destructive/85">{campaign.failure_reason}</p>
         </div>
       )}
 

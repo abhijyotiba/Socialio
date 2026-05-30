@@ -30,11 +30,11 @@ export function ChatInput({ value, onChange, onSubmit, disabled, isLoading }: Pr
 
   return (
     <div className="shrink-0 px-2 pb-3 pt-2">
-      <div className="flex items-end gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition-all focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100">
+      <div className="flex items-end gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3 transition-all focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-ring/30">
         <textarea
           ref={textareaRef}
           rows={1}
-          className="max-h-[160px] min-h-[22px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none"
+          className="max-h-[160px] min-h-[22px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-foreground placeholder:text-faint-foreground focus:outline-none"
           placeholder="Paste a URL, add your angle, or just describe a topic…"
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -45,7 +45,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, isLoading }: Pr
           type="button"
           onClick={onSubmit}
           disabled={disabled || !value.trim()}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white transition hover:bg-indigo-700 disabled:opacity-40"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground transition hover:brightness-110 disabled:opacity-40"
         >
           {isLoading ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -54,7 +54,7 @@ export function ChatInput({ value, onChange, onSubmit, disabled, isLoading }: Pr
           )}
         </button>
       </div>
-      <p className="mt-1.5 text-center text-[10px] text-slate-400">
+      <p className="mt-1.5 text-center text-[10px] text-faint-foreground">
         Enter to send • Shift + Enter for new line
       </p>
     </div>

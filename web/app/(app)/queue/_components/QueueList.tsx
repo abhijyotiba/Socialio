@@ -29,7 +29,7 @@ function PlatformBadge({ platform }: { platform: string }) {
   }
   if (platform === "x") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/8 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-700">
+      <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">
         <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">
           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L1.254 2.25H8.08l4.258 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
         </svg>
@@ -38,7 +38,7 @@ function PlatformBadge({ platform }: { platform: string }) {
     );
   }
   return (
-    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+    <span className="inline-flex items-center rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
       {platform}
     </span>
   );
@@ -56,16 +56,16 @@ function PlatformIcon({ platform }: { platform: string }) {
   }
   if (platform === "x") {
     return (
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 shadow-sm">
-        <svg className="h-4.5 w-4.5 text-white" viewBox="0 0 24 24" fill="currentColor">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 ring-1 ring-border shadow-sm">
+        <svg className="h-4.5 w-4.5 text-foreground" viewBox="0 0 24 24" fill="currentColor">
           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L1.254 2.25H8.08l4.258 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
         </svg>
       </div>
     );
   }
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-400 shadow-sm">
-      <span className="text-sm font-bold text-white">?</span>
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 ring-1 ring-border shadow-sm">
+      <span className="text-sm font-bold text-muted-foreground">?</span>
     </div>
   );
 }
@@ -104,23 +104,23 @@ export function QueueList({
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-200/60 bg-gradient-to-b from-white to-indigo-50/30 px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-surface px-6 py-16 text-center">
         <div className="relative mb-5">
-          <div className="absolute inset-0 rounded-2xl bg-indigo-400/15 blur-xl scale-[2]" />
-          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-xl shadow-indigo-400/30">
-            <CalendarClock className="h-7 w-7 text-white" />
+          <div className="absolute inset-0 rounded-2xl bg-accent/15 blur-xl scale-[2]" />
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 text-accent ring-1 ring-border accent-glow">
+            <CalendarClock className="h-7 w-7" />
           </div>
         </div>
-        <h3 className="text-sm font-bold text-slate-800">
+        <h3 className="text-sm font-bold text-foreground">
           {emptyTab === "all"
             ? "Your queue is empty"
             : `No ${emptyTab === "linkedin" ? "LinkedIn" : "X / Twitter"} posts scheduled`}
         </h3>
-        <p className="mt-1.5 max-w-[22ch] text-xs leading-relaxed text-slate-400">
+        <p className="mt-1.5 max-w-[22ch] text-xs leading-relaxed text-faint-foreground">
           Generate content in the studio and schedule it to fill your pipeline.
         </p>
         <Link href="/chat">
-          <button className="mt-5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-300/40 transition hover:opacity-90 active:scale-[0.97]">
+          <button className="mt-5 rounded-xl bg-accent px-6 py-2.5 text-sm font-semibold text-accent-foreground shadow-md transition hover:brightness-110 active:scale-[0.97]">
             Open Content Studio
           </button>
         </Link>
@@ -151,25 +151,25 @@ export function QueueList({
                   created_at: variant.created_at,
                 });
               }}
-              className={`animate-fade-up group flex w-full items-center gap-4 rounded-2xl border bg-white px-4 py-3.5 text-left shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 ${
+              className={`animate-fade-up group flex w-full items-center gap-4 rounded-2xl border bg-surface px-4 py-3.5 text-left transition-all panel-hover ${
                 isSelected
-                  ? "border-indigo-300 ring-2 ring-indigo-100"
-                  : "border-slate-200/70 hover:border-indigo-200"
+                  ? "border-accent/40 ring-1 ring-accent/30"
+                  : "border-border"
               }`}
             >
               <PlatformIcon platform={variant.platform} />
 
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-800 group-hover:text-slate-900">
+                <p className="truncate text-sm font-semibold text-foreground">
                   {variant.body || "—"}
                 </p>
                 <div className="mt-1.5 flex items-center gap-2.5">
                   <PlatformBadge platform={variant.platform} />
                   {scheduledDate && (
                     <>
-                      <span className="text-slate-300">·</span>
-                      <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
-                        <Clock className="h-3 w-3 text-indigo-400" />
+                      <span className="text-faint-foreground">·</span>
+                      <span className="mono-num flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                        <Clock className="h-3 w-3 text-accent" />
                         {formatScheduled(scheduledDate)}
                       </span>
                     </>
@@ -180,7 +180,7 @@ export function QueueList({
               <div className="flex shrink-0 items-center gap-2.5">
                 {scheduledDate && (
                   <div className="hidden text-right sm:block">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    <span className="mono-num text-[11px] font-semibold uppercase tracking-wide text-faint-foreground">
                       {relativeLabel(scheduledDate)}
                     </span>
                   </div>
@@ -188,8 +188,8 @@ export function QueueList({
                 <ChevronRight
                   className={`h-4 w-4 transition-colors ${
                     isSelected
-                      ? "text-indigo-400"
-                      : "text-slate-300 group-hover:text-indigo-400"
+                      ? "text-accent"
+                      : "text-faint-foreground group-hover:text-accent"
                   }`}
                 />
               </div>

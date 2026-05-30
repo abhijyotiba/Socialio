@@ -168,7 +168,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
   const plt = detail
     ? (PLATFORM[detail.platform] ?? {
         label: detail.platform,
-        tile: "bg-slate-400",
+        tile: "bg-surface-2",
         glyph: "?",
         ring: "ring-slate-200",
       })
@@ -316,7 +316,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px] transition-opacity duration-300 ${
+        className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 ${
           isOpen ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
@@ -325,28 +325,28 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
 
       {/* Drawer panel */}
       <div
-        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-[500px] flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-[500px] flex-col bg-surface shadow-2xl transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
         role="dialog"
         aria-modal="true"
       >
         {/* ── Header ─────────────────────────────────────────── */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
           {plt && detail ? (
             <div className="flex items-center gap-3">
               <div
                 className={`flex h-10 w-10 items-center justify-center rounded-xl ${plt.tile} shadow-md`}
               >
-                <span className="text-[15px] font-black text-white">
+                <span className="text-[15px] font-black text-accent-foreground">
                   {plt.glyph}
                 </span>
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-900">
+                <p className="text-sm font-bold text-foreground">
                   {plt.label} Post
                 </p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-faint-foreground">
                   {detail.scheduled_at
                     ? `Scheduled · ${format(new Date(detail.scheduled_at), "MMM d, h:mm a")}`
                     : "Draft"}
@@ -355,16 +355,16 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-slate-100 animate-pulse" />
+              <div className="h-10 w-10 rounded-xl bg-surface-2 animate-pulse" />
               <div className="space-y-1.5">
-                <div className="h-3.5 w-28 rounded bg-slate-100 animate-pulse" />
-                <div className="h-2.5 w-20 rounded bg-slate-100 animate-pulse" />
+                <div className="h-3.5 w-28 rounded bg-surface-2 animate-pulse" />
+                <div className="h-2.5 w-20 rounded bg-surface-2 animate-pulse" />
               </div>
             </div>
           )}
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-faint-foreground transition hover:bg-surface-2 hover:text-foreground"
             aria-label="Close"
           >
             <X className="h-[18px] w-[18px]" />
@@ -375,20 +375,20 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {loading && (
             <div className="flex h-48 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-accent" />
             </div>
           )}
 
           {!loading && fetchError && (
             <div className="px-6 py-8 text-center">
-              <AlertCircle className="mx-auto h-8 w-8 text-red-400" />
-              <p className="mt-3 text-sm text-slate-600">{fetchError}</p>
+              <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
+              <p className="mt-3 text-sm text-muted-foreground">{fetchError}</p>
               <button
                 onClick={() => {
                   /* re-trigger by toggling — parent handles this */
                   onClose();
                 }}
-                className="mt-3 text-xs font-medium text-indigo-600 hover:underline"
+                className="mt-3 text-xs font-medium text-accent hover:underline"
               >
                 Close and retry
               </button>
@@ -400,7 +400,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
 
               {/* ── Post content ─────────────────────────────── */}
               <section className="px-6 py-5">
-                <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                   Post Content
                 </label>
                 <textarea
@@ -408,10 +408,10 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
                   disabled={isBusy}
-                  className={`w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-relaxed text-slate-800 transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:opacity-60 ${
+                  className={`w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-relaxed text-foreground transition-all placeholder:text-faint-foreground focus:outline-none focus:ring-2 disabled:opacity-60 ${
                     charOver
-                      ? "border-red-300 bg-red-50/40 focus:border-red-400 focus:ring-red-100"
-                      : "border-slate-200 bg-slate-50/60 focus:border-indigo-400 focus:bg-white focus:ring-indigo-100"
+                      ? "border-destructive/40 bg-destructive/10 focus:border-destructive/60 focus:ring-destructive/20"
+                      : "border-border bg-surface-2 focus:border-accent/50 focus:bg-surface focus:ring-ring/30"
                   }`}
                   rows={4}
                 />
@@ -419,10 +419,10 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                   <span
                     className={`text-[11px] font-semibold tabular-nums ${
                       charOver
-                        ? "text-red-500"
+                        ? "text-destructive"
                         : charCount > charLimit * 0.85
-                          ? "text-amber-500"
-                          : "text-slate-400"
+                          ? "text-warning"
+                          : "text-faint-foreground"
                     }`}
                   >
                     {charCount.toLocaleString()} / {charLimit.toLocaleString()}
@@ -431,7 +431,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                     <button
                       onClick={handleSaveBody}
                       disabled={isBusy || charOver || !body.trim()}
-                      className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-1.5 text-xs font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-40"
                     >
                       {saving ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -446,14 +446,14 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
 
               {/* ── Scheduled time ───────────────────────────── */}
               <section className="px-6 py-5">
-                <label className="mb-3 block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                <label className="mb-3 block text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                   Scheduled Time
                 </label>
                 {!editingTime ? (
                   <div className="flex items-center gap-3">
-                    <div className="flex flex-1 items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5">
-                      <CalendarClock className="h-4 w-4 shrink-0 text-indigo-500" />
-                      <span className="text-sm font-semibold text-slate-700">
+                    <div className="flex flex-1 items-center gap-2.5 rounded-2xl border border-border bg-surface-2 px-4 py-2.5">
+                      <CalendarClock className="h-4 w-4 shrink-0 text-accent" />
+                      <span className="text-sm font-semibold text-foreground">
                         {detail.scheduled_at
                           ? format(
                               new Date(detail.scheduled_at),
@@ -465,7 +465,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                     <button
                       onClick={() => setEditingTime(true)}
                       disabled={isBusy}
-                      className="shrink-0 rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40"
+                      className="shrink-0 rounded-xl border border-border px-3.5 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-accent/40 hover:text-accent disabled:opacity-40"
                     >
                       Change
                     </button>
@@ -477,13 +477,13 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                       value={scheduledAt}
                       onChange={(e) => setScheduledAt(e.target.value)}
                       min={minScheduleTime}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      className="w-full rounded-2xl border border-border bg-surface-2 px-4 py-2.5 text-sm transition focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-ring/30"
                     />
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleReschedule}
                         disabled={!scheduledAt || rescheduling}
-                        className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-40"
+                        className="flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-40"
                       >
                         {rescheduling ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -503,7 +503,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                               : ""
                           );
                         }}
-                        className="text-xs font-medium text-slate-400 hover:text-slate-600"
+                        className="text-xs font-medium text-faint-foreground hover:text-muted-foreground"
                       >
                         Cancel
                       </button>
@@ -515,10 +515,10 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
               {/* ── Attached media ───────────────────────────── */}
               <section className="px-6 py-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                     Attached Media
                     {media.length > 0 && (
-                      <span className="ml-1.5 text-slate-300">
+                      <span className="ml-1.5 text-faint-foreground">
                         ({media.length}/4)
                       </span>
                     )}
@@ -527,7 +527,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                     <button
                       onClick={handleSaveMedia}
                       disabled={isBusy}
-                      className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-40"
+                      className="flex items-center gap-1.5 rounded-xl bg-accent px-3.5 py-1.5 text-xs font-semibold text-accent-foreground transition hover:brightness-110 disabled:opacity-40"
                     >
                       {savingMedia ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -540,7 +540,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                 </div>
 
                 {media.length === 0 ? (
-                  <p className="text-sm text-slate-400">No media attached to this post.</p>
+                  <p className="text-sm text-faint-foreground">No media attached to this post.</p>
                 ) : (
                   <div className="flex flex-wrap gap-3">
                     {media.map((m) => (
@@ -549,7 +549,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                         <img
                           src={m.cloudinary_url}
                           alt=""
-                          className="h-24 w-24 rounded-2xl border border-slate-200 object-cover transition group-hover:brightness-90"
+                          className="h-24 w-24 rounded-2xl border border-border object-cover transition group-hover:brightness-90"
                         />
                         <button
                           onClick={() =>
@@ -558,7 +558,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                             )
                           }
                           disabled={isBusy}
-                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white shadow-md opacity-0 transition group-hover:opacity-100 disabled:opacity-40"
+                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-destructive/100 text-accent-foreground shadow-md opacity-0 transition group-hover:opacity-100 disabled:opacity-40"
                           aria-label="Remove image"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -572,7 +572,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
               {/* ── Original source ──────────────────────────── */}
               {detail.source && (
                 <section className="px-6 py-5">
-                  <label className="mb-2.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <label className="mb-2.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-faint-foreground">
                     Original Source
                   </label>
                   {detail.source.type === "url" && detail.source.url ? (
@@ -580,7 +580,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                       href={detail.source.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-indigo-600 transition hover:border-indigo-200 hover:bg-indigo-50"
+                      className="flex items-center gap-2.5 rounded-2xl border border-border bg-surface-2 px-4 py-3 text-sm text-accent transition hover:border-accent/40 hover:bg-accent/10"
                     >
                       <Link2 className="h-3.5 w-3.5 shrink-0" />
                       <span className="flex-1 truncate text-sm">
@@ -589,9 +589,9 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
                       <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" />
                     </a>
                   ) : (
-                    <div className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <p className="line-clamp-3 text-sm text-slate-600">
+                    <div className="flex items-start gap-2.5 rounded-2xl border border-border bg-surface-2 px-4 py-3">
+                      <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint-foreground" />
+                      <p className="line-clamp-3 text-sm text-muted-foreground">
                         {detail.source.text ?? "—"}
                       </p>
                     </div>
@@ -604,22 +604,22 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
 
         {/* ── Footer actions ──────────────────────────────────── */}
         {detail && (
-          <div className="shrink-0 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+          <div className="shrink-0 border-t border-border bg-surface-2 px-6 py-4">
             {/* Feedback banners */}
             {successMsg && (
-              <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 animate-message-in">
-                <CheckCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-                <p className="text-sm font-medium text-emerald-700">
+              <div className="mb-3 flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 animate-message-in">
+                <CheckCheck className="h-4 w-4 shrink-0 text-success" />
+                <p className="text-sm font-medium text-success">
                   {successMsg}
                 </p>
               </div>
             )}
             {actionError && (
-              <div className="mb-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 animate-message-in">
-                <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-                <p className="text-sm text-red-600">{actionError}</p>
+              <div className="mb-3 flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 animate-message-in">
+                <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+                <p className="text-sm text-destructive">{actionError}</p>
                 <button
-                  className="ml-auto shrink-0 text-xs font-medium text-slate-400 hover:text-slate-600"
+                  className="ml-auto shrink-0 text-xs font-medium text-faint-foreground hover:text-muted-foreground"
                   onClick={() => setActionError(null)}
                 >
                   Dismiss
@@ -631,7 +631,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
               <button
                 onClick={handleCancelPost}
                 disabled={isBusy}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                className="flex items-center gap-1.5 rounded-xl border border-border px-4 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
               >
                 {cancelling ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -644,7 +644,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
               <button
                 onClick={handlePublishNow}
                 disabled={isBusy}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-200/60 transition hover:opacity-95 disabled:opacity-40"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-accent-foreground shadow-md shadow-indigo-200/60 transition hover:opacity-95 disabled:opacity-40"
               >
                 {publishing ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -655,8 +655,8 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
               </button>
             </div>
 
-            <p className="mt-2.5 text-center text-[10px] text-slate-400">
-              Press <kbd className="rounded bg-slate-200 px-1 py-0.5 font-mono text-[10px]">Esc</kbd> to close
+            <p className="mt-2.5 text-center text-[10px] text-faint-foreground">
+              Press <kbd className="rounded bg-surface-2 px-1 py-0.5 font-mono text-[10px]">Esc</kbd> to close
             </p>
           </div>
         )}

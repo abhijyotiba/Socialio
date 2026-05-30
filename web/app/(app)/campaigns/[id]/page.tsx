@@ -50,7 +50,7 @@ export default async function CampaignDetailPage({
     <div className="space-y-6 page-enter">
       <Link
         href="/campaigns"
-        className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
       >
         <ChevronLeft className="h-3.5 w-3.5" />
         Back to campaigns
@@ -58,10 +58,10 @@ export default async function CampaignDetailPage({
       {isAutopilot ? (
         <div className="space-y-4">
           <div>
-            <h1 className="font-display text-xl font-bold text-slate-900">
+            <h1 className="display-lg text-2xl text-foreground">
               {campaign.title?.trim() || "Autopilot"}
             </h1>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-faint-foreground">
               Posts the engine generated from this asset.
             </p>
           </div>

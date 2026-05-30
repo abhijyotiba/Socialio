@@ -31,5 +31,5 @@ export function ClientRelativeTime({ iso }: Props) {
     return <span suppressHydrationWarning>&nbsp;</span>;
   }
 
-  return <span>{relativeTime(iso, nowMs)}</span>;
+  return <span className="mono-num">{relativeTime(iso, nowMs)}</span>;
 }

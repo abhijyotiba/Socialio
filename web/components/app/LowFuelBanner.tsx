@@ -26,11 +26,11 @@ export function LowFuelBanner({
   if (low.length === 0) return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+    <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold text-amber-800">Your queue is running low</p>
-        <p className="mt-0.5 text-[11px] text-amber-700">
+        <p className="text-xs font-bold text-warning">Your queue is running low</p>
+        <p className="mt-0.5 text-[11px] text-warning/85">
           {low
             .map(
               (l) =>
@@ -43,7 +43,7 @@ export function LowFuelBanner({
       {showFeedLink && (
         <Link
           href="/chat"
-          className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-amber-700"
+          className="shrink-0 rounded-lg bg-warning px-3 py-1.5 text-[11px] font-bold text-background transition hover:brightness-110"
         >
           Feed it
         </Link>

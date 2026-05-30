@@ -13,7 +13,7 @@ export function PersonaSelector({ personas, selectedIds, onToggle }: Props) {
 
   return (
     <div className="flex flex-wrap gap-2 py-2">
-      <p className="w-full text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Generate for:</p>
+      <p className="w-full text-[10px] font-bold uppercase tracking-[0.18em] text-faint-foreground">Generate for:</p>
       {personas.map((persona) => {
         const selected = selectedIds.includes(persona.id);
         return (
@@ -24,7 +24,7 @@ export function PersonaSelector({ personas, selectedIds, onToggle }: Props) {
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${
               selected
                 ? "border-transparent text-white"
-                : "border-slate-200 text-slate-500 hover:border-slate-400"
+                : "border-border text-muted-foreground hover:border-border-strong"
             }`}
             style={selected ? { backgroundColor: persona.avatar_color, borderColor: persona.avatar_color } : {}}
           >

@@ -171,7 +171,7 @@ export const VariantCard = memo(function VariantCard({ variant, jobId }: { varia
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md hover:border-indigo-200/60">
+    <div className="overflow-hidden rounded-2xl panel panel-hover">
       <VariantBody platform={variant.platform} body={currentBody} revisionNumber={revisionNumber} />
 
       {idleActions && showRefine && (
@@ -196,14 +196,14 @@ export const VariantCard = memo(function VariantCard({ variant, jobId }: { varia
       {idleActions && <MediaPicker variantId={variant.id} jobId={jobId} />}
 
       {/* Footer actions */}
-      <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3">
+      <div className="border-t border-border bg-white/[0.03] px-4 py-3">
         {state.kind === "published" && (
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-600">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-success">
               <CheckCheck className="h-4 w-4" /> Published
             </span>
             <a href={state.url} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline">
+              className="flex items-center gap-1 text-xs font-medium text-accent hover:underline">
               View post <ExternalLink className="h-3 w-3" />
             </a>
           </div>
@@ -211,28 +211,28 @@ export const VariantCard = memo(function VariantCard({ variant, jobId }: { varia
 
         {state.kind === "scheduled" && (
           <div className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-accent">
               <CalendarClock className="h-3.5 w-3.5" />
-              Scheduled for {new Date(state.scheduledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+              <span className="mono-num">Scheduled for {new Date(state.scheduledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
             </span>
             <button onClick={handleCancel} disabled={busy}
-              className="text-[11px] font-medium text-red-400 transition hover:text-red-600 disabled:opacity-50">
+              className="text-[11px] font-medium text-red-400 transition hover:text-red-300 disabled:opacity-50">
               Cancel
             </button>
           </div>
         )}
 
-        {state.kind === "cancelled" && <p className="text-xs text-slate-400">Post cancelled and moved to drafts.</p>}
+        {state.kind === "cancelled" && <p className="text-xs text-faint-foreground">Post cancelled and moved to drafts.</p>}
 
         {state.kind === "cancelling" && (
-          <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3 w-3 animate-spin" /> Cancelling…</p>
+          <p className="flex items-center gap-1.5 text-xs text-faint-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Cancelling…</p>
         )}
 
         {state.kind === "error" && (
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-red-500">{state.message}</p>
+            <p className="text-xs text-destructive">{state.message}</p>
             <button onClick={() => setState({ kind: "idle" })}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 hover:text-slate-600">
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-faint-foreground hover:text-foreground">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -240,18 +240,18 @@ export const VariantCard = memo(function VariantCard({ variant, jobId }: { varia
 
         {state.kind === "pickingSlot" && (
           <div className="space-y-2.5">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Pick a time slot</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-faint-foreground">Pick a time slot</p>
             <div className="flex flex-wrap gap-1.5">
               {state.nextSlots.map((slot) => (
                 <button key={slot} onClick={() => scheduleAt(slot)}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:border-indigo-400 hover:text-indigo-600">
+                  className="mono-num rounded-lg border border-border bg-surface px-3 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-accent/50 hover:text-accent">
                   {new Date(slot).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => setState({ kind: "pickingTime" })} className="text-[11px] font-semibold text-indigo-600 hover:underline">Custom time →</button>
-              <button onClick={() => setState({ kind: "idle" })} className="text-[11px] font-medium text-slate-400 hover:text-slate-600">Cancel</button>
+              <button onClick={() => setState({ kind: "pickingTime" })} className="text-[11px] font-semibold text-accent hover:underline">Custom time →</button>
+              <button onClick={() => setState({ kind: "idle" })} className="text-[11px] font-medium text-faint-foreground hover:text-foreground">Cancel</button>
             </div>
           </div>
         )}
@@ -260,13 +260,13 @@ export const VariantCard = memo(function VariantCard({ variant, jobId }: { varia
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} min={minScheduleTime}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100" />
+                className="mono-num h-9 rounded-lg border border-input bg-surface text-foreground px-3 text-sm transition focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-ring/30 [color-scheme:dark]" />
               <button onClick={handleScheduleConfirm} disabled={!scheduledAt}
-                className="h-9 rounded-lg bg-indigo-600 px-4 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-40">Confirm</button>
-              <button onClick={() => setState({ kind: "idle" })} className="text-[11px] font-medium text-slate-400 hover:text-slate-600">Cancel</button>
+                className="h-9 rounded-lg bg-accent px-4 text-xs font-bold text-accent-foreground transition hover:brightness-110 disabled:opacity-40">Confirm</button>
+              <button onClick={() => setState({ kind: "idle" })} className="text-[11px] font-medium text-faint-foreground hover:text-foreground">Cancel</button>
             </div>
-            <p className="text-[11px] text-slate-400">
-              Configure slots in <a href="/settings/schedule" className="font-medium text-indigo-600 hover:underline">Settings</a> for one-click scheduling.
+            <p className="text-[11px] text-faint-foreground">
+              Configure slots in <a href="/settings/schedule" className="font-medium text-accent hover:underline">Settings</a> for one-click scheduling.
             </p>
           </div>
         )}
@@ -275,18 +275,18 @@ export const VariantCard = memo(function VariantCard({ variant, jobId }: { varia
           <div className="flex items-center justify-between gap-2">
             <div className="flex gap-2">
               <button onClick={handlePublishNow} disabled={busy || regenerating}
-                className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-slate-700 disabled:opacity-40">
+                className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-bold text-accent-foreground transition hover:brightness-110 disabled:opacity-40">
                 {state.kind === "publishing" ? <><Loader2 className="h-3 w-3 animate-spin" /> Publishing…</> : <><Zap className="h-3 w-3" /> Publish now</>}
               </button>
               <button onClick={handleScheduleClick} disabled={busy || regenerating}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40">
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-xs font-bold text-muted-foreground transition hover:border-accent/40 hover:text-foreground disabled:opacity-40">
                 {state.kind === "loadingSlots" ? <><Loader2 className="h-3 w-3 animate-spin" /> Loading…</> : <><CalendarClock className="h-3 w-3" /> Schedule</>}
               </button>
             </div>
             <div className="flex items-center gap-1.5">
               {revisionNumber !== null && (
                 <button type="button" onClick={toggleHistory} disabled={regenerating} title="Revision history"
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 disabled:opacity-40">
+                  className="flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-2 text-[11px] font-semibold text-muted-foreground transition hover:border-accent/40 hover:text-foreground disabled:opacity-40">
                   <RotateCcw className="h-3 w-3" />
                   {showHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </button>
@@ -294,7 +294,7 @@ export const VariantCard = memo(function VariantCard({ variant, jobId }: { varia
               <button type="button"
                 onClick={() => { setShowRefine((v) => !v); setRegenError(null); }}
                 disabled={regenerating}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold transition disabled:opacity-40 ${showRefine ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600"}`}>
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold transition disabled:opacity-40 ${showRefine ? "border-accent/40 bg-accent/15 text-accent" : "border-border bg-surface text-muted-foreground hover:border-accent/40 hover:text-foreground"}`}>
                 <Sparkles className="h-3 w-3" /> Refine
               </button>
             </div>

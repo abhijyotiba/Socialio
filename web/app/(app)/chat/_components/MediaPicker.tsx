@@ -136,11 +136,11 @@ export function MediaPicker({
   const selectedCount = selected.length;
 
   return (
-    <div className="border-t border-slate-100 bg-slate-50/50">
+    <div className="border-t border-border bg-white/[0.03]">
       <div className="flex items-center justify-between px-5 py-2.5">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 transition hover:text-indigo-600"
+          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition hover:text-accent"
         >
           <ImagePlus className="h-4 w-4" />
           {selectedCount > 0
@@ -150,18 +150,18 @@ export function MediaPicker({
       </div>
 
       {isOpen && (
-        <div className="border-t border-slate-100 p-5">
-          {error && <p className="mb-3 text-xs text-red-500">{error}</p>}
-          
+        <div className="border-t border-border p-5">
+          {error && <p className="mb-3 text-xs text-destructive">{error}</p>}
+
           <div className="flex flex-wrap gap-3">
             {/* Upload Button */}
-            <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white transition hover:border-indigo-400 hover:bg-slate-50">
+            <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface transition hover:border-accent/50 hover:bg-surface-2">
               {uploading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-faint-foreground" />
               ) : (
                 <>
-                  <UploadCloud className="mb-1 h-5 w-5 text-slate-400" />
-                  <span className="text-[10px] font-medium text-slate-500">
+                  <UploadCloud className="mb-1 h-5 w-5 text-faint-foreground" />
+                  <span className="text-[10px] font-medium text-muted-foreground">
                     Upload
                   </span>
                 </>
@@ -178,7 +178,7 @@ export function MediaPicker({
 
             {loading && available.length === 0 && (
               <div className="flex h-24 w-24 items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                <Loader2 className="h-5 w-5 animate-spin text-faint-foreground" />
               </div>
             )}
 
@@ -195,7 +195,7 @@ export function MediaPicker({
                   disabled={disabled}
                   className={`relative h-24 w-24 overflow-hidden rounded-xl border-2 transition ${
                     isSelected
-                      ? "border-indigo-500 opacity-100"
+                      ? "border-accent opacity-100"
                       : "border-transparent opacity-80 hover:opacity-100"
                   } ${disabled ? "cursor-not-allowed opacity-40 hover:opacity-40" : ""}`}
                 >
@@ -206,7 +206,7 @@ export function MediaPicker({
                     className="h-full w-full object-cover"
                   />
                   {isSelected && (
-                    <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow-sm">
+                    <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm">
                       <span className="text-[10px] font-bold">✓</span>
                     </div>
                   )}
@@ -216,7 +216,7 @@ export function MediaPicker({
 
             {!loading && available.length === 0 && selected.length === 0 && (
               <div className="flex h-24 items-center justify-center px-4">
-                <span className="text-xs text-slate-400">No media available</span>
+                <span className="text-xs text-faint-foreground">No media available</span>
               </div>
             )}
           </div>
