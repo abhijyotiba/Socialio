@@ -12,7 +12,6 @@ import {
   Zap,
   User,
   Inbox,
-  CheckCheck,
 } from "lucide-react";
 
 const nav = [
@@ -20,7 +19,6 @@ const nav = [
   { name: "Chat", href: "/chat", icon: PenLine },
   { name: "Campaigns", href: "/campaigns", icon: Inbox },
   { name: "Queue", href: "/queue", icon: CalendarClock },
-  { name: "Review", href: "/review", icon: CheckCheck },
   { name: "Settings", href: "/settings/personas", icon: SlidersHorizontal },
 ];
 
