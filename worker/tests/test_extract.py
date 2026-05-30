@@ -93,3 +93,46 @@ def test_max_five_media_urls():
     html = f"<html><body><main>{many_imgs}</main></body></html>"
     result = parse(html)
     assert len(result.media_urls) <= 5
+
+
+def test_skips_dummy_recaptcha_title():
+    html_with_recaptcha = """
+    <html>
+    <head>
+      <meta property="og:title" content="reCAPTCHA" />
+      <title>Cloudflare security check</title>
+    </head>
+    <body>
+      <h1>Quantum Computing: The Next Big Thing</h1>
+    </body>
+    </html>
+    """
+    result = parse(html_with_recaptcha)
+    assert result.title == "Quantum Computing: The Next Big Thing"
+
+
+def test_filters_junk_images():
+    html_with_junk = """
+    <html>
+    <head><title>Test Images</title></head>
+    <body>
+      <main>
+        <!-- Keep: high quality main image -->
+        <img src="https://example.com/resize:fit:700/main.png" />
+        
+        <!-- Skip: small size width attribute -->
+        <img src="https://example.com/real.jpg" width="32" height="32" />
+        
+        <!-- Skip: size pattern in URL -->
+        <img src="https://example.com/resize:fill:32:32/avatar.png" />
+        
+        <!-- Skip: keyword in class/id/alt -->
+        <img src="https://example.com/profile.png" alt="user avatar" />
+        <img src="https://example.com/logo-mark.png" class="footer-logo" />
+      </main>
+    </body>
+    </html>
+    """
+    result = parse(html_with_junk)
+    assert len(result.media_urls) == 1
+    assert result.media_urls[0] == "https://example.com/resize:fit:700/main.png"

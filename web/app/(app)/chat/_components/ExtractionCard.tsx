@@ -113,7 +113,7 @@ export const ExtractionCard = memo(function ExtractionCard({
             <ImageIcon className="h-3 w-3 text-slate-400" />
             <span className="text-[11px] text-slate-400">{media.length} image{media.length !== 1 ? "s" : ""}</span>
             <div className="flex gap-1.5 ml-1">
-              {media.slice(0, 3).map((m) => (
+              {media.map((m) => (
                 <a key={m.cloudinary_id} href={m.cloudinary_url} target="_blank" rel="noopener noreferrer">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
