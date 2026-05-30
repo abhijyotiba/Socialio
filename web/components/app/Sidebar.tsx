@@ -38,18 +38,18 @@ export function Sidebar({ email }: { email: string }) {
 
   return (
     <aside className="z-10 w-[280px] flex-shrink-0">
-      <div className="relative m-3 mr-0 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(165deg,#141727_0%,#19132f_54%,#101a2b_100%)] p-5 text-white shadow-[0_28px_80px_-24px_rgba(2,6,23,0.7)]">
-        <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-indigo-500/20 blur-[96px]" />
+      <div className="relative m-3 mr-0 flex h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-[24px] border border-border bg-sidebar p-5 text-foreground shadow-[0_28px_80px_-24px_rgba(0,0,0,0.8)]">
+        <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-[oklch(0.66_0.21_32/0.14)] blur-[96px]" />
 
         {/* Logo */}
         <div className="relative z-10 mb-8 mt-1 px-3 py-4">
           <div className="flex items-center gap-3.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-500/30">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-surface-2 text-accent ring-1 ring-border">
               <Zap size={20} fill="currentColor" />
             </div>
             <div>
-              <p className="font-display text-xl font-bold leading-tight tracking-tight text-white">SocialOS</p>
-              <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-indigo-300/85">
+              <p className="display-lg text-xl text-foreground">SocialOS</p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-accent/80">
                 Content Engine
               </p>
             </div>
@@ -67,20 +67,20 @@ export function Sidebar({ email }: { email: string }) {
               <Link
                 key={href}
                 href={href}
-                className={`group relative flex items-center gap-3.5 overflow-hidden rounded-2xl px-4 py-3 text-sm font-bold tracking-wide transition-all duration-200 ${
+                className={`group relative flex items-center gap-3.5 overflow-hidden rounded-xl px-4 py-3 text-sm font-bold tracking-wide transition-all duration-200 ${
                   active
-                    ? "translate-x-0.5 bg-white/10 text-white shadow-lg shadow-black/20"
-                    : "text-gray-400 hover:bg-white/5 hover:text-white"
+                    ? "translate-x-0.5 bg-white/[0.06] text-foreground"
+                    : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
                 }`}
               >
                 {active && (
-                  <span className="absolute bottom-[20%] left-0 top-[20%] w-1 rounded-full bg-indigo-500" />
+                  <span className="absolute bottom-[20%] left-0 top-[20%] w-1 rounded-full bg-accent" />
                 )}
                 <Icon
                   className={`h-[18px] w-[18px] flex-shrink-0 transition-all duration-200 group-hover:scale-110 ${
                     active
-                      ? "text-indigo-300 drop-shadow-[0_0_8px_rgba(129,140,248,0.7)]"
-                      : "text-gray-400 group-hover:text-gray-200"
+                      ? "text-accent drop-shadow-[0_0_8px_oklch(0.66_0.21_32/0.7)]"
+                      : "text-muted-foreground group-hover:text-foreground"
                   }`}
                 />
                 {name}
@@ -90,35 +90,35 @@ export function Sidebar({ email }: { email: string }) {
         </nav>
 
         {/* Bottom: profile card + sign out */}
-        <div className="relative z-10 mt-auto space-y-2 border-t border-white/10 pt-5">
+        <div className="relative z-10 mt-auto space-y-2 border-t border-border pt-5">
           {/* Profile card — clickable */}
           <Link
             href="/profile"
-            className={`flex items-center gap-3 rounded-2xl border p-3.5 backdrop-blur-md transition-all ${
+            className={`flex items-center gap-3 rounded-xl border p-3.5 transition-all ${
               isProfileActive
-                ? "border-indigo-500/40 bg-white/10"
-                : "border-white/5 bg-white/5 hover:border-white/10 hover:bg-white/8"
+                ? "border-accent/40 bg-white/[0.06]"
+                : "border-border bg-white/[0.03] hover:border-border-strong hover:bg-white/[0.06]"
             }`}
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-gradient-to-br from-indigo-500 to-violet-500 text-xs font-bold text-white shadow-md shadow-indigo-500/30">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-surface-2 text-xs font-bold text-accent ring-1 ring-border">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold capitalize tracking-tight text-white">{displayName}</p>
-              <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+              <p className="truncate text-sm font-semibold capitalize tracking-tight text-foreground">{displayName}</p>
+              <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-faint-foreground">
                 View profile
               </p>
             </div>
-            <User className="h-4 w-4 shrink-0 text-gray-500" />
+            <User className="h-4 w-4 shrink-0 text-faint-foreground" />
           </Link>
 
           {/* Sign out */}
           <button
             onClick={handleLogout}
-            className="group flex h-12 w-full items-center gap-3.5 rounded-2xl px-3 text-gray-400 transition-all hover:bg-white/5 hover:text-white"
+            className="group flex h-12 w-full items-center gap-3.5 rounded-xl px-3 text-muted-foreground transition-all hover:bg-white/[0.04] hover:text-foreground"
             title="Sign out"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 transition-all group-hover:bg-red-500/20 group-hover:text-red-400">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.05] transition-all group-hover:bg-red-500/20 group-hover:text-red-400">
               <LogOut className="h-4 w-4" />
             </span>
             <span className="text-sm font-bold tracking-wide">Sign Out</span>

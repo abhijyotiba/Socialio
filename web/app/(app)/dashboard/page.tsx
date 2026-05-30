@@ -20,6 +20,8 @@ import {
   type PublishedVariantWithMetrics,
   type ScheduledVariantRow,
 } from "@/lib/db/posts";
+import { Panel } from "@/components/ui/panel";
+import { MicroLabel } from "@/components/ui/micro-label";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -74,25 +76,25 @@ function LineChart({ data, gradientId }: { data: number[]; gradientId: string })
     <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full">
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.12" />
-          <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+          <stop offset="0%" stopColor="#FF4D2E" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#FF4D2E" stopOpacity="0" />
         </linearGradient>
       </defs>
 
       {yTicks.map((t, i) => (
         <g key={i}>
-          <line x1={padL} y1={t.y} x2={W - padR} y2={t.y} stroke="#f1f5f9" strokeWidth="1" />
-          <text x={padL - 8} y={t.y + 4} textAnchor="end" fontSize="9" fill="#94a3b8">
+          <line x1={padL} y1={t.y} x2={W - padR} y2={t.y} stroke="oklch(1 0 0 / 0.06)" strokeWidth="1" />
+          <text x={padL - 8} y={t.y + 4} textAnchor="end" fontSize="9" fill="oklch(0.55 0.006 270)">
             {t.val >= 1000 ? `${(t.val / 1000).toFixed(0)}k` : t.val}
           </text>
         </g>
       ))}
 
       <path d={area} fill={`url(#${gradientId})`} />
-      <path d={line} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={line} fill="none" stroke="#FF4D2E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
 
       {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="3" fill="#fff" stroke="#6366f1" strokeWidth="1.5" />
+        <circle key={i} cx={p.x} cy={p.y} r="3" fill="var(--background)" stroke="#FF4D2E" strokeWidth="1.5" />
       ))}
 
       {DAYS.map((d, i) => (
@@ -102,7 +104,7 @@ function LineChart({ data, gradientId }: { data: number[]; gradientId: string })
           y={H - 6}
           textAnchor="middle"
           fontSize="9"
-          fill="#94a3b8"
+          fill="oklch(0.55 0.006 270)"
         >
           {d}
         </text>
@@ -167,8 +169,8 @@ function PlatformIcon({ platform, size = "sm" }: { platform: string; size?: "sm"
     );
   }
   return (
-    <div className={`flex ${dim} shrink-0 items-center justify-center rounded-lg bg-slate-900`}>
-      <svg className={`${iconDim} text-white`} viewBox="0 0 24 24" fill="currentColor">
+    <div className={`flex ${dim} shrink-0 items-center justify-center rounded-lg bg-surface-2 ring-1 ring-border`}>
+      <svg className={`${iconDim} text-foreground`} viewBox="0 0 24 24" fill="currentColor">
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L1.254 2.25H8.08l4.258 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
       </svg>
     </div>
@@ -239,18 +241,18 @@ export default async function DashboardPage({
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-accent ring-1 ring-inset ring-border">
             <LayoutDashboard className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Overview</h1>
-            <p className="text-xs text-slate-400">
-              {format(new Date(), "EEEE, MMMM d")} · last 7 days
+            <h1 className="display-lg text-3xl text-foreground">Overview</h1>
+            <p className="text-xs text-faint-foreground">
+              <span className="mono-num">{format(new Date(), "EEEE, MMMM d")}</span> · last 7 days
             </p>
           </div>
         </div>
         <Link href="/chat">
-          <button className="inline-flex h-9 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:scale-[0.97]">
+          <button className="inline-flex h-9 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-110 active:scale-[0.97]">
             <Plus className="h-4 w-4" strokeWidth={2.5} />
             New Post
           </button>
@@ -260,16 +262,14 @@ export default async function DashboardPage({
       {/* ── Persona filter ──────────────────────────────────── */}
       {personas.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-            View
-          </span>
+          <MicroLabel className="!tracking-[0.2em]">View</MicroLabel>
           <Link
             href="/dashboard"
             scroll={false}
             className={`inline-flex h-7 items-center rounded-full px-3 text-[11px] font-semibold transition ${
               !validPersonaId
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
+                ? "bg-accent text-accent-foreground shadow-sm"
+                : "bg-surface text-muted-foreground ring-1 ring-inset ring-border hover:bg-surface-2"
             }`}
           >
             All personas
@@ -284,7 +284,7 @@ export default async function DashboardPage({
                 className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold transition ${
                   active
                     ? "text-white shadow-sm"
-                    : "bg-white text-slate-600 ring-1 ring-inset ring-slate-200 hover:bg-slate-50"
+                    : "bg-surface text-muted-foreground ring-1 ring-inset ring-border hover:bg-surface-2"
                 }`}
                 style={active ? { backgroundColor: p.avatar_color } : undefined}
               >
@@ -303,75 +303,69 @@ export default async function DashboardPage({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 stagger-children">
 
         {/* Posts published */}
-        <div className="animate-fade-up card-lift relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-5 text-white shadow-lg shadow-indigo-200/50">
-          <div className="pointer-events-none absolute right-2 top-1 opacity-[0.10]">
+        <Panel hover className="animate-fade-up relative overflow-hidden p-5">
+          <div className="pointer-events-none absolute right-2 top-1 text-accent/10">
             <Zap className="h-16 w-16" fill="currentColor" />
           </div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-indigo-200/80">
-            Posts Published
-          </p>
+          <MicroLabel>Posts Published</MicroLabel>
           <div className="mt-3 flex items-end gap-2">
-            <p className="text-4xl font-bold leading-none tracking-tight">{publishedCount}</p>
+            <p className="mono-num text-4xl font-bold leading-none text-accent">{publishedCount}</p>
           </div>
-          <p className="mt-3 text-[11px] text-indigo-200/70">
+          <p className="mt-3 text-[11px] text-muted-foreground">
             {publishedCount > 0 ? "All-time total across platforms" : "No posts yet — create your first"}
           </p>
-        </div>
+        </Panel>
 
         {/* Impressions */}
-        <div className="animate-fade-up card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <Panel hover className="animate-fade-up p-5">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Impressions
-              </p>
+              <MicroLabel>Impressions</MicroLabel>
               <div className="mt-2 flex items-end gap-2">
-                <p className="text-4xl font-bold leading-none tracking-tight text-slate-900">
+                <p className="mono-num text-4xl font-bold leading-none text-foreground">
                   {fmtNum(totalImpressions)}
                 </p>
               </div>
             </div>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-500">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-accent ring-1 ring-border">
               <Eye className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 h-9">
-            <MiniSparkline data={impressionVals} color="#6366f1" gradientId="sp-impressions" />
+            <MiniSparkline data={impressionVals} color="#FF4D2E" gradientId="sp-impressions" />
           </div>
-        </div>
+        </Panel>
 
         {/* Likes */}
-        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <Panel hover className="p-5">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Total Likes
-              </p>
+              <MicroLabel>Total Likes</MicroLabel>
               <div className="mt-2 flex items-end gap-2">
-                <p className="text-4xl font-bold leading-none tracking-tight text-slate-900">
+                <p className="mono-num text-4xl font-bold leading-none text-foreground">
                   {fmtNum(totalLikes)}
                 </p>
               </div>
             </div>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-500">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-muted-foreground ring-1 ring-border">
               <Heart className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 h-9">
-            <MiniSparkline data={likeVals} color="#8b5cf6" gradientId="sp-likes" />
+            <MiniSparkline data={likeVals} color="#8a8a93" gradientId="sp-likes" />
           </div>
-        </div>
+        </Panel>
       </div>
 
       {/* ── Bottom row ──────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
 
         {/* Engagement chart — takes 3 cols */}
-        <div className="card-lift overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm lg:col-span-3">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <Panel className="overflow-hidden lg:col-span-3">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-900">Engagement Performance</h2>
-              <p className="mt-0.5 text-[11px] text-slate-400">
+              <h2 className="text-sm font-bold text-foreground">Engagement Performance</h2>
+              <p className="mt-0.5 text-[11px] text-faint-foreground">
                 Impressions across your last published posts
               </p>
             </div>
@@ -381,24 +375,24 @@ export default async function DashboardPage({
               <LineChart data={impressionVals} gradientId="lc-engagement" />
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-center">
-                <p className="text-xs font-semibold text-slate-700">No metrics yet</p>
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="text-xs font-semibold text-foreground">No metrics yet</p>
+                <p className="mt-1 text-[11px] text-faint-foreground">
                   Publish a post and platform metrics will appear here after
                   the next sync.
                 </p>
               </div>
             )}
           </div>
-        </div>
+        </Panel>
 
         {/* Queue preview — takes 2 cols */}
-        <div className="card-lift flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-white shadow-sm lg:col-span-2">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <Panel className="flex flex-col overflow-hidden lg:col-span-2">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-indigo-500" />
-              <h2 className="text-sm font-bold text-slate-900">Upcoming Queue</h2>
+              <CalendarClock className="h-4 w-4 text-accent" />
+              <h2 className="text-sm font-bold text-foreground">Upcoming Queue</h2>
             </div>
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">
+            <span className="mono-num rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
               {queueCount}
             </span>
           </div>
@@ -406,34 +400,34 @@ export default async function DashboardPage({
           {queueItems.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center px-5 py-10 text-center">
               <div className="relative mb-4">
-                <div className="absolute inset-0 rounded-2xl bg-indigo-400/15 blur-xl scale-150" />
-                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-400/30">
-                  <CalendarClock className="h-6 w-6 text-white" />
+                <div className="absolute inset-0 rounded-2xl bg-accent/15 blur-xl scale-150" />
+                <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-2 text-accent ring-1 ring-border">
+                  <CalendarClock className="h-6 w-6" />
                 </div>
               </div>
-              <p className="text-xs font-bold text-slate-700">Queue is empty</p>
-              <p className="mt-1 text-[11px] text-slate-400">
+              <p className="text-xs font-bold text-foreground">Queue is empty</p>
+              <p className="mt-1 text-[11px] text-faint-foreground">
                 Generate content to fill your pipeline.
               </p>
               <Link href="/chat">
-                <button className="mt-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-[0.97]">
+                <button className="mt-4 rounded-xl bg-accent px-4 py-1.5 text-xs font-semibold text-accent-foreground shadow-sm transition hover:brightness-110 active:scale-[0.97]">
                   Create post
                 </button>
               </Link>
             </div>
           ) : (
             <>
-              <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">
+              <ul className="flex-1 divide-y divide-border overflow-y-auto">
                 {queueItems.map((item) => (
-                  <li key={item.id} className="flex items-start gap-3 px-5 py-3.5 transition hover:bg-slate-50/70">
+                  <li key={item.id} className="flex items-start gap-3 px-5 py-3.5 transition hover:bg-white/[0.03]">
                     <PlatformIcon platform={item.platform} size="xs" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-slate-800">
+                      <p className="truncate text-xs font-semibold text-foreground">
                         {item.body || "—"}
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
-                        <Clock className="h-3 w-3 text-indigo-400" />
-                        <span className="text-[11px] font-medium text-slate-500">
+                        <Clock className="h-3 w-3 text-accent" />
+                        <span className="mono-num text-[11px] font-medium text-muted-foreground">
                           {item.scheduled_at
                             ? formatQueueDate(item)
                             : "Not scheduled"}
@@ -441,7 +435,7 @@ export default async function DashboardPage({
                       </div>
                     </div>
                     {item.scheduled_at && (
-                      <span className="mt-0.5 shrink-0 text-[10px] font-medium text-slate-400">
+                      <span className="mono-num mt-0.5 shrink-0 text-[10px] font-medium text-faint-foreground">
                         {formatDistanceToNow(new Date(item.scheduled_at), { addSuffix: true })}
                       </span>
                     )}
@@ -449,54 +443,54 @@ export default async function DashboardPage({
                 ))}
               </ul>
 
-              <div className="border-t border-slate-100 px-5 py-3">
-                <Link href="/queue" className="flex items-center justify-between text-[11px] font-semibold text-indigo-600 transition hover:text-indigo-700">
+              <div className="border-t border-border px-5 py-3">
+                <Link href="/queue" className="flex items-center justify-between text-[11px] font-semibold text-accent transition hover:brightness-110">
                   View full queue
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
             </>
           )}
-        </div>
+        </Panel>
       </div>
 
       {/* ── Recent posts row ────────────────────────────────── */}
       {publishedCount > 0 && (
-        <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <h2 className="text-sm font-bold text-slate-900">Recent Posts</h2>
-            <span className="text-[11px] text-slate-400">{publishedCount} total</span>
+        <Panel className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h2 className="text-sm font-bold text-foreground">Recent Posts</h2>
+            <span className="mono-num text-[11px] text-faint-foreground">{publishedCount} total</span>
           </div>
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-border">
             {metrics.slice(0, 4).map((v) => {
               const m = getMetric(v.post_metrics);
               return (
-                <li key={v.id} className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-slate-50/70">
+                <li key={v.id} className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-white/[0.03]">
                   <PlatformIcon platform={v.platform} size="xs" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">
+                    <p className="mono-num text-xs font-medium text-muted-foreground">
                       {v.published_at ? format(new Date(v.published_at), "MMM d, yyyy") : "—"}
                     </p>
                   </div>
                   <div className="flex items-center gap-5 shrink-0">
                     <div className="text-right">
-                      <p className="text-xs font-bold text-slate-900">{fmtNum(m?.impressions ?? 0)}</p>
-                      <p className="text-[10px] text-slate-400">impressions</p>
+                      <p className="mono-num text-xs font-bold text-foreground">{fmtNum(m?.impressions ?? 0)}</p>
+                      <p className="text-[10px] text-faint-foreground">impressions</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-bold text-slate-900">{fmtNum(m?.likes ?? 0)}</p>
-                      <p className="text-[10px] text-slate-400">likes</p>
+                      <p className="mono-num text-xs font-bold text-foreground">{fmtNum(m?.likes ?? 0)}</p>
+                      <p className="text-[10px] text-faint-foreground">likes</p>
                     </div>
                     <div className="text-right hidden sm:block">
-                      <p className="text-xs font-bold text-slate-900">{fmtNum(m?.comments ?? 0)}</p>
-                      <p className="text-[10px] text-slate-400">comments</p>
+                      <p className="mono-num text-xs font-bold text-foreground">{fmtNum(m?.comments ?? 0)}</p>
+                      <p className="text-[10px] text-faint-foreground">comments</p>
                     </div>
                   </div>
                 </li>
               );
             })}
           </ul>
-        </div>
+        </Panel>
       )}
     </div>
   );
