@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { TypingIndicator } from "./_components/TypingIndicator";
 import { UserBubble } from "./_components/UserBubble";
 import { AiMessage } from "./_components/AiMessage";
 import { ExtractionCard } from "./_components/ExtractionCard";
 import { ChatInput } from "./_components/ChatInput";
 import { parseInput } from "@/lib/chat/parse-input";
+import { pollIngestion, type IngestionJob } from "@/lib/chat/poll-ingestion";
 import type { Database } from "@/lib/db/types";
 
 type PersonaRow = Database["public"]["Tables"]["personas"]["Row"];
@@ -151,53 +151,23 @@ export default function ChatPage() {
         uploading_media: "Uploading media assets...",
       };
 
-      type JobRow = { stage: string; extracted_title?: string; extracted_text?: string; media?: Media[]; error?: string };
-
-      const finalJob = await new Promise<JobRow>((resolve, reject) => {
-        const supabase = createClient();
-        let settled = false;
-
-        const timeout = setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          supabase.removeChannel(channel);
-          reject(new Error("Extraction timed out."));
-        }, 60000);
-
-        function settle(job: JobRow) {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          supabase.removeChannel(channel);
-          resolve(job);
-        }
-
-        const channel = supabase
-          .channel(`ingest-${jobId}`)
-          .on(
-            "postgres_changes",
-            { event: "UPDATE", schema: "public", table: "ingestion_jobs", filter: `id=eq.${jobId}` },
-            (payload) => {
-              const job = payload.new as JobRow;
-              if (job.stage === "done" || job.stage === "failed") {
-                settle(job);
-              } else {
-                replaceMessage(typingId, { id: typingId, type: "ai-typing", label: INGEST_STAGE_LABELS[job.stage] ?? "Extracting content..." });
-              }
-            }
-          )
-          .subscribe(async (status) => {
-            // One-shot check after subscribe in case the job finished before
-            // the channel was ready (fast scrape race condition).
-            if (status === "SUBSCRIBED") {
-              const checkRes = await fetch(`/api/ingest/${jobId}`).catch(() => null);
-              if (!checkRes?.ok) return;
-              const job: JobRow = await checkRes.json().catch(() => null);
-              if (job && (job.stage === "done" || job.stage === "failed")) {
-                settle(job);
-              }
-            }
+      // Poll the job until it reaches a terminal stage. The web route returns
+      // the job flat ({ ...job, media }), so the parsed body IS the job row.
+      // Polling avoids depending on Supabase realtime (not enabled for
+      // ingestion_jobs) and handles slow jobs that finish after page load.
+      const finalJob = await pollIngestion(jobId, {
+        fetchJob: async () => {
+          const res = await fetch(`/api/ingest/${jobId}`).catch(() => null);
+          if (!res?.ok) return null;
+          return (await res.json().catch(() => null)) as IngestionJob | null;
+        },
+        onStage: (stage) => {
+          replaceMessage(typingId, {
+            id: typingId,
+            type: "ai-typing",
+            label: INGEST_STAGE_LABELS[stage] ?? "Extracting content...",
           });
+        },
       });
 
       if (finalJob.stage === "failed") {
