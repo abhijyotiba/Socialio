@@ -93,3 +93,14 @@ async def test_extract_ideas_empty_text_skips_llm():
         ideas = await extract_ideas("T", "   ", "brand")
     assert ideas == []
     mock_gen.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_extract_ideas_requests_a_large_token_budget():
+    """The idea list is much bigger than a single post, so atomize must lift the
+    default 1024-token cap or the JSON truncates → 0 ideas."""
+    with patch("pipeline.atomize.generate", new_callable=AsyncMock) as mock_gen:
+        mock_gen.return_value = "[]"
+        from pipeline.atomize import extract_ideas
+        await extract_ideas("T", "real article text", "brand")
+        assert mock_gen.call_args.kwargs["max_tokens"] >= 4096

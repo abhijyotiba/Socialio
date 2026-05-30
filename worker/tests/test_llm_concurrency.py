@@ -12,7 +12,7 @@ async def test_generate_caps_in_flight_calls_at_the_limit():
     in_flight = 0
     peak = 0
 
-    async def fake_groq(system_prompt, user_message):
+    async def fake_groq(system_prompt, user_message, **_kwargs):
         nonlocal in_flight, peak
         in_flight += 1
         peak = max(peak, in_flight)
@@ -36,10 +36,10 @@ async def test_generate_still_falls_back_to_gemini_under_the_limiter():
     """The semaphore must not change the Groq→Gemini fallback contract."""
     import adapters.llm as llm
 
-    async def boom(system_prompt, user_message):
+    async def boom(system_prompt, user_message, **_kwargs):
         raise RuntimeError("groq down")
 
-    async def ok_gemini(system_prompt, user_message):
+    async def ok_gemini(system_prompt, user_message, **_kwargs):
         return "from gemini"
 
     with patch.object(llm, "_LLM_SEMAPHORE", asyncio.Semaphore(2)), \
