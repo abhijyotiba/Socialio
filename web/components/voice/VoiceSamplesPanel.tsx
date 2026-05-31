@@ -153,15 +153,15 @@ export function VoiceSamplesPanel({
           version={result.version_number}
         />
 
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800">
+            <h3 className="text-sm font-bold text-foreground">
               Generated system prompt
             </h3>
             <button
               type="button"
               onClick={() => setShowRawProfile((v) => !v)}
-              className="flex items-center gap-1 text-[11px] font-medium text-slate-500 transition hover:text-indigo-600"
+              className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition hover:text-accent"
             >
               {showRawProfile ? (
                 <>
@@ -174,19 +174,19 @@ export function VoiceSamplesPanel({
               )}
             </button>
           </div>
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-700">
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-surface-2 p-4 text-xs leading-relaxed text-foreground">
             {result.system_prompt}
           </pre>
           {showRawProfile && (
-            <pre className="mt-3 max-h-48 overflow-auto rounded-xl border border-slate-200 bg-white p-3 text-[11px] leading-relaxed text-slate-500">
+            <pre className="mt-3 max-h-48 overflow-auto rounded-xl border border-border bg-surface p-3 text-[11px] leading-relaxed text-muted-foreground">
               {JSON.stringify(result.profile, null, 2)}
             </pre>
           )}
         </div>
 
-        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <CheckCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-          <p className="text-sm text-emerald-700">
+        <div className="flex items-center gap-2.5 rounded-xl border border-success/30 bg-success/10 px-4 py-3">
+          <CheckCheck className="h-4 w-4 shrink-0 text-success" />
+          <p className="text-sm text-success">
             Saved as prompt version {result.version_number}.
           </p>
         </div>
@@ -198,7 +198,7 @@ export function VoiceSamplesPanel({
               setResult(null);
               setSamples(["", "", ""]);
             }}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600"
+            className="h-10 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-muted-foreground transition hover:border-accent/40 hover:text-accent"
           >
             Try different samples
           </button>
@@ -206,7 +206,7 @@ export function VoiceSamplesPanel({
             <button
               type="button"
               onClick={() => onSuccess(result)}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-6 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-110"
             >
               {successLabel}
             </button>
@@ -218,12 +218,12 @@ export function VoiceSamplesPanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
         <div className="mb-3">
-          <h3 className="text-sm font-bold text-slate-800">
+          <h3 className="text-sm font-bold text-foreground">
             Paste {MIN_SAMPLES}–{MAX_SAMPLES} of your recent posts
           </h3>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="mt-0.5 text-xs text-faint-foreground">
             Copy real LinkedIn or X posts you&apos;ve written. We&apos;ll learn
             your voice from them — not store the posts themselves.
           </p>
@@ -236,18 +236,18 @@ export function VoiceSamplesPanel({
             return (
               <div key={i} className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     Sample {i + 1}
                   </span>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                    <span className={valid ? "text-emerald-500" : ""}>
+                  <div className="flex items-center gap-2 text-[11px] text-faint-foreground">
+                    <span className={valid ? "text-success" : ""}>
                       {length} / {MIN_CHARS}+ chars
                     </span>
                     {samples.length > MIN_SAMPLES && (
                       <button
                         type="button"
                         onClick={() => removeSample(i)}
-                        className="text-slate-400 transition hover:text-red-500"
+                        className="text-faint-foreground transition hover:text-destructive"
                         aria-label={`Remove sample ${i + 1}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -260,7 +260,7 @@ export function VoiceSamplesPanel({
                   value={sample}
                   onChange={(e) => updateSample(i, e.target.value)}
                   placeholder="Paste a post you wrote — the more characteristic, the better."
-                  className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  className="w-full resize-y rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-sm leading-relaxed text-foreground placeholder:text-faint-foreground transition focus:border-accent/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-border"
                 />
               </div>
             );
@@ -272,23 +272,23 @@ export function VoiceSamplesPanel({
             type="button"
             onClick={addSample}
             disabled={samples.length >= MAX_SAMPLES}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent transition hover:text-accent disabled:opacity-40"
           >
             <Plus className="h-3.5 w-3.5" /> Add sample
-            <span className="text-slate-400">
+            <span className="text-faint-foreground">
               ({samples.length}/{MAX_SAMPLES})
             </span>
           </button>
-          <span className="text-[11px] text-slate-400">
+          <span className="text-[11px] text-faint-foreground">
             {filledCount}/{MIN_SAMPLES} valid
           </span>
         </div>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="flex items-center gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
@@ -297,7 +297,7 @@ export function VoiceSamplesPanel({
           type="button"
           onClick={handleAnalyze}
           disabled={!canAnalyze}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-40"
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-6 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-110 disabled:opacity-40"
         >
           {submitting ? (
             <>
@@ -363,17 +363,17 @@ function ProfileSummary({
   }
 
   return (
-    <div className="rounded-2xl border border-indigo-200/70 bg-indigo-50/40 p-5">
+    <div className="rounded-2xl border border-accent/25 bg-accent/[0.08] p-5">
       <div className="mb-2 flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-indigo-500" />
-        <h3 className="text-sm font-bold text-indigo-900">
+        <Sparkles className="h-4 w-4 text-accent" />
+        <h3 className="text-sm font-bold text-foreground">
           Your voice profile
-          <span className="ml-2 text-[11px] font-medium text-indigo-500">
+          <span className="ml-2 text-[11px] font-medium text-accent">
             v{version}
           </span>
         </h3>
       </div>
-      <p className="text-sm leading-relaxed text-slate-700">
+      <p className="text-sm leading-relaxed text-foreground">
         {sentences.join(", ")}.
       </p>
 
@@ -382,7 +382,7 @@ function ProfileSummary({
           {profile.topics.slice(0, 5).map((topic) => (
             <span
               key={topic}
-              className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200"
+              className="rounded-full bg-surface px-2.5 py-0.5 text-[11px] font-semibold text-accent ring-1 ring-inset ring-accent/30"
             >
               {topic}
             </span>

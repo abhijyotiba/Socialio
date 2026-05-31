@@ -22,17 +22,17 @@ export default async function PersonasPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent ring-1 ring-inset ring-border">
             <Users className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Personas</h1>
-            <p className="text-xs text-slate-400">Each persona has its own voice, accounts, and posting schedule.</p>
+            <h1 className="display-lg text-3xl text-foreground">Personas</h1>
+            <p className="text-xs text-faint-foreground">Each persona has its own voice, accounts, and posting schedule.</p>
           </div>
         </div>
         <Link
           href="/settings/personas/new"
-          className="inline-flex h-9 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          className="inline-flex h-9 items-center gap-2 rounded-xl bg-accent px-4 text-xs font-semibold text-accent-foreground shadow-sm transition hover:brightness-110"
         >
           Add Persona
         </Link>
@@ -44,7 +44,7 @@ export default async function PersonasPage() {
           <Link
             key={persona.id}
             href={`/settings/personas/${persona.id}`}
-            className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/30"
+            className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm transition hover:border-accent/40 hover:bg-accent/[0.06]"
           >
             <div
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white shadow-sm"
@@ -53,19 +53,19 @@ export default async function PersonasPage() {
               {persona.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-900">{persona.name}</p>
+              <p className="text-sm font-semibold text-foreground">{persona.name}</p>
               {persona.is_default && (
-                <p className="text-xs text-slate-400">Default</p>
+                <p className="text-xs text-faint-foreground">Default</p>
               )}
             </div>
-            <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="h-4 w-4 text-faint-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 18l6-6-6-6" />
             </svg>
           </Link>
         ))}
 
         {personas.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-400">No personas yet.</p>
+          <p className="py-8 text-center text-sm text-faint-foreground">No personas yet.</p>
         )}
       </div>
     </div>

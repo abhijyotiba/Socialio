@@ -13,18 +13,18 @@ export default async function AutopilotSettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return <p className="text-sm text-slate-500">Please sign in.</p>;
+    return <p className="text-sm text-muted-foreground">Please sign in.</p>;
   }
 
   const workspace = await getWorkspaceForUser(user.id);
   if (!workspace) {
-    return <p className="text-sm text-slate-500">No workspace found.</p>;
+    return <p className="text-sm text-muted-foreground">No workspace found.</p>;
   }
 
   const persona = await getDefaultPersona(workspace.workspace_id);
   if (!persona) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-muted-foreground">
         Create a persona first to set up the content engine.
       </p>
     );
@@ -64,14 +64,14 @@ export default async function AutopilotSettingsPage() {
     <div className="space-y-5 page-enter">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent ring-1 ring-inset ring-border">
           <Zap className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="display-lg text-3xl text-foreground">
             Content Autopilot
           </h1>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-faint-foreground">
             Set it once — the engine meters your reservoir into posts at this cadence.
           </p>
         </div>
@@ -87,16 +87,16 @@ export default async function AutopilotSettingsPage() {
         ] as const).map(([name, count]) => (
           <div
             key={name}
-            className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3 shadow-sm"
+            className="flex items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-sm"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15 text-accent">
               <Inbox className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-900">
+              <p className="text-sm font-bold text-foreground">
                 {count} post{count === 1 ? "" : "s"} ready
               </p>
-              <p className="text-[11px] text-slate-400">{name} reservoir</p>
+              <p className="text-[11px] text-faint-foreground">{name} reservoir</p>
             </div>
           </div>
         ))}

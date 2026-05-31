@@ -32,8 +32,8 @@ export default function OnboardingPage() {
               key={i}
               className={`h-1.5 flex-1 rounded-full transition-colors ${
                 i <= step
-                  ? "bg-zinc-900 dark:bg-zinc-50"
-                  : "bg-zinc-200 dark:bg-zinc-700"
+                  ? "bg-accent"
+                  : "bg-surface-2"
               }`}
             />
           ))}
@@ -51,8 +51,8 @@ export default function OnboardingPage() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-zinc-400">
-          Step {step + 1} of {STEPS.length}
+        <p className="text-center text-xs text-faint-foreground">
+          Step <span className="mono-num">{step + 1}</span> of <span className="mono-num">{STEPS.length}</span>
         </p>
       </div>
     </div>

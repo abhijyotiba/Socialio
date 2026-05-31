@@ -65,13 +65,13 @@ export function CadenceForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm"
+      className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm"
     >
       {/* Header */}
       <div className="mb-4 flex items-center gap-3">
         <div
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ${
-            isLinkedIn ? "bg-[#0077b5]" : "bg-slate-900"
+            isLinkedIn ? "bg-[#0077b5]" : "bg-surface-2 ring-1 ring-border"
           }`}
         >
           {isLinkedIn ? (
@@ -85,34 +85,34 @@ export function CadenceForm({
           )}
         </div>
         <div>
-          <h2 className="text-sm font-bold text-slate-900">{label}</h2>
-          <p className="text-[11px] text-slate-400">How often the engine posts here</p>
+          <h2 className="text-sm font-bold text-foreground">{label}</h2>
+          <p className="text-[11px] text-faint-foreground">How often the engine posts here</p>
         </div>
       </div>
 
       <div className="space-y-4">
         {/* Posts per week */}
         <div className="flex items-center justify-between gap-3">
-          <label className="text-xs font-semibold text-slate-700">Posts per week</label>
+          <label className="text-xs font-semibold text-foreground">Posts per week</label>
           <div className="relative">
             <select
               value={postsPerWeek}
               onChange={(e) => setPostsPerWeek(Number(e.target.value))}
-              className="h-9 appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 text-sm font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              className="h-9 appearance-none rounded-lg border border-border bg-surface pl-3 pr-8 text-sm font-semibold text-foreground focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-border"
             >
               {PER_WEEK_OPTIONS.map((n) => (
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-faint-foreground" />
           </div>
         </div>
 
         {/* Autopilot toggle */}
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3">
           <div>
-            <p className="text-xs font-bold text-slate-800">Full autopilot</p>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-xs font-bold text-foreground">Full autopilot</p>
+            <p className="text-[11px] text-faint-foreground">
               {autopilot
                 ? "Posts publish automatically on schedule."
                 : "Posts wait for your approval in the review queue."}
@@ -124,11 +124,11 @@ export function CadenceForm({
             aria-checked={autopilot}
             onClick={() => setAutopilot((v) => !v)}
             className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-              autopilot ? "bg-indigo-600" : "bg-slate-300"
+              autopilot ? "bg-accent" : "bg-foreground"
             }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition-transform ${
                 autopilot ? "translate-x-[1.375rem]" : "translate-x-0.5"
               }`}
             />
@@ -137,31 +137,31 @@ export function CadenceForm({
 
         {/* Active toggle */}
         <div className="flex items-center justify-between gap-3">
-          <label className="text-xs font-semibold text-slate-700">Engine active</label>
+          <label className="text-xs font-semibold text-foreground">Engine active</label>
           <button
             type="button"
             role="switch"
             aria-checked={active}
             onClick={() => setActive((v) => !v)}
             className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-              active ? "bg-indigo-600" : "bg-slate-300"
+              active ? "bg-accent" : "bg-foreground"
             }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-surface shadow transition-transform ${
                 active ? "translate-x-[1.375rem]" : "translate-x-0.5"
               }`}
             />
           </button>
         </div>
 
-        {error && <p className="text-xs text-red-500">{error}</p>}
-        {saved && <p className="text-xs text-emerald-600">Saved.</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        {saved && <p className="text-xs text-success">Saved.</p>}
 
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex h-9 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-4 text-xs font-bold text-white transition hover:brightness-110 disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
           {saving ? "Saving…" : "Save cadence"}

@@ -53,9 +53,9 @@ export default async function PersonaHubPage({
           {persona.name.charAt(0).toUpperCase()}
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">{persona.name}</h1>
+          <h1 className="display-lg text-3xl text-foreground">{persona.name}</h1>
           {persona.is_default && (
-            <p className="text-xs text-slate-400">Default persona</p>
+            <p className="text-xs text-faint-foreground">Default persona</p>
           )}
         </div>
       </div>
@@ -66,16 +66,16 @@ export default async function PersonaHubPage({
           <Link
             key={href}
             href={href}
-            className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/30"
+            className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm transition hover:border-accent/40 hover:bg-accent/[0.06]"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
               <Icon className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-900">{label}</p>
-              <p className="text-xs text-slate-400">{description}</p>
+              <p className="text-sm font-semibold text-foreground">{label}</p>
+              <p className="text-xs text-faint-foreground">{description}</p>
             </div>
-            <ChevronRight className="h-4 w-4 text-slate-400" />
+            <ChevronRight className="h-4 w-4 text-faint-foreground" />
           </Link>
         ))}
       </div>

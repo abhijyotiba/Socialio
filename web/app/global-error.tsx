@@ -27,11 +27,15 @@ export default function GlobalError({
 
   return (
     <html>
-      <body className="flex flex-col items-center justify-center min-h-screen gap-4 p-8">
-        <p className="text-red-500 text-sm">A critical error occurred.</p>
+      <body
+        className="flex flex-col items-center justify-center min-h-screen gap-4 p-8"
+        style={{ background: "#0A0A0B", color: "#F4F4F5" }}
+      >
+        <p className="text-sm" style={{ color: "#ef6b53" }}>A critical error occurred.</p>
         <button
           onClick={reset}
-          className="text-indigo-600 underline text-sm hover:text-indigo-800"
+          className="underline text-sm"
+          style={{ color: "#FF4D2E" }}
         >
           Try again
         </button>

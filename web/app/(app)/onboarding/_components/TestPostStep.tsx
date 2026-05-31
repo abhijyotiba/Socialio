@@ -10,10 +10,10 @@ export function TestPostStep() {
     <div className="space-y-6 text-center">
       <div className="space-y-2">
         <p className="text-2xl">🎉</p>
-        <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+        <p className="font-semibold text-foreground">
           You&apos;re all set!
         </p>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-muted-foreground">
           Your brand is configured. AI post generation is coming in the next
           phase — head to the dashboard to get started.
         </p>

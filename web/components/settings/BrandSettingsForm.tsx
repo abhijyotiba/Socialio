@@ -15,8 +15,8 @@ interface BrandFormData {
 function SectionHeader({ label, description }: { label: string; description?: string }) {
   return (
     <div className="mb-4">
-      <h2 className="text-sm font-bold text-slate-800">{label}</h2>
-      {description && <p className="mt-0.5 text-xs text-slate-400">{description}</p>}
+      <h2 className="text-sm font-bold text-foreground">{label}</h2>
+      {description && <p className="mt-0.5 text-xs text-faint-foreground">{description}</p>}
     </div>
   );
 }
@@ -118,33 +118,33 @@ export function BrandSettingsForm({ personaId }: Props) {
     <div className="space-y-5 page-enter">
       {/* Page header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent ring-1 ring-inset ring-border">
           <Palette className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Brand Settings</h1>
-          <p className="text-xs text-slate-400">
+          <h1 className="display-lg text-3xl text-foreground">Brand Settings</h1>
+          <p className="text-xs text-faint-foreground">
             Changes to the system prompt create a new version — old posts keep their original.
           </p>
         </div>
       </div>
 
       {fetchError && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-          <p className="text-sm text-red-600">{fetchError}</p>
+        <div className="flex items-center gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+          <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+          <p className="text-sm text-destructive">{fetchError}</p>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Brand profile */}
-        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <SectionHeader label="Brand Profile" description="Basic info used to tailor AI-generated content." />
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-600" htmlFor="brand_name">
-                  Brand Name <span className="text-red-400">*</span>
+                <label className="block text-xs font-semibold text-muted-foreground" htmlFor="brand_name">
+                  Brand Name <span className="text-destructive">*</span>
                 </label>
                 <input
                   id="brand_name"
@@ -152,11 +152,11 @@ export function BrandSettingsForm({ personaId }: Props) {
                   value={form.brand_name}
                   onChange={(e) => setForm((p) => ({ ...p, brand_name: e.target.value }))}
                   placeholder="Acme Inc."
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  className="h-10 w-full rounded-xl border border-border bg-surface-2 px-3.5 text-sm text-foreground placeholder:text-faint-foreground transition focus:border-accent/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-border"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-600" htmlFor="industry">
+                <label className="block text-xs font-semibold text-muted-foreground" htmlFor="industry">
                   Industry
                 </label>
                 <input
@@ -164,12 +164,12 @@ export function BrandSettingsForm({ personaId }: Props) {
                   value={form.industry}
                   onChange={(e) => setForm((p) => ({ ...p, industry: e.target.value }))}
                   placeholder="SaaS, E-commerce, Finance…"
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  className="h-10 w-full rounded-xl border border-border bg-surface-2 px-3.5 text-sm text-foreground placeholder:text-faint-foreground transition focus:border-accent/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-border"
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-600" htmlFor="website_url">
+              <label className="block text-xs font-semibold text-muted-foreground" htmlFor="website_url">
                 Website URL
               </label>
               <input
@@ -178,14 +178,14 @@ export function BrandSettingsForm({ personaId }: Props) {
                 value={form.website_url}
                 onChange={(e) => setForm((p) => ({ ...p, website_url: e.target.value }))}
                 placeholder="https://yourwebsite.com"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                className="h-10 w-full rounded-xl border border-border bg-surface-2 px-3.5 text-sm text-foreground placeholder:text-faint-foreground transition focus:border-accent/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-border"
               />
             </div>
           </div>
         </div>
 
         {/* Tone tags */}
-        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <SectionHeader label="Tone Tags" description="Keywords that shape the voice of generated content." />
           <div className="flex gap-2">
             <input
@@ -198,12 +198,12 @@ export function BrandSettingsForm({ personaId }: Props) {
                   addToneTag();
                 }
               }}
-              className="h-10 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              className="h-10 flex-1 rounded-xl border border-border bg-surface-2 px-3.5 text-sm text-foreground placeholder:text-faint-foreground transition focus:border-accent/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-border"
             />
             <button
               type="button"
               onClick={addToneTag}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600"
+              className="h-10 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-muted-foreground transition hover:border-accent/40 hover:text-accent"
             >
               Add
             </button>
@@ -213,13 +213,13 @@ export function BrandSettingsForm({ personaId }: Props) {
               {form.tone_tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 px-3 py-1 text-xs font-semibold text-accent ring-1 ring-inset ring-accent/30"
                 >
                   {tag}
                   <button
                     type="button"
                     onClick={() => removeToneTag(tag)}
-                    className="text-indigo-400 transition hover:text-indigo-700"
+                    className="text-accent transition hover:text-accent"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -228,25 +228,25 @@ export function BrandSettingsForm({ personaId }: Props) {
             </div>
           )}
           {form.tone_tags.length === 0 && (
-            <p className="mt-2 text-xs text-slate-400">No tags yet. Type a tag and press Enter or comma.</p>
+            <p className="mt-2 text-xs text-faint-foreground">No tags yet. Type a tag and press Enter or comma.</p>
           )}
         </div>
 
         {/* Voice profile */}
-        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h2 className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+              <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
                 Voice Profile
               </h2>
-              <p className="mt-0.5 text-xs text-slate-400">
+              <p className="mt-0.5 text-xs text-faint-foreground">
                 {hasVoiceProfile
                   ? "Your generated prompt below was rendered from posts you pasted. Refresh to teach SocialOS your latest writing style."
                   : "Paste a few of your recent posts and we'll learn your voice automatically."}
               </p>
               {voiceUpdatedAt && (
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-[11px] text-faint-foreground">
                   Last analyzed{" "}
                   {new Date(voiceUpdatedAt).toLocaleString(undefined, {
                     dateStyle: "medium",
@@ -262,7 +262,7 @@ export function BrandSettingsForm({ personaId }: Props) {
                   e.preventDefault();
                   setShowVoicePanel(true);
                 }}
-                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-xs font-bold text-indigo-700 transition hover:border-indigo-400"
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-accent/30 bg-accent/15 px-4 text-xs font-bold text-accent transition hover:border-accent/60"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {hasVoiceProfile ? "Refresh voice" : "Learn my voice"}
@@ -297,7 +297,7 @@ export function BrandSettingsForm({ personaId }: Props) {
                   e.preventDefault();
                   setShowVoicePanel(false);
                 }}
-                className="text-[11px] font-medium text-slate-400 hover:text-slate-700"
+                className="text-[11px] font-medium text-faint-foreground hover:text-foreground"
               >
                 ← Cancel
               </button>
@@ -306,7 +306,7 @@ export function BrandSettingsForm({ personaId }: Props) {
         </div>
 
         {/* System prompt */}
-        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+        <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm">
           <SectionHeader
             label="System Prompt"
             description="Instructions that guide every AI-generated post. Saving creates a new version."
@@ -318,24 +318,24 @@ export function BrandSettingsForm({ personaId }: Props) {
             value={form.system_prompt}
             onChange={(e) => setForm((p) => ({ ...p, system_prompt: e.target.value }))}
             placeholder="You are a content writer for {brand_name}. Write in a professional but approachable tone…"
-            className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            className="w-full resize-none rounded-xl border border-border bg-surface-2 px-3.5 py-3 text-sm leading-relaxed text-foreground placeholder:text-faint-foreground transition focus:border-accent/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-border"
           />
-          <p className="mt-1.5 text-[11px] text-slate-400">
+          <p className="mt-1.5 text-[11px] text-faint-foreground">
             {form.system_prompt.length.toLocaleString()} characters
           </p>
         </div>
 
         {/* Feedback */}
         {saveError && (
-          <div className="flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-            <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-            <p className="text-sm text-red-600">{saveError}</p>
+          <div className="flex items-center gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+            <p className="text-sm text-destructive">{saveError}</p>
           </div>
         )}
         {saved && (
-          <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 animate-message-in">
-            <CheckCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-            <p className="text-sm font-medium text-emerald-700">Brand settings saved successfully.</p>
+          <div className="flex items-center gap-2.5 rounded-xl border border-success/30 bg-success/10 px-4 py-3 animate-message-in">
+            <CheckCheck className="h-4 w-4 shrink-0 text-success" />
+            <p className="text-sm font-medium text-success">Brand settings saved successfully.</p>
           </div>
         )}
 
@@ -344,7 +344,7 @@ export function BrandSettingsForm({ personaId }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-6 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-110 disabled:opacity-50"
           >
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {loading ? "Saving…" : "Save changes"}

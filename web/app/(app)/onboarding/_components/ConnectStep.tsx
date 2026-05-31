@@ -9,7 +9,7 @@ interface ConnectStepProps {
 export function ConnectStep({ onComplete }: ConnectStepProps) {
   return (
     <div className="space-y-6">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-muted-foreground">
         Connect at least one social account so SocialOS can publish on your behalf.
       </p>
 
@@ -30,7 +30,7 @@ export function ConnectStep({ onComplete }: ConnectStepProps) {
       <button
         type="button"
         onClick={onComplete}
-        className="w-full text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 underline underline-offset-2 text-center"
+        className="w-full text-sm text-faint-foreground hover:text-foreground underline underline-offset-2 text-center"
       >
         Skip for now
       </button>

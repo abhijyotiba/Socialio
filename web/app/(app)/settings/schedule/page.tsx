@@ -68,14 +68,14 @@ function AddSlotForm({ platform, onAdded, onCancel }: {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-4"
+      className="mt-3 rounded-xl border border-accent/20 bg-accent/[0.06] p-4 space-y-4"
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-slate-700">New time slot</p>
+        <p className="text-xs font-bold text-foreground">New time slot</p>
         <button
           type="button"
           onClick={onCancel}
-          className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition"
+          className="flex h-6 w-6 items-center justify-center rounded-lg text-faint-foreground hover:bg-surface-2 hover:text-muted-foreground transition"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -87,28 +87,28 @@ function AddSlotForm({ platform, onAdded, onCancel }: {
           <select
             value={hour}
             onChange={(e) => setHour(Number(e.target.value))}
-            className="h-9 appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-sm font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            className="h-9 appearance-none rounded-lg border border-border bg-surface pl-3 pr-7 text-sm font-semibold text-foreground focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-border"
           >
             {HOURS.map((h) => (
               <option key={h} value={h}>{h.toString().padStart(2, "0")}</option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-faint-foreground" />
         </div>
-        <span className="text-sm font-bold text-slate-400">:</span>
+        <span className="text-sm font-bold text-faint-foreground">:</span>
         <div className="relative">
           <select
             value={minute}
             onChange={(e) => setMinute(Number(e.target.value) as 0 | 30)}
-            className="h-9 appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-sm font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            className="h-9 appearance-none rounded-lg border border-border bg-surface pl-3 pr-7 text-sm font-semibold text-foreground focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-border"
           >
             {MINUTES.map((m) => (
               <option key={m} value={m}>{m === 0 ? "00" : "30"}</option>
             ))}
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-3.5 w-3.5 text-faint-foreground" />
         </div>
-        <span className="rounded-lg bg-white border border-slate-200 px-2.5 py-1.5 text-[10px] font-medium text-slate-500">
+        <span className="rounded-lg bg-surface border border-border px-2.5 py-1.5 text-[10px] font-medium text-muted-foreground">
           {timezone}
         </span>
       </div>
@@ -122,8 +122,8 @@ function AddSlotForm({ platform, onAdded, onCancel }: {
             onClick={() => toggleDay(i)}
             className={`h-8 min-w-[2.5rem] rounded-lg px-2.5 text-xs font-bold transition-all ${
               days.includes(i)
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "border border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-600"
+                ? "bg-accent text-white shadow-sm"
+                : "border border-border bg-surface text-muted-foreground hover:border-accent/40 hover:text-accent"
             }`}
           >
             {label}
@@ -131,12 +131,12 @@ function AddSlotForm({ platform, onAdded, onCancel }: {
         ))}
       </div>
 
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
       <button
         type="submit"
         disabled={saving}
-        className="inline-flex h-9 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+        className="inline-flex h-9 items-center gap-2 rounded-lg bg-accent px-4 text-xs font-bold text-white transition hover:brightness-110 disabled:opacity-50"
       >
         {saving && <Loader2 className="h-3 w-3 animate-spin" />}
         {saving ? "Adding…" : "Add slot"}
@@ -183,13 +183,13 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
   const isLinkedIn = platform === "linkedin";
 
   return (
-    <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+    <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm">
       {/* Section header */}
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
           <div
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ${
-              isLinkedIn ? "bg-[#0077b5]" : "bg-slate-900"
+              isLinkedIn ? "bg-[#0077b5]" : "bg-surface-2 ring-1 ring-border"
             }`}
           >
             {isLinkedIn ? (
@@ -203,8 +203,8 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
             )}
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-900">{label}</h2>
-            <p className="text-[11px] text-slate-400">
+            <h2 className="text-sm font-bold text-foreground">{label}</h2>
+            <p className="text-[11px] text-faint-foreground">
               {loading ? "Loading…" : `${slots.length} active slot${slots.length !== 1 ? "s" : ""}`}
             </p>
           </div>
@@ -212,7 +212,7 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-indigo-300 hover:text-indigo-600"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-muted-foreground transition hover:border-accent/40 hover:text-accent"
           >
             <Plus className="h-3.5 w-3.5" />
             Add slot
@@ -223,21 +223,21 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
       {/* Slots list */}
       {loading ? (
         <div className="flex items-center justify-center py-6">
-          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+          <Loader2 className="h-4 w-4 animate-spin text-faint-foreground" />
         </div>
       ) : slots.length === 0 && !showForm ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-indigo-200/60 bg-gradient-to-b from-white to-indigo-50/20 py-10 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface py-10 text-center">
           <div className="relative mb-4">
-            <div className="absolute inset-0 rounded-xl bg-indigo-400/15 blur-lg scale-[2]" />
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-400/30">
-              <Clock className="h-5 w-5 text-white" />
+            <div className="absolute inset-0 rounded-xl bg-accent/15 blur-lg scale-[2]" />
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-accent ring-1 ring-border accent-glow">
+              <Clock className="h-5 w-5" />
             </div>
           </div>
-          <p className="text-xs font-semibold text-slate-700">No time slots yet</p>
-          <p className="mt-1 text-[11px] text-slate-400">Add slots for one-click scheduling.</p>
+          <p className="text-xs font-semibold text-foreground">No time slots yet</p>
+          <p className="mt-1 text-[11px] text-faint-foreground">Add slots for one-click scheduling.</p>
           <button
             onClick={() => setShowForm(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground shadow-sm transition hover:brightness-110"
           >
             <Plus className="h-3 w-3" />
             Add first slot
@@ -248,34 +248,34 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
           {slots.map((slot) => (
             <div
               key={slot.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3"
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-4 py-3"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <Clock className="h-3.5 w-3.5 text-indigo-400" />
-                  <span className="text-sm font-bold text-slate-800">
+                  <Clock className="h-3.5 w-3.5 text-accent" />
+                  <span className="text-sm font-bold text-foreground">
                     {formatHour(slot.hour, slot.minute)}
                   </span>
                 </div>
-                <div className="h-3.5 w-px bg-slate-200 shrink-0" />
+                <div className="h-3.5 w-px bg-surface-2 shrink-0" />
                 <div className="flex flex-wrap gap-1 min-w-0">
                   {slot.days_of_week.map((d) => (
                     <span
                       key={`${slot.id}-${d}`}
-                      className="rounded-md bg-white border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                      className="rounded-md bg-surface border border-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
                     >
                       {DAY_LABELS[d]}
                     </span>
                   ))}
                 </div>
-                <span className="shrink-0 text-[10px] text-slate-400 hidden sm:block">
+                <span className="shrink-0 text-[10px] text-faint-foreground hidden sm:block">
                   {slot.timezone}
                 </span>
               </div>
               <button
                 onClick={() => handleDelete(slot.id)}
                 disabled={deletingId === slot.id}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-faint-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
                 title="Remove slot"
               >
                 {deletingId === slot.id
@@ -299,13 +299,13 @@ function PlatformSection({ platform, label }: { platform: "linkedin" | "x"; labe
 
       {/* Next upcoming slots */}
       {nextTimes.length > 0 && !showForm && (
-        <div className="mt-3 rounded-xl bg-slate-50 border border-slate-100 px-4 py-3">
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+        <div className="mt-3 rounded-xl bg-surface-2 border border-border px-4 py-3">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-faint-foreground">
             Next upcoming
           </p>
           <ul className="space-y-0.5">
             {nextTimes.slice(0, 3).map((t) => (
-              <li key={t} className="text-xs text-slate-500">
+              <li key={t} className="text-xs text-muted-foreground">
                 {new Date(t).toLocaleString(undefined, {
                   weekday: "short",
                   month: "short",
@@ -327,12 +327,12 @@ export default function PostingSchedulePage() {
     <div className="space-y-5 page-enter">
       {/* Page header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent ring-1 ring-inset ring-border">
           <CalendarClock className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Posting Schedule</h1>
-          <p className="text-xs text-slate-400">
+          <h1 className="display-lg text-3xl text-foreground">Posting Schedule</h1>
+          <p className="text-xs text-faint-foreground">
             Define preferred posting times — these appear as one-click options when scheduling.
           </p>
         </div>

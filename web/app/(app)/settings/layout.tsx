@@ -36,16 +36,16 @@ export default function SettingsLayout({
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 lg:flex-row lg:items-start">
       {/* Sidebar nav */}
       <nav className="w-full shrink-0 lg:w-60">
-        <div className="rounded-2xl border border-slate-200/70 bg-white p-2 shadow-sm">
-          <div className="mb-2 flex items-center gap-2.5 px-3 pt-2 pb-3 border-b border-slate-100">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+        <div className="rounded-2xl panel p-2">
+          <div className="mb-2 flex items-center gap-2.5 px-3 pt-2 pb-3 border-b border-border">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-accent ring-1 ring-border">
               <Settings2 className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-faint-foreground">
                 Workspace
               </p>
-              <p className="text-sm font-bold text-slate-900 leading-tight">Settings</p>
+              <p className="text-sm font-bold text-foreground leading-tight">Settings</p>
             </div>
           </div>
           <ul className="space-y-0.5">
@@ -58,24 +58,24 @@ export default function SettingsLayout({
                     href={item.href}
                     className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
                       active
-                        ? "bg-indigo-50 text-indigo-700"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        ? "bg-white/[0.06] text-foreground"
+                        : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
                     }`}
                   >
                     <div
                       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition ${
                         active
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : "bg-slate-100 text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700"
+                          ? "bg-accent text-accent-foreground shadow-sm"
+                          : "bg-surface-2 text-muted-foreground group-hover:bg-white/[0.08] group-hover:text-foreground"
                       }`}
                     >
                       <Icon className="h-3.5 w-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <p className={`truncate text-sm font-semibold ${active ? "text-indigo-700" : ""}`}>
+                      <p className={`truncate text-sm font-semibold ${active ? "text-accent" : ""}`}>
                         {item.label}
                       </p>
-                      <p className="truncate text-[11px] text-slate-400">{item.description}</p>
+                      <p className="truncate text-[11px] text-faint-foreground">{item.description}</p>
                     </div>
                   </Link>
                 </li>

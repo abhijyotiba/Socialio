@@ -170,7 +170,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
         label: detail.platform,
         tile: "bg-surface-2",
         glyph: "?",
-        ring: "ring-slate-200",
+        ring: "ring-border",
       })
     : null;
 
@@ -396,7 +396,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
           )}
 
           {!loading && !fetchError && detail && (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border">
 
               {/* ── Post content ─────────────────────────────── */}
               <section className="px-6 py-5">
@@ -644,7 +644,7 @@ export function PostDetailDrawer({ variantId, onClose, onUpdated }: Props) {
               <button
                 onClick={handlePublishNow}
                 disabled={isBusy}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-xs font-bold text-accent-foreground shadow-md shadow-indigo-200/60 transition hover:opacity-95 disabled:opacity-40"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-accent-foreground shadow-md transition hover:brightness-110 disabled:opacity-40"
               >
                 {publishing ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -55,12 +55,12 @@ export function ConnectionsForm({ personaId }: Props) {
     <div className="space-y-5 page-enter">
       {/* Page header */}
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent ring-1 ring-inset ring-border">
           <Link2 className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Connected Accounts</h1>
-          <p className="text-xs text-slate-400">
+          <h1 className="display-lg text-3xl text-foreground">Connected Accounts</h1>
+          <p className="text-xs text-faint-foreground">
             Manage the social accounts this persona can publish to.
           </p>
         </div>
@@ -68,26 +68,26 @@ export function ConnectionsForm({ personaId }: Props) {
 
       {/* Toast banners */}
       {linkedInJustConnected && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 animate-message-in">
-          <CheckCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-          <p className="text-sm font-medium text-emerald-700">LinkedIn connected successfully.</p>
+        <div className="flex items-center gap-2.5 rounded-xl border border-success/30 bg-success/10 px-4 py-3 animate-message-in">
+          <CheckCheck className="h-4 w-4 shrink-0 text-success" />
+          <p className="text-sm font-medium text-success">LinkedIn connected successfully.</p>
         </div>
       )}
       {xJustConnected && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 animate-message-in">
-          <CheckCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-          <p className="text-sm font-medium text-emerald-700">X / Twitter connected successfully.</p>
+        <div className="flex items-center gap-2.5 rounded-xl border border-success/30 bg-success/10 px-4 py-3 animate-message-in">
+          <CheckCheck className="h-4 w-4 shrink-0 text-success" />
+          <p className="text-sm font-medium text-success">X / Twitter connected successfully.</p>
         </div>
       )}
       {xError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-            <p className="text-sm font-medium text-red-700">
+            <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+            <p className="text-sm font-medium text-destructive">
               X connection failed: <span className="font-mono text-xs">{xError}</span>
             </p>
           </div>
-          <p className="mt-1.5 pl-6 text-xs text-red-500">
+          <p className="mt-1.5 pl-6 text-xs text-destructive">
             Ensure your X app has <strong>Read and write</strong> permissions,{" "}
             <strong>Web App</strong> type, and <strong>offline.access</strong> scope.
           </p>
@@ -95,7 +95,7 @@ export function ConnectionsForm({ personaId }: Props) {
       )}
 
       {/* LinkedIn card */}
-      <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+      <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#0077b5] shadow-sm">
@@ -105,10 +105,10 @@ export function ConnectionsForm({ personaId }: Props) {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-slate-900">LinkedIn</p>
+                <p className="text-sm font-bold text-foreground">LinkedIn</p>
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                    linkedInActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+                    linkedInActive ? "bg-emerald-100 text-success" : "bg-red-100 text-destructive"
                   }`}
                 >
                   {linkedInActive ? (
@@ -118,7 +118,7 @@ export function ConnectionsForm({ personaId }: Props) {
                   )}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {linkedInActive
                   ? linkedin?.platform_username
                     ? `@${linkedin.platform_username}`
@@ -128,7 +128,7 @@ export function ConnectionsForm({ personaId }: Props) {
                     : "Connect to publish posts to LinkedIn"}
               </p>
               {linkedInActive && linkedin?.token_expires_at && (
-                <p className="mt-0.5 text-[11px] text-slate-400">
+                <p className="mt-0.5 text-[11px] text-faint-foreground">
                   Token expires {new Date(linkedin.token_expires_at).toLocaleDateString()}
                 </p>
               )}
@@ -137,7 +137,7 @@ export function ConnectionsForm({ personaId }: Props) {
 
           <a
             href={`/api/oauth/linkedin/start?persona_id=${personaId}`}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-indigo-300 hover:text-indigo-700"
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-xs font-semibold text-foreground shadow-sm transition hover:border-accent/40 hover:text-accent"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             {linkedin ? "Reconnect" : "Connect"}
@@ -146,20 +146,20 @@ export function ConnectionsForm({ personaId }: Props) {
       </div>
 
       {/* X / Twitter card */}
-      <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+      <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 shadow-sm">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-surface-2 ring-1 ring-border shadow-sm">
               <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L1.254 2.25H8.08l4.258 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z" />
               </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-sm font-bold text-slate-900">X / Twitter</p>
+                <p className="text-sm font-bold text-foreground">X / Twitter</p>
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                    xActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"
+                    xActive ? "bg-emerald-100 text-success" : "bg-red-100 text-destructive"
                   }`}
                 >
                   {xActive ? (
@@ -169,7 +169,7 @@ export function ConnectionsForm({ personaId }: Props) {
                   )}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-slate-500">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {xActive
                   ? xConn?.platform_username
                     ? `@${xConn.platform_username}`
@@ -179,7 +179,7 @@ export function ConnectionsForm({ personaId }: Props) {
                     : "Connect to publish posts to X / Twitter"}
               </p>
               {xActive && xConn?.token_expires_at && (
-                <p className="mt-0.5 text-[11px] text-slate-400">
+                <p className="mt-0.5 text-[11px] text-faint-foreground">
                   Token expires {new Date(xConn.token_expires_at).toLocaleDateString()}
                 </p>
               )}
@@ -190,8 +190,8 @@ export function ConnectionsForm({ personaId }: Props) {
             href={`/api/oauth/x/start?persona_id=${personaId}`}
             className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-xl px-4 text-xs font-semibold shadow-sm transition ${
               xActive
-                ? "border border-slate-200 bg-white text-slate-700 hover:border-indigo-300 hover:text-indigo-700"
-                : "bg-indigo-600 text-white hover:bg-indigo-700"
+                ? "border border-border bg-surface text-foreground hover:border-accent/40 hover:text-accent"
+                : "bg-accent text-white hover:brightness-110"
             }`}
           >
             {xActive ? <RefreshCw className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
@@ -199,8 +199,8 @@ export function ConnectionsForm({ personaId }: Props) {
           </a>
         </div>
 
-        <p className="mt-4 text-[11px] text-slate-400 border-t border-slate-100 pt-3">
-          Requires <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px]">offline.access</code> scope for long-lived tokens.
+        <p className="mt-4 text-[11px] text-faint-foreground border-t border-border pt-3">
+          Requires <code className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px]">offline.access</code> scope for long-lived tokens.
         </p>
       </div>
     </div>

@@ -84,7 +84,7 @@ export function BrandStep({ onComplete }: BrandStepProps) {
   const brandDetailsForm = (
     <div className="space-y-5">
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-sm text-destructive">{error}</p>
       )}
 
       <div className="space-y-2">
@@ -142,13 +142,13 @@ export function BrandStep({ onComplete }: BrandStepProps) {
             {toneTags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs bg-surface-2 text-muted-foreground"
               >
                 {tag}
                 <button
                   type="button"
                   onClick={() => removeToneTag(tag)}
-                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                  className="text-faint-foreground hover:text-foreground"
                 >
                   ×
                 </button>
@@ -173,17 +173,17 @@ export function BrandStep({ onComplete }: BrandStepProps) {
               type="button"
               disabled={!brandDetailsValid}
               onClick={() => setPath("voice")}
-              className="group flex items-start gap-3 rounded-xl border-2 border-indigo-200 bg-indigo-50/50 p-4 text-left transition hover:border-indigo-400 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="group flex items-start gap-3 rounded-xl border-2 border-accent/30 bg-accent/[0.06] p-4 text-left transition hover:border-accent/60 hover:bg-accent/15 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
               <div>
-                <p className="text-sm font-bold text-slate-900">
+                <p className="text-sm font-bold text-foreground">
                   Paste 3–15 of my recent posts{" "}
-                  <span className="ml-1 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  <span className="ml-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                     Recommended
                   </span>
                 </p>
-                <p className="mt-0.5 text-xs text-slate-600">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   We&apos;ll learn your voice from how you actually write — not
                   a generic template.
                 </p>
@@ -194,21 +194,21 @@ export function BrandStep({ onComplete }: BrandStepProps) {
               type="button"
               disabled={!brandDetailsValid}
               onClick={() => setPath("manual")}
-              className="group flex items-start gap-3 rounded-xl border-2 border-slate-200 bg-white p-4 text-left transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
+              className="group flex items-start gap-3 rounded-xl border-2 border-border bg-surface p-4 text-left transition hover:border-border-strong disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Pencil className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" />
+              <Pencil className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
               <div>
-                <p className="text-sm font-bold text-slate-900">
+                <p className="text-sm font-bold text-foreground">
                   I&apos;ll write the system prompt myself
                 </p>
-                <p className="mt-0.5 text-xs text-slate-600">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   Skip voice learning and use a default prompt you can edit.
                 </p>
               </div>
             </button>
           </div>
           {!brandDetailsValid && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Enter a brand name to continue.
             </p>
           )}
@@ -221,13 +221,13 @@ export function BrandStep({ onComplete }: BrandStepProps) {
   if (path === "voice") {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <div className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-muted-foreground">
           Brand: <span className="font-semibold">{brandName}</span>
           {toneTags.length > 0 && <> · {toneTags.join(", ")}</>}
           <button
             type="button"
             onClick={() => setPath("choose")}
-            className="ml-2 font-semibold text-indigo-600 hover:underline"
+            className="ml-2 font-semibold text-accent hover:underline"
           >
             Edit
           </button>
@@ -252,7 +252,7 @@ export function BrandStep({ onComplete }: BrandStepProps) {
         <button
           type="button"
           onClick={() => setPath("choose")}
-          className="text-xs font-medium text-slate-500 hover:text-slate-800"
+          className="text-xs font-medium text-muted-foreground hover:text-foreground"
         >
           ← Back
         </button>
@@ -263,24 +263,24 @@ export function BrandStep({ onComplete }: BrandStepProps) {
   // ─── Path: manual ───────────────────────────────────────────────────────
   return (
     <form onSubmit={handleManualSubmit} className="space-y-5">
-      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      <div className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-muted-foreground">
         Brand: <span className="font-semibold">{brandName}</span>
         <button
           type="button"
           onClick={() => setPath("choose")}
-          className="ml-2 font-semibold text-indigo-600 hover:underline"
+          className="ml-2 font-semibold text-accent hover:underline"
         >
           Edit
         </button>
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-sm text-destructive">{error}</p>
       )}
 
       <div className="space-y-2">
         <Label htmlFor="system_prompt">Brand system prompt *</Label>
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="text-xs text-muted-foreground">
           The AI instruction your posts are generated from. You can refine it
           anytime in Settings.
         </p>

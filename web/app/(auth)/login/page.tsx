@@ -37,16 +37,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-3xl border border-white/15 bg-white p-8 shadow-[0_24px_70px_-22px_rgba(15,23,42,0.35)]">
+    <div className="w-full max-w-md rounded-3xl panel-2 p-8 shadow-[0_24px_70px_-22px_rgba(0,0,0,0.6)]">
       <div className="space-y-7">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
             Welcome back
           </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">
+          <h1 className="display-lg mt-2 text-3xl text-foreground">
             Sign in to SocialOS
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             Sign in to manage your brand content pipeline.
           </p>
         </div>
@@ -54,7 +54,7 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          className="flex w-full items-center justify-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm font-semibold text-foreground transition hover:border-border-strong hover:bg-white/[0.04]"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -67,10 +67,10 @@ export default function LoginPage() {
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-200" />
+            <div className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center">
-            <span className="bg-white px-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            <span className="bg-surface-2 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-faint-foreground">
               or
             </span>
           </div>
@@ -78,15 +78,15 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 
           <div className="space-y-1.5">
             <label
               htmlFor="email"
-              className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500"
+              className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
             >
               Email
             </label>
@@ -97,14 +97,14 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-2xl border border-input bg-surface px-4 py-3 text-sm text-foreground placeholder:text-faint-foreground focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-ring/30"
             />
           </div>
 
           <div className="space-y-1.5">
             <label
               htmlFor="password"
-              className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500"
+              className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
             >
               Password
             </label>
@@ -114,14 +114,14 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-2xl border border-input bg-surface px-4 py-3 text-sm text-foreground placeholder:text-faint-foreground focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-ring/30"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-12px_rgba(79,70,229,0.8)] transition hover:opacity-95 disabled:opacity-50"
+            className="w-full rounded-2xl bg-accent py-3 text-sm font-semibold text-accent-foreground shadow-[0_12px_30px_-12px_oklch(0.66_0.21_32/0.6)] transition hover:brightness-110 disabled:opacity-50"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -134,9 +134,9 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-muted-foreground">
           No account?{" "}
-          <Link href="/signup" className="font-semibold text-indigo-600 hover:underline">
+          <Link href="/signup" className="font-semibold text-accent hover:underline">
             Sign up free
           </Link>
         </p>

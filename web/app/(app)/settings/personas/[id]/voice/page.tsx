@@ -32,10 +32,10 @@ export default async function PersonaVoicePage({
           {persona.name.charAt(0).toUpperCase()}
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-wide text-faint-foreground">
             Editing voice for
           </p>
-          <p className="text-sm font-bold text-slate-900">{persona.name}</p>
+          <p className="text-sm font-bold text-foreground">{persona.name}</p>
         </div>
       </div>
       <BrandSettingsForm personaId={id} />

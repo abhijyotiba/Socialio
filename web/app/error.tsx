@@ -29,10 +29,10 @@ export default function Error({
 
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-      <p className="text-red-500 text-sm">Something went wrong.</p>
+      <p className="text-destructive text-sm">Something went wrong.</p>
       <button
         onClick={reset}
-        className="text-indigo-600 underline text-sm hover:text-indigo-800"
+        className="text-accent underline text-sm hover:brightness-110"
       >
         Try again
       </button>

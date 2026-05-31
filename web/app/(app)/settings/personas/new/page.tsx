@@ -36,16 +36,16 @@ export default function NewPersonaPage() {
   return (
     <div className="max-w-md space-y-6 page-enter">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">New Persona</h1>
-        <p className="mt-1 text-xs text-slate-400">Create a persona with its own brand voice and social accounts.</p>
+        <h1 className="display-lg text-3xl text-foreground">New Persona</h1>
+        <p className="mt-1 text-xs text-faint-foreground">Create a persona with its own brand voice and social accounts.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Name */}
-        <div className="card-lift rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm space-y-3">
+        <div className="card-lift rounded-2xl border border-border bg-surface p-5 shadow-sm space-y-3">
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-600" htmlFor="name">
-              Name <span className="text-red-400">*</span>
+            <label className="block text-xs font-semibold text-muted-foreground" htmlFor="name">
+              Name <span className="text-destructive">*</span>
             </label>
             <input
               id="name"
@@ -54,13 +54,13 @@ export default function NewPersonaPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Company Brand, CEO, Head of Engineering"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              className="h-10 w-full rounded-xl border border-border bg-surface-2 px-3.5 text-sm text-foreground placeholder:text-faint-foreground transition focus:border-accent/50 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-border"
             />
           </div>
 
           {/* Avatar color */}
           <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-600">Avatar Color</label>
+            <label className="block text-xs font-semibold text-muted-foreground">Avatar Color</label>
             <div className="flex gap-2">
               {AVATAR_COLORS.map((color) => (
                 <button
@@ -68,7 +68,7 @@ export default function NewPersonaPage() {
                   type="button"
                   onClick={() => setAvatarColor(color)}
                   className={`h-8 w-8 rounded-full border-2 transition ${
-                    avatarColor === color ? "border-slate-900 scale-110" : "border-transparent"
+                    avatarColor === color ? "border-foreground scale-110" : "border-transparent"
                   }`}
                   style={{ backgroundColor: color }}
                 />
@@ -85,27 +85,27 @@ export default function NewPersonaPage() {
               >
                 {name.charAt(0).toUpperCase()}
               </div>
-              <p className="text-sm font-medium text-slate-700">{name}</p>
+              <p className="text-sm font-medium text-foreground">{name}</p>
             </div>
           )}
         </div>
 
         {error && (
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         )}
 
         <div className="flex gap-3">
           <button
             type="button"
             onClick={() => router.back()}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            className="h-10 rounded-xl border border-border bg-surface px-5 text-sm font-semibold text-muted-foreground transition hover:border-border hover:text-foreground"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading || !name.trim()}
-            className="h-10 flex-1 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+            className="h-10 flex-1 rounded-xl bg-accent px-5 text-sm font-semibold text-accent-foreground shadow-sm transition hover:brightness-110 disabled:opacity-50"
           >
             {loading ? "Creating…" : "Create Persona"}
           </button>
