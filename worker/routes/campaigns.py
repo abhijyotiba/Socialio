@@ -609,6 +609,15 @@ class BulkApproveRequest(BaseModel):
     post_variant_ids: list[str] = Field(default_factory=list, max_length=200)
 
 
+# Statuses a bulk action may legitimately act on. Guards against re-publishing
+# already-live/terminal variants: the grid lets a user select any row, so a
+# selection could include published/publishing/failed_terminal/cancelled rows
+# that must NOT be flipped back to 'scheduled'. Mirrors the per-variant
+# /posts/{id} route guards (approve = pre-send states; schedule = editable).
+_APPROVABLE_STATUSES = ("draft", "pending_approval")
+_SCHEDULABLE_STATUSES = ("draft", "scheduled", "failed", "pending_approval")
+
+
 @router.post("/campaigns/{campaign_id}/bulk-approve")
 async def bulk_approve_variants(campaign_id: str, request: Request) -> dict:
     """Variant-scoped bulk approval for the review grid. Approves ONLY the
@@ -629,9 +638,14 @@ async def bulk_approve_variants(campaign_id: str, request: Request) -> dict:
     mappings = await db_campaigns.map_variants_to_campaign_personas(
         client, campaign_id, req.post_variant_ids
     )
+    # Only act on pre-send statuses — never flip an already-live/terminal
+    # variant (published/publishing/failed_terminal/cancelled/scheduled) back to
+    # 'scheduled', which would risk a double-post.
+    mappings = [m for m in mappings if m.get("status") in _APPROVABLE_STATUSES]
     if not mappings:
         raise HTTPException(
-            status_code=404, detail="No matching variants for this campaign"
+            status_code=404,
+            detail="No approvable variants in the selection for this campaign",
         )
 
     # persona_id per touched campaign_persona (for audit + completion check).
@@ -699,9 +713,11 @@ async def bulk_schedule_variants(campaign_id: str, request: Request) -> dict:
     mappings = await db_campaigns.map_variants_to_campaign_personas(
         client, campaign_id, req.post_variant_ids
     )
+    mappings = [m for m in mappings if m.get("status") in _SCHEDULABLE_STATUSES]
     if not mappings:
         raise HTTPException(
-            status_code=404, detail="No matching variants for this campaign"
+            status_code=404,
+            detail="No schedulable variants in the selection for this campaign",
         )
     variant_ids = [m["post_variant_id"] for m in mappings]
 

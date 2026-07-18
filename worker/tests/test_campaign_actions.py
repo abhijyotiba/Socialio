@@ -39,9 +39,27 @@ def client(monkeypatch):
         "audit_events": [],
         # variant -> campaign_persona mapping used by the variant-scoped routes.
         "variant_map": {
-            "v-cp-1-a": {"campaign_persona_id": "cp-1", "persona_id": "p1"},
-            "v-cp-1-b": {"campaign_persona_id": "cp-1", "persona_id": "p1"},
-            "v-cp-2-a": {"campaign_persona_id": "cp-2", "persona_id": "p2"},
+            "v-cp-1-a": {
+                "campaign_persona_id": "cp-1",
+                "persona_id": "p1",
+                "status": "pending_approval",
+            },
+            "v-cp-1-b": {
+                "campaign_persona_id": "cp-1",
+                "persona_id": "p1",
+                "status": "pending_approval",
+            },
+            "v-cp-2-a": {
+                "campaign_persona_id": "cp-2",
+                "persona_id": "p2",
+                "status": "pending_approval",
+            },
+            # Already published — must be filtered out of bulk actions.
+            "v-cp-2-published": {
+                "campaign_persona_id": "cp-2",
+                "persona_id": "p2",
+                "status": "published",
+            },
         },
         # per-campaign_persona variant statuses (drives the persona roll-up).
         "cp_variant_statuses": {
@@ -249,6 +267,26 @@ def test_bulk_approve_requires_variant_ids(client):
 def test_bulk_approve_unknown_variants_404(client):
     res = client.post(
         "/campaigns/camp-1/bulk-approve", json={"post_variant_ids": ["nope"]}
+    )
+    assert res.status_code == 404
+
+
+def test_bulk_approve_skips_already_published_variants(client):
+    """A selection that mixes an actionable variant with an already-published
+    one only touches the actionable one — no re-publish of the live post."""
+    res = client.post(
+        "/campaigns/camp-1/bulk-approve",
+        json={"post_variant_ids": ["v-cp-1-a", "v-cp-2-published"]},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True, "approved_count": 1}
+    assert set(client.state["scheduled_at"]) == {"v-cp-1-a"}
+
+
+def test_bulk_approve_all_terminal_selection_404(client):
+    res = client.post(
+        "/campaigns/camp-1/bulk-approve",
+        json={"post_variant_ids": ["v-cp-2-published"]},
     )
     assert res.status_code == 404
 

@@ -217,16 +217,18 @@ async def map_variants_to_campaign_personas(
     """Resolve selected post_variant_ids to the campaign_personas that own them,
     scoped to this campaign (RLS + the campaign_id filter reject foreign ids).
 
-    Returns rows {post_variant_id, campaign_persona_id, persona_id} for only the
-    ids that genuinely belong to campaign_id — the caller uses this to validate
-    the selection before scheduling and to know which personas were touched."""
+    Returns rows {post_variant_id, campaign_persona_id, persona_id, status} for
+    only the ids that genuinely belong to campaign_id — the caller uses this to
+    validate the selection, filter by actionable status, and know which personas
+    were touched."""
     if not post_variant_ids:
         return []
     res = (
         await client.table("campaign_persona_variants")
         .select(
             "post_variant_id, campaign_persona_id, "
-            "campaign_personas!inner ( campaign_id, persona_id )"
+            "campaign_personas!inner ( campaign_id, persona_id ), "
+            "post_variants!inner ( status )"
         )
         .eq("campaign_personas.campaign_id", campaign_id)
         .in_("post_variant_id", post_variant_ids)
@@ -237,6 +239,9 @@ async def map_variants_to_campaign_personas(
         cp = row.get("campaign_personas")
         if isinstance(cp, list):
             cp = cp[0] if cp else None
+        pv = row.get("post_variants")
+        if isinstance(pv, list):
+            pv = pv[0] if pv else None
         if not cp:
             continue
         out.append(
@@ -244,6 +249,7 @@ async def map_variants_to_campaign_personas(
                 "post_variant_id": row["post_variant_id"],
                 "campaign_persona_id": row["campaign_persona_id"],
                 "persona_id": cp.get("persona_id"),
+                "status": (pv or {}).get("status"),
             }
         )
     return out
