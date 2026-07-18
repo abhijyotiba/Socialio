@@ -10,6 +10,7 @@ import structlog
 from supabase import AsyncClient
 
 from adapters import cloudinary, linkedin, x
+from adapters.platforms import get_adapter
 from db import audit_events as db_audit
 from db import brand_configs as db_brand
 from db import campaigns as db_campaigns
@@ -17,11 +18,12 @@ from db import content_cadences as db_cadences
 from db import content_cells as db_cells
 from db import media_assets as db_media
 from db import metrics as db_metrics
+from db import notifications as db_notifications
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from db import social_connections as db_connections
 from pipeline.generate import render_cell
-from publish.upload_media import upload_media_for_platform
+from publish import publisher
 from security import vault
 
 log = structlog.get_logger()
@@ -54,7 +56,6 @@ async def _publish_claimed_variant(svc: AsyncClient, variant: dict) -> bool:
         await db_posts.update_post_variant(svc, variant["id"], {"status": "published"})
         return True
 
-    platform = variant["platform"]
     connection = await _resolve_connection(svc, variant)
     if (
         not connection
@@ -72,80 +73,10 @@ async def _publish_claimed_variant(svc: AsyncClient, variant: dict) -> bool:
         )
         return False
 
-    access_token = await vault.read_secret(svc, connection["access_token_vault_id"])
-
-    latest = await db_attempts.get_latest_attempt(svc, variant["id"])
-    attempt_number = (latest["attempt_number"] + 1) if latest else 1
-    attempt = await db_attempts.create_publish_attempt(
-        svc,
-        {
-            "workspace_id": variant["workspace_id"],
-            "post_variant_id": variant["id"],
-            "idempotency_key": idempotency_key,
-            "attempt_number": attempt_number,
-            "status": "attempting",
-        },
+    result = await publisher.publish_variant(
+        svc, svc, variant, connection, idempotency_key=idempotency_key
     )
-
-    try:
-        media_urls = await db_media.get_variant_media_urls(svc, variant["id"])
-        author_urn = (
-            f"urn:li:person:{connection['platform_user_id']}"
-            if platform == "linkedin"
-            else None
-        )
-        platform_media_ids = await upload_media_for_platform(
-            platform, access_token, media_urls, author_urn
-        )
-        media_arg = platform_media_ids or None
-
-        if platform == "linkedin":
-            result = await linkedin.publish_post(
-                access_token, author_urn, variant["body"], idempotency_key, media_arg
-            )
-        else:
-            result = await x.publish_tweet(access_token, variant["body"], media_arg)
-
-        await db_attempts.update_publish_attempt(
-            svc,
-            attempt["id"],
-            {
-                "status": "success",
-                "platform_post_id": result["platform_post_id"],
-                "platform_post_url": result["platform_post_url"],
-                "completed_at": _now(),
-            },
-        )
-        await db_posts.update_post_variant(
-            svc,
-            variant["id"],
-            {
-                "status": "published",
-                "published_at": _now(),
-                "platform_post_id": result["platform_post_id"],
-                "platform_post_url": result["platform_post_url"],
-            },
-        )
-        return True
-    except Exception as err:  # noqa: BLE001 — recorded as a failed attempt
-        error_code = getattr(err, "error_code", "UNKNOWN")
-        error_detail = str(err) or "Unknown error"
-        await db_attempts.update_publish_attempt(
-            svc,
-            attempt["id"],
-            {
-                "status": "failed",
-                "error_code": error_code,
-                "error_detail": error_detail,
-                "completed_at": _now(),
-            },
-        )
-        await db_posts.update_post_variant(
-            svc,
-            variant["id"],
-            {"status": "failed", "error": error_detail, "error_code": error_code},
-        )
-        return False
+    return result.ok
 
 
 async def run_publish_due(svc: AsyncClient) -> dict:
@@ -213,16 +144,13 @@ async def run_pull_metrics(svc: AsyncClient) -> dict:
                 access_token = await vault.read_secret(
                     svc, connection["access_token_vault_id"]
                 )
-                if platform == "linkedin":
-                    payload = await linkedin.get_post_metrics(
-                        access_token,
-                        f"urn:li:person:{connection['platform_user_id']}",
-                        variant["platform_post_id"],
-                    )
-                else:
-                    payload = await x.get_post_metrics(
-                        access_token, variant["platform_post_id"]
-                    )
+                adapter = get_adapter(platform)
+                author_urn = adapter.build_author_urn(
+                    connection.get("platform_user_id")
+                )
+                payload = await adapter.get_post_metrics(
+                    access_token, variant["platform_post_id"], author_urn
+                )
 
                 await db_metrics.upsert_post_metrics(
                     svc,
@@ -260,9 +188,30 @@ async def run_pull_metrics(svc: AsyncClient) -> dict:
 # ---------------------------------------------------------------------------
 
 
+async def _flag_and_notify_reauth(svc: AsyncClient, connection: dict) -> None:
+    """Flag a connection for manual reconnect and surface it in-app so the user
+    isn't left guessing why publishing silently stopped."""
+    await db_connections.flag_needs_reauth(svc, connection["id"])
+    await db_notifications.insert_notification(
+        svc,
+        {
+            "workspace_id": connection["workspace_id"],
+            "persona_id": connection.get("persona_id"),
+            "kind": "needs_reauth",
+            "title": f"Reconnect your {connection['platform']} account",
+            "body": (
+                f"We couldn't refresh your {connection['platform']} access token. "
+                "Reconnect the account to resume publishing."
+            ),
+            "entity_type": "social_connection",
+            "entity_id": connection["id"],
+        },
+    )
+
+
 async def _refresh_connection(svc: AsyncClient, connection: dict) -> str:
     if not connection.get("refresh_token_vault_id"):
-        await db_connections.flag_needs_reauth(svc, connection["id"])
+        await _flag_and_notify_reauth(svc, connection)
         return "flagged"
 
     try:
@@ -299,7 +248,7 @@ async def _refresh_connection(svc: AsyncClient, connection: dict) -> str:
         await db_connections.update_connection_tokens(svc, connection["id"], updates)
         return "refreshed"
     except Exception:  # noqa: BLE001 — any failure → flag for manual reconnect
-        await db_connections.flag_needs_reauth(svc, connection["id"])
+        await _flag_and_notify_reauth(svc, connection)
         return "flagged"
 
 

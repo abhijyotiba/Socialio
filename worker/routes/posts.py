@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from adapters import linkedin, x
 from auth import verify_hmac, verify_user
 from db import brand_configs as db_brand
 from db import media_assets as db_media
@@ -16,8 +15,7 @@ from db import social_connections as db_connections
 from db.client import rls_client, service_client
 from db.workspaces import get_workspace_id_for_user
 from pipeline import regenerate as regen_pipeline
-from publish.upload_media import upload_media_for_platform
-from security import vault
+from publish import publisher
 
 log = structlog.get_logger()
 
@@ -25,10 +23,6 @@ router = APIRouter()
 
 EDITABLE_STATUSES = ("draft", "scheduled", "failed")
 PUBLISHABLE_STATUSES = ("draft", "failed")
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 class RegenerateRequest(BaseModel):
@@ -160,95 +154,27 @@ async def publish_variant(variant_id: str, request: Request):
             detail=f"{platform} account needs re-authentication",
         )
 
-    latest = await db_attempts.get_latest_attempt(client, variant_id)
-    attempt_number = (latest["attempt_number"] + 1) if latest else 1
-
     # Claim the variant — prevents a duplicate in-flight publish.
     await db_posts.update_post_variant(client, variant_id, {"status": "publishing"})
 
     # Vault read requires the service-role client (documented exception).
     svc = await service_client()
-    access_token = await vault.read_secret(
-        svc, connection["access_token_vault_id"]
+
+    result = await publisher.publish_variant(
+        client, svc, variant, connection, idempotency_key=idempotency_key
     )
 
-    attempt = await db_attempts.create_publish_attempt(
-        client,
-        {
-            "workspace_id": workspace_id,
-            "post_variant_id": variant_id,
-            "idempotency_key": idempotency_key,
-            "attempt_number": attempt_number,
-            "status": "attempting",
-        },
-    )
-
-    try:
-        media_urls = await db_media.get_variant_media_urls(client, variant_id)
-        author_urn = (
-            f"urn:li:person:{connection['platform_user_id']}"
-            if platform == "linkedin"
-            else None
-        )
-        platform_media_ids = await upload_media_for_platform(
-            platform, access_token, media_urls, author_urn
-        )
-        media_arg = platform_media_ids or None
-
-        if platform == "linkedin":
-            result = await linkedin.publish_post(
-                access_token, author_urn, variant["body"], idempotency_key, media_arg
-            )
-        else:
-            result = await x.publish_tweet(access_token, variant["body"], media_arg)
-
-        await db_attempts.update_publish_attempt(
-            client,
-            attempt["id"],
-            {
-                "status": "success",
-                "platform_post_id": result["platform_post_id"],
-                "platform_post_url": result["platform_post_url"],
-                "completed_at": _now(),
-            },
-        )
-        await db_posts.update_post_variant(
-            client,
-            variant_id,
-            {
-                "status": "published",
-                "published_at": _now(),
-                "platform_post_id": result["platform_post_id"],
-                "platform_post_url": result["platform_post_url"],
-            },
-        )
+    if result.ok:
         return {
             "status": "published",
-            "platform_post_url": result["platform_post_url"],
+            "platform_post_url": result.platform_post_url,
         }
-    except Exception as err:  # noqa: BLE001 — recorded as a failed attempt
-        error_code = getattr(err, "error_code", "UNKNOWN")
-        error_detail = str(err) or "Unknown error"
-        await db_attempts.update_publish_attempt(
-            client,
-            attempt["id"],
-            {
-                "status": "failed",
-                "error_code": error_code,
-                "error_detail": error_detail,
-                "completed_at": _now(),
-            },
-        )
-        await db_posts.update_post_variant(
-            client,
-            variant_id,
-            {"status": "failed", "error": error_detail, "error_code": error_code},
-        )
-        http_status = 401 if error_code == "TOKEN_EXPIRED" else 502
-        return JSONResponse(
-            status_code=http_status,
-            content={"error": error_detail, "error_code": error_code},
-        )
+
+    http_status = 401 if result.error_code == "TOKEN_EXPIRED" else 502
+    return JSONResponse(
+        status_code=http_status,
+        content={"error": result.error_detail, "error_code": result.error_code},
+    )
 
 
 class ScheduleRequest(BaseModel):

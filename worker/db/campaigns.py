@@ -5,11 +5,17 @@ from supabase import AsyncClient
 
 
 async def fail_zombie_campaigns(
-    client: AsyncClient, older_than_minutes: int = 3
+    client: AsyncClient, older_than_minutes: int = 15
 ) -> list[dict[str, Any]]:
     """Mark campaigns stuck in 'generating' past the window as failed. Returns
     the affected rows (id, workspace_id) so the caller can reject their pending
-    personas and emit audit events."""
+    personas and emit audit events.
+
+    Window math: at the 50-persona cap, generation runs 50 personas through an
+    LLM concurrency cap of 5 (adapters/llm._LLM_SEMAPHORE) at ~2 LLM calls each
+    × ~10s ≈ 50/5 × 2 × 10s ≈ 200s ≪ 15 min. The generous window keeps the cron
+    from killing a legitimately in-flight large campaign mid-generation.
+    """
     cutoff = (
         datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
     ).isoformat()
@@ -19,7 +25,7 @@ async def fail_zombie_campaigns(
             {
                 "status": "failed",
                 "failure_code": "GENERATION_TIMEOUT",
-                "failure_reason": "Generation exceeded the 3-minute window.",
+                "failure_reason": "Generation exceeded the 15-minute window.",
             }
         )
         .eq("status", "generating")

@@ -142,7 +142,24 @@ def client(monkeypatch):
     monkeypatch.setattr(cr.analyze, "summarize", _summarize)
     monkeypatch.setattr(cr.gen_pipeline, "generate_variants", _generate_variants)
 
-    return TestClient(main.app)
+    # Capture the background coroutine WITHOUT scheduling it, so tests can assert
+    # the route returns before generation runs (and doesn't await it in-request).
+    captured: dict = {"coro": None}
+
+    def _capture_create_task(coro):
+        captured["coro"] = coro
+
+        class _FakeTask:
+            def cancel(self_inner):
+                coro.close()
+
+        return _FakeTask()
+
+    monkeypatch.setattr(cr.asyncio, "create_task", _capture_create_task)
+
+    test_client = TestClient(main.app)
+    test_client.captured = captured  # type: ignore[attr-defined]
+    return test_client
 
 
 def _post(client, **overrides):
@@ -151,15 +168,49 @@ def _post(client, **overrides):
     return client.post("/campaigns", json=payload)
 
 
-def test_happy_path(client):
-    res = _post(client)
+def test_immediate_return_status_generating(client):
+    """The route validates + creates rows, then hands generation to a background
+    task and returns { status: "generating" } immediately — without running the
+    LLM pipeline in the request path."""
+    summarize_calls = {"n": 0}
+    orig_summarize = cr.analyze.summarize
+
+    async def _tracking_summarize(title, text):
+        summarize_calls["n"] += 1
+        return await orig_summarize(title, text)
+
+    cr.analyze.summarize = _tracking_summarize
+    try:
+        res = _post(client)
+    finally:
+        cr.analyze.summarize = orig_summarize
+
     assert res.status_code == 200
     body = res.json()
     assert body["campaign_id"] == "camp-1"
-    assert body["status"] == "pending_approval"
-    assert len(body["variants"]) == 1
-    assert body["variants"][0]["persona_name"] == "Persona p1"
-    assert body["variants"][0]["platform"] == "linkedin"
+    assert body["status"] == "generating"
+    assert "variants" not in body
+
+    # Generation was deferred, not awaited in-request.
+    assert summarize_calls["n"] == 0
+    assert client.captured["coro"] is not None
+    client.captured["coro"].close()
+
+
+def test_fifty_persona_ids_accepted_and_deferred(client):
+    """POST with the full 50-persona cap returns fast without awaiting the
+    per-persona generation."""
+    res = _post(client, persona_ids=[f"p{i}" for i in range(50)])
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "generating"
+    assert client.captured["coro"] is not None
+    client.captured["coro"].close()
+
+
+def test_persona_cap_exceeded_rejected(client):
+    res = _post(client, persona_ids=[f"p{i}" for i in range(51)])
+    assert res.status_code == 400  # Pydantic Field(max_length=50) → 400 handler
 
 
 def test_rate_limit(client, monkeypatch):
@@ -197,27 +248,3 @@ def test_missing_brand_prompt(client):
         assert res.status_code == 409
     finally:
         MockClient.mock_missing_prompt = False
-
-
-def test_all_personas_fail_returns_502_with_campaign_id(client):
-    MockClient.mock_no_connections = True
-    try:
-        res = _post(client)
-        assert res.status_code == 502
-        body = res.json()
-        assert body["campaign_id"] == "camp-1"
-        assert "error" in body
-    finally:
-        MockClient.mock_no_connections = False
-
-
-def test_partial_success(client):
-    MockClient.mock_partial_success = True
-    try:
-        res = _post(client, persona_ids=["p1", "p2"])
-        assert res.status_code == 200
-        body = res.json()
-        assert body["status"] == "generation_partial"
-        assert len(body["variants"]) == 1
-    finally:
-        MockClient.mock_partial_success = False
