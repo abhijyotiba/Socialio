@@ -310,6 +310,7 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          brief: Json | null
           created_at: string
           failure_code: string | null
           failure_reason: string | null
@@ -321,9 +322,12 @@ export type Database = {
           title: string | null
           updated_at: string
           user_angle: string | null
+          window_end: string | null
+          window_start: string | null
           workspace_id: string
         }
         Insert: {
+          brief?: Json | null
           created_at?: string
           failure_code?: string | null
           failure_reason?: string | null
@@ -335,9 +339,12 @@ export type Database = {
           title?: string | null
           updated_at?: string
           user_angle?: string | null
+          window_end?: string | null
+          window_start?: string | null
           workspace_id: string
         }
         Update: {
+          brief?: Json | null
           created_at?: string
           failure_code?: string | null
           failure_reason?: string | null
@@ -349,6 +356,8 @@ export type Database = {
           title?: string | null
           updated_at?: string
           user_angle?: string | null
+          window_end?: string | null
+          window_start?: string | null
           workspace_id?: string
         }
         Relationships: [

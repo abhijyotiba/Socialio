@@ -248,3 +248,62 @@ def test_missing_brand_prompt(client):
         assert res.status_code == 409
     finally:
         MockClient.mock_missing_prompt = False
+
+
+def test_brief_persisted_on_campaign(client, monkeypatch):
+    """A structured brief + window is persisted on the campaigns row (Task 6)."""
+    captured_values: dict = {}
+
+    async def _create_campaign(_client, values):
+        captured_values.update(values)
+        return {"id": "camp-1"}
+
+    monkeypatch.setattr(db_campaigns, "create_campaign", _create_campaign)
+
+    res = client.post(
+        "/campaigns",
+        json={
+            "ingestion_job_id": "job-1",
+            "persona_ids": ["p1"],
+            "brief": {
+                "goal": "Drive beta signups",
+                "core_message": "Saves you hours",
+                "tone": "friendly",
+                "cta": "Join now",
+                "do": ["be concrete"],
+                "dont": ["overpromise"],
+            },
+            "window_start": "2026-08-01T00:00:00Z",
+            "window_end": "2026-08-07T00:00:00Z",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "generating"
+    assert captured_values["brief"]["goal"] == "Drive beta signups"
+    assert captured_values["brief"]["do"] == ["be concrete"]
+    assert captured_values["window_start"] == "2026-08-01T00:00:00Z"
+    assert captured_values["window_end"] == "2026-08-07T00:00:00Z"
+    client.captured["coro"].close()
+
+
+def test_empty_brief_not_persisted(client, monkeypatch):
+    """A brief with no meaningful content stores NULL (behaves like today)."""
+    captured_values: dict = {}
+
+    async def _create_campaign(_client, values):
+        captured_values.update(values)
+        return {"id": "camp-1"}
+
+    monkeypatch.setattr(db_campaigns, "create_campaign", _create_campaign)
+
+    res = client.post(
+        "/campaigns",
+        json={
+            "ingestion_job_id": "job-1",
+            "persona_ids": ["p1"],
+            "brief": {"do": [], "dont": []},
+        },
+    )
+    assert res.status_code == 200
+    assert captured_values["brief"] is None
+    client.captured["coro"].close()

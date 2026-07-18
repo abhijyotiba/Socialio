@@ -12,6 +12,7 @@ from db import audit_events as db_audit
 from db import brand_configs as db_brand
 from db import campaigns as db_campaigns
 from db import ingestion as db_ingestion
+from db import media_assets as db_media
 from db import personas as db_personas
 from db import posts as db_posts
 from db import social_connections as db_connections
@@ -30,11 +31,51 @@ CAMPAIGN_PERSONA_CAP = 50
 GENERATION_TIMEOUT_S = 45
 
 
+class CampaignBrief(BaseModel):
+    """Structured campaign brief (Task 6). All fields optional so a caller can
+    supply as little as a goal; bounded lengths guard the prompt size."""
+
+    goal: str | None = Field(default=None, max_length=1000)
+    core_message: str | None = Field(default=None, max_length=1000)
+    tone: str | None = Field(default=None, max_length=200)
+    cta: str | None = Field(default=None, max_length=300)
+    dos: list[str] = Field(default_factory=list, max_length=10, alias="do")
+    donts: list[str] = Field(default_factory=list, max_length=10, alias="dont")
+    media_asset_ids: list[str] = Field(default_factory=list, max_length=4)
+
+    model_config = {"populate_by_name": True}
+
+    def to_storage(self) -> dict[str, Any]:
+        """JSONB shape persisted on campaigns.brief (matches migration 0026)."""
+        return {
+            "goal": self.goal,
+            "core_message": self.core_message,
+            "tone": self.tone,
+            "cta": self.cta,
+            "do": self.dos,
+            "dont": self.donts,
+            "media_asset_ids": self.media_asset_ids,
+        }
+
+    def has_content(self) -> bool:
+        return bool(
+            (self.goal or "").strip()
+            or (self.core_message or "").strip()
+            or (self.tone or "").strip()
+            or (self.cta or "").strip()
+            or self.dos
+            or self.donts
+        )
+
+
 class CampaignRequest(BaseModel):
     ingestion_job_id: str
     persona_ids: list[str] = Field(min_length=1, max_length=CAMPAIGN_PERSONA_CAP)
     platforms: list[Literal["linkedin", "x"]] | None = None
     user_angle: str | None = None
+    brief: CampaignBrief | None = None
+    window_start: str | None = None
+    window_end: str | None = None
 
 
 async def _generate_for_persona(
@@ -45,6 +86,7 @@ async def _generate_for_persona(
     requested_platforms: list[str] | None,
     summary: str,
     user_angle: str | None,
+    brief: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Pure (no DB): resolve platforms and run the LLM pipeline for one persona.
     Returns {persona_id, variants} or {persona_id, error}.
@@ -67,6 +109,7 @@ async def _generate_for_persona(
             brand_system_prompt=brand["custom_system_prompt"],
             platforms=platforms,
             user_angle=user_angle,
+            brief=brief,
         )
 
     try:
@@ -89,6 +132,8 @@ async def _run_campaign_generation(
     user_angle: str | None,
     effective_title: str,
     effective_text: str,
+    brief: dict[str, Any] | None = None,
+    media_asset_ids: list[str] | None = None,
 ) -> None:
     """Background task: summarize, generate per-persona in parallel, persist
     content_items/post_variants/campaign_persona_variants, and roll the campaign
@@ -126,6 +171,7 @@ async def _run_campaign_generation(
                     requested_platforms=requested_platforms,
                     summary=summary,
                     user_angle=user_angle,
+                    brief=brief,
                 )
                 for idx, pid in enumerate(persona_ids)
             ],
@@ -185,6 +231,13 @@ async def _run_campaign_generation(
                     for pv in post_variants
                 ],
             )
+            # Attach brief media (bounded to 4 by set_variant_media) to every
+            # generated variant for this persona.
+            if media_asset_ids:
+                for pv in post_variants:
+                    await db_media.set_variant_media(
+                        client, pv["id"], media_asset_ids[:4]
+                    )
             success_count += 1
 
         if success_count == 0:
@@ -263,6 +316,31 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
     if user_angle and len(user_angle) > 1000:
         raise HTTPException(status_code=400, detail="user_angle too long")
 
+    # Structured brief (Task 6) supersedes user_angle for generation. Media
+    # ids come from client-supplied JSONB; the post_variant_media insert policy
+    # only checks post-variant ownership, not media ownership, so validate the
+    # ids belong to this workspace before attaching (RLS read already scopes
+    # media_assets to the caller's workspaces).
+    media_asset_ids: list[str] | None = None
+    if req.brief and req.brief.media_asset_ids:
+        requested_media = req.brief.media_asset_ids[:4]
+        owned = await db_media.filter_workspace_media_ids(
+            client, workspace_id, requested_media
+        )
+        media_asset_ids = owned or None
+
+    # Persist the brief JSONB when it carries textual content OR valid media, so
+    # the stored brief always records the media_asset_ids that were attached.
+    has_brief_content = bool(req.brief and req.brief.has_content())
+    has_brief = bool(has_brief_content or media_asset_ids)
+    brief_storage = None
+    if has_brief:
+        brief_storage = req.brief.to_storage()
+        brief_storage["media_asset_ids"] = media_asset_ids or []
+    # Only a brief with textual content is a generation source; media-only
+    # briefs are attached but don't drive the LLM prompt.
+    brief_dict = brief_storage if has_brief_content else None
+
     job = await db_ingestion.get_job(client, req.ingestion_job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -271,10 +349,10 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
 
     has_extracted_text = bool((job.get("extracted_text") or "").strip())
     has_user_angle = bool(user_angle)
-    if not has_extracted_text and not has_user_angle:
+    if not has_extracted_text and not has_user_angle and not has_brief_content:
         raise HTTPException(
             status_code=409,
-            detail="Ingestion job has no extracted text and no user angle was provided",
+            detail="Ingestion job has no extracted text and no user angle or brief was provided",
         )
 
     # ── Batch DB reads (replaces N+1 sequential queries) ────────────────
@@ -299,11 +377,12 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             status_code=409, detail="One or more personas have no voice profile set"
         )
 
-    # Prompt-only flow: a text job carrying a user angle means the angle IS the
-    # topic — don't also feed the echoed prompt back as source material.
+    # Prompt-only flow: a text job carrying a user angle or brief means the
+    # instruction IS the topic — don't also feed the echoed prompt back as
+    # source material.
     effective_title = job.get("extracted_title") or ""
     effective_text = job.get("extracted_text") or ""
-    if job["source_type"] == "text" and has_user_angle:
+    if job["source_type"] == "text" and (has_user_angle or has_brief_content):
         effective_text = ""
 
     campaign = await db_campaigns.create_campaign(
@@ -315,6 +394,9 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             "status": "generating",
             "generation_started_at": datetime.now(timezone.utc).isoformat(),
             "user_angle": user_angle,
+            "brief": brief_storage,
+            "window_start": req.window_start,
+            "window_end": req.window_end,
         },
     )
     campaign_persona_rows = await db_campaigns.create_campaign_personas(
@@ -349,6 +431,8 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             user_angle=user_angle,
             effective_title=effective_title,
             effective_text=effective_text,
+            brief=brief_dict,
+            media_asset_ids=media_asset_ids,
         )
     )
 
