@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, Settings2, Users, Zap } from "lucide-react";
+import { CalendarClock, FolderKanban, Settings2, Users, Zap } from "lucide-react";
 
 const navItems = [
   {
@@ -10,6 +10,12 @@ const navItems = [
     label: "Personas",
     description: "Voice, connections & brand per persona",
     icon: Users,
+  },
+  {
+    href: "/settings/groups",
+    label: "Account Groups",
+    description: "Bundle personas to target together",
+    icon: FolderKanban,
   },
   {
     href: "/settings/autopilot",
