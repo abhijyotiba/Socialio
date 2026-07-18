@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { listScheduledVariants } from "@/lib/db/posts";
+import { getTerminalFailures } from "@/lib/db/post-failures";
+import { FailureBanner } from "@/components/app/FailureBanner";
 import { QueueList } from "./_components/QueueList";
 
 type Tab = "all" | "linkedin" | "x";
@@ -44,6 +46,7 @@ export default async function QueuePage({
   if (!workspace) redirect("/onboarding");
 
   const allPosts = await listScheduledVariants();
+  const failures = await getTerminalFailures(workspace.workspace_id);
 
   const linkedinCount = allPosts.filter((p) => p.platform === "linkedin").length;
   const xCount = allPosts.filter((p) => p.platform === "x").length;
@@ -87,6 +90,8 @@ export default async function QueuePage({
       </div>
 
       {/* ── Stat Cards ──────────────────────────────────────── */}
+      <FailureBanner failures={failures} />
+
       <div className="grid grid-cols-2 gap-4">
         {/* Upcoming count */}
         <div className="card-lift animate-fade-up relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-indigo-500 p-5 text-white shadow-lg shadow-indigo-200/50">
