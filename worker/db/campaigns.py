@@ -211,6 +211,66 @@ async def set_post_variants_status(
     ).execute()
 
 
+async def map_variants_to_campaign_personas(
+    client: AsyncClient, campaign_id: str, post_variant_ids: list[str]
+) -> list[dict[str, Any]]:
+    """Resolve selected post_variant_ids to the campaign_personas that own them,
+    scoped to this campaign (RLS + the campaign_id filter reject foreign ids).
+
+    Returns rows {post_variant_id, campaign_persona_id, persona_id} for only the
+    ids that genuinely belong to campaign_id — the caller uses this to validate
+    the selection before scheduling and to know which personas were touched."""
+    if not post_variant_ids:
+        return []
+    res = (
+        await client.table("campaign_persona_variants")
+        .select(
+            "post_variant_id, campaign_persona_id, "
+            "campaign_personas!inner ( campaign_id, persona_id )"
+        )
+        .eq("campaign_personas.campaign_id", campaign_id)
+        .in_("post_variant_id", post_variant_ids)
+        .execute()
+    )
+    out: list[dict[str, Any]] = []
+    for row in res.data or []:
+        cp = row.get("campaign_personas")
+        if isinstance(cp, list):
+            cp = cp[0] if cp else None
+        if not cp:
+            continue
+        out.append(
+            {
+                "post_variant_id": row["post_variant_id"],
+                "campaign_persona_id": row["campaign_persona_id"],
+                "persona_id": cp.get("persona_id"),
+            }
+        )
+    return out
+
+
+async def get_variant_statuses_for_campaign_persona(
+    client: AsyncClient, campaign_persona_id: str
+) -> list[str]:
+    """Statuses of every post_variant belonging to a campaign_persona. Used to
+    decide whether a persona is fully approved after a partial (variant-scoped)
+    approval so campaign_personas.approval_status stays meaningful."""
+    res = (
+        await client.table("campaign_persona_variants")
+        .select("post_variants!inner ( status )")
+        .eq("campaign_persona_id", campaign_persona_id)
+        .execute()
+    )
+    statuses: list[str] = []
+    for row in res.data or []:
+        pv = row.get("post_variants")
+        if isinstance(pv, list):
+            pv = pv[0] if pv else None
+        if pv and pv.get("status"):
+            statuses.append(pv["status"])
+    return statuses
+
+
 def _compute_scheduled_times(
     variants: list[dict[str, Any]],
     *,
@@ -220,6 +280,7 @@ def _compute_scheduled_times(
     now: datetime,
     jitter_seconds: int,
     rng: Random,
+    anchor: bool = False,
 ) -> dict[str, datetime]:
     """Pure resolver (no DB) — assign each variant a distinct scheduled_at.
 
@@ -228,6 +289,11 @@ def _compute_scheduled_times(
          window, with small per-variant jitter.
       2. else per-persona+platform posting_schedules slots → next open slot.
       3. else now() + random jitter (0..jitter_seconds).
+
+    When `anchor` is True, precedence 2 is skipped: every variant clusters from
+    `now` (the caller's chosen time) and only the distinctness nudge separates
+    them. Used by explicit bulk-schedule so the user's chosen datetime is
+    honored even for personas that have posting_schedules rows.
 
     Every variant gets a *distinct* timestamp so 50 posts never fire the same
     second (uniqueness enforced by nudging duplicates forward by 1s)."""
@@ -244,7 +310,7 @@ def _compute_scheduled_times(
             base = window_start + timedelta(seconds=step * i)
             offset = rng.randint(0, max_jitter) if max_jitter > 0 else 0
             assigned[v["id"]] = base + timedelta(seconds=offset)
-    elif slots_by_persona_platform:
+    elif slots_by_persona_platform and not anchor:
         # Next open posting slot per persona+platform; consume slots so two
         # variants for the same persona+platform don't collide.
         cursor: dict[tuple[str, str], int] = {}
@@ -286,6 +352,7 @@ async def assign_scheduled_times(
     window_end: datetime | None = None,
     jitter_seconds: int = 5400,  # ±90 min default
     now: datetime | None = None,
+    anchor: bool = False,
 ) -> dict[str, str]:
     """Set a distinct, non-null scheduled_at on every variant in variant_ids.
 
@@ -294,6 +361,8 @@ async def assign_scheduled_times(
     claim_due_variants (which requires scheduled_at <= now()).
 
     Resolver precedence: brief window → persona posting_schedules → now()+jitter.
+    When `anchor` is True, posting_schedules are skipped so variants cluster from
+    `now` (the caller's explicitly chosen time) — used by bulk-schedule.
     Returns {variant_id: iso_timestamp}."""
     if not variant_ids:
         return {}
@@ -313,7 +382,7 @@ async def assign_scheduled_times(
         return {}
 
     slots_by_persona_platform: dict[tuple[str, str], list[datetime]] | None = None
-    if not (window_start and window_end):
+    if not anchor and not (window_start and window_end):
         slots_by_persona_platform = await _load_next_slots(client, variants, now)
 
     assigned = _compute_scheduled_times(
@@ -324,6 +393,7 @@ async def assign_scheduled_times(
         now=now,
         jitter_seconds=jitter_seconds,
         rng=rng,
+        anchor=anchor,
     )
 
     # Persist per-variant (distinct timestamps → one update each).

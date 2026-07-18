@@ -222,40 +222,6 @@ export async function listCampaignVariants(
   return { rows, page, pageSize, total: count ?? 0 };
 }
 
-// ── Selection → persona resolution ────────────────────────────────────────────
-// Bulk-approve drives the EXISTING worker `POST /campaigns/{id}/approve
-// {persona_ids}` endpoint (no dedicated bulk endpoint exists), which approves a
-// persona's variants and assigns scheduled_at. So the selected post_variant_ids
-// must first be resolved to the distinct persona_ids that own them. RLS scopes
-// this to the caller's workspace.
-export async function resolvePersonaIdsForVariants(
-  campaignId: string,
-  postVariantIds: string[]
-): Promise<string[]> {
-  if (postVariantIds.length === 0) return [];
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("campaign_persona_variants")
-    .select("post_variant_id, campaign_personas!inner ( campaign_id, persona_id )")
-    .eq("campaign_personas.campaign_id", campaignId)
-    .in("post_variant_id", postVariantIds);
-
-  type RawRow = {
-    campaign_personas?:
-      | { persona_id?: string | null }
-      | Array<{ persona_id?: string | null }>
-      | null;
-  };
-  const personaIds = new Set<string>();
-  for (const row of (data ?? []) as RawRow[]) {
-    const cp = Array.isArray(row.campaign_personas)
-      ? row.campaign_personas[0]
-      : row.campaign_personas;
-    if (cp?.persona_id) personaIds.add(cp.persona_id);
-  }
-  return [...personaIds];
-}
-
 // ── On-demand detail ──────────────────────────────────────────────────────────
 // Full body + revisions + media + source for a single variant. Loaded only when
 // a row is opened in the drawer (spot-editing), so the grid never pays for it.

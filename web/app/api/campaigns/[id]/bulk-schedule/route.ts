@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { workerSchedulePost } from "@/lib/worker-client";
+import { workerFetch } from "@/lib/worker-client";
 
 // Bulk schedule for the review grid.
 //
-// No dedicated worker bulk-schedule endpoint exists, so this fans out to the
-// EXISTING per-variant `POST /posts/{id}/schedule` (via workerSchedulePost)
-// server-side, one call per selected variant, and aggregates the results. Each
-// call is independent; a failure on one variant doesn't abort the rest.
+// Thin proxy to the worker's variant-scoped `POST /campaigns/{id}/bulk-schedule
+// { post_variant_ids, scheduled_at? }`. The worker routes the selected variants
+// through assign_scheduled_times so every post gets a DISTINCT scheduled_at
+// (never the same second), anchored at the caller's chosen time when provided.
 //
-// Body: { post_variant_ids: string[], scheduled_at: string (ISO) }.
-export async function POST(request: Request) {
+// Body: { post_variant_ids: string[], scheduled_at?: string (ISO) }.
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const supabase = await createClient();
   const {
     data: { session },
@@ -22,34 +26,25 @@ export async function POST(request: Request) {
     scheduled_at?: string;
   };
   const postVariantIds = payload.post_variant_ids ?? [];
-  const scheduledAt = payload.scheduled_at ?? "";
   if (postVariantIds.length === 0) {
     return NextResponse.json({ error: "post_variant_ids required" }, { status: 400 });
   }
-  if (!scheduledAt) {
-    return NextResponse.json({ error: "scheduled_at required" }, { status: 400 });
-  }
 
-  const results = await Promise.all(
-    postVariantIds.map(async (variantId) => {
-      try {
-        const res = await workerSchedulePost(
-          variantId,
-          scheduledAt,
-          session.access_token
-        );
-        return { post_variant_id: variantId, ok: res.ok, status: res.status };
-      } catch {
-        return { post_variant_id: variantId, ok: false, status: 502 };
+  try {
+    const res = await workerFetch(
+      `/campaigns/${encodeURIComponent(id)}/bulk-schedule`,
+      {
+        method: "POST",
+        accessToken: session.access_token,
+        json: {
+          post_variant_ids: postVariantIds,
+          scheduled_at: payload.scheduled_at,
+        },
       }
-    })
-  );
-
-  const succeeded = results.filter((r) => r.ok).length;
-  return NextResponse.json({
-    requested: postVariantIds.length,
-    succeeded,
-    failed: postVariantIds.length - succeeded,
-    results,
-  });
+    );
+    const data = await res.json().catch(() => ({ error: "Worker error" }));
+    return NextResponse.json(data, { status: res.status });
+  } catch {
+    return NextResponse.json({ error: "Worker error" }, { status: 502 });
+  }
 }

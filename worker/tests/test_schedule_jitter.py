@@ -76,6 +76,29 @@ def test_posting_slots_precedence_when_no_window():
     assert len(set(times)) == 3  # distinct even sharing one slot
 
 
+def test_anchor_skips_posting_slots_and_clusters_from_now():
+    """With anchor=True, posting slots are ignored and every variant clusters
+    from `now` (the caller's chosen time), nudged 1s apart for distinctness."""
+    slot = datetime(2026, 7, 18, 15, 0, 0, tzinfo=timezone.utc)
+    slots = {("p1", "linkedin"): [slot]}
+    anchor = datetime(2026, 8, 1, 9, 0, 0, tzinfo=timezone.utc)
+    assigned = _compute_scheduled_times(
+        _variants(3),
+        window_start=None,
+        window_end=None,
+        slots_by_persona_platform=slots,
+        now=anchor,
+        jitter_seconds=0,
+        rng=Random(5),
+        anchor=True,
+    )
+    times = sorted(assigned.values())
+    # Clusters from the anchor (not the posting slot), 1s apart, all distinct.
+    assert times[0] == anchor
+    assert len(set(times)) == 3
+    assert all(t >= anchor for t in times)
+
+
 def test_single_variant_window_gets_a_time():
     ws = datetime(2026, 8, 1, tzinfo=timezone.utc)
     we = datetime(2026, 8, 2, tzinfo=timezone.utc)

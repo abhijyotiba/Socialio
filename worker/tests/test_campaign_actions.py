@@ -36,6 +36,18 @@ def client(monkeypatch):
         "variants_scheduled": [],
         "scheduled_at": {},
         "assign_windows": [],
+        "audit_events": [],
+        # variant -> campaign_persona mapping used by the variant-scoped routes.
+        "variant_map": {
+            "v-cp-1-a": {"campaign_persona_id": "cp-1", "persona_id": "p1"},
+            "v-cp-1-b": {"campaign_persona_id": "cp-1", "persona_id": "p1"},
+            "v-cp-2-a": {"campaign_persona_id": "cp-2", "persona_id": "p2"},
+        },
+        # per-campaign_persona variant statuses (drives the persona roll-up).
+        "cp_variant_statuses": {
+            "cp-1": ["pending_approval", "pending_approval"],
+            "cp-2": ["pending_approval"],
+        },
         "campaign_status": None,
         "deleted": False,
         "cancelled": 0,
@@ -72,8 +84,19 @@ def client(monkeypatch):
     async def _update_campaign(_client, _cid, patch):
         state["campaign_status"] = patch.get("status")
 
-    async def _audit(_client, _event):
+    async def _audit(_client, event):
+        state["audit_events"].append(event)
         return None
+
+    async def _map_variants(_client, _cid, post_variant_ids):
+        return [
+            {"post_variant_id": vid, **state["variant_map"][vid]}
+            for vid in post_variant_ids
+            if vid in state["variant_map"]
+        ]
+
+    async def _cp_statuses(_client, cp_id):
+        return state["cp_variant_statuses"].get(cp_id, [])
 
     async def _delete(_client, _cid):
         state["deleted"] = True
@@ -90,6 +113,10 @@ def client(monkeypatch):
     monkeypatch.setattr(db_campaigns, "get_variants_for_campaign_persona", _get_variants)
     monkeypatch.setattr(db_campaigns, "set_post_variants_status", _set_status)
     monkeypatch.setattr(db_campaigns, "assign_scheduled_times", _assign_scheduled_times)
+    monkeypatch.setattr(db_campaigns, "map_variants_to_campaign_personas", _map_variants)
+    monkeypatch.setattr(
+        db_campaigns, "get_variant_statuses_for_campaign_persona", _cp_statuses
+    )
     monkeypatch.setattr(db_campaigns, "update_campaign", _update_campaign)
     monkeypatch.setattr(db_campaigns, "delete_campaign", _delete)
     monkeypatch.setattr(db_campaigns, "has_live_variants", _has_live)
@@ -176,7 +203,74 @@ def test_cancel_scheduled(client):
     assert res.json() == {"ok": True, "cancelled": 3}
 
 
-def test_delete_ok(client):
+def test_bulk_approve_schedules_only_selected_variants(client):
+    """Variant-scoped bulk-approve must set scheduled_at on ONLY the selected
+    variants, not every variant of their personas (regression for the
+    over-approval bug where selecting 2 of a persona's 5 approved all 5)."""
+    res = client.post(
+        "/campaigns/camp-1/bulk-approve",
+        json={"post_variant_ids": ["v-cp-1-a"]},
+    )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True, "approved_count": 1}
+    # Only the one selected variant got a scheduled_at — not v-cp-1-b.
+    assert set(client.state["scheduled_at"]) == {"v-cp-1-a"}
+    assert all(ts for ts in client.state["scheduled_at"].values())
+    # cp-1 still has a pending variant → persona NOT rolled to approved.
+    assert ("cp-1", "approved") not in client.state["approvals"]
+
+
+def test_bulk_approve_rolls_persona_when_all_variants_scheduled(client):
+    """When the selection covers every remaining variant of a persona, that
+    persona's approval_status rolls to 'approved'."""
+    client.state["cp_variant_statuses"]["cp-1"] = ["scheduled", "scheduled"]
+    res = client.post(
+        "/campaigns/camp-1/bulk-approve",
+        json={"post_variant_ids": ["v-cp-1-a", "v-cp-1-b"]},
+    )
+    assert res.status_code == 200
+    assert set(client.state["scheduled_at"]) == {"v-cp-1-a", "v-cp-1-b"}
+    assert ("cp-1", "approved") in client.state["approvals"]
+    # Audit entity_id is the campaign_persona id, persona_id is carried through.
+    approved_events = [
+        e
+        for e in client.state["audit_events"]
+        if e["event_type"] == "campaign_persona.approved"
+    ]
+    assert approved_events and approved_events[0]["entity_id"] == "cp-1"
+    assert approved_events[0]["persona_id"] == "p1"
+
+
+def test_bulk_approve_requires_variant_ids(client):
+    res = client.post("/campaigns/camp-1/bulk-approve", json={"post_variant_ids": []})
+    assert res.status_code == 400
+
+
+def test_bulk_approve_unknown_variants_404(client):
+    res = client.post(
+        "/campaigns/camp-1/bulk-approve", json={"post_variant_ids": ["nope"]}
+    )
+    assert res.status_code == 404
+
+
+def test_bulk_schedule_assigns_distinct_times_to_selected(client):
+    """Bulk-schedule routes through assign_scheduled_times so selected variants
+    get distinct scheduled_at (not one shared instant)."""
+    res = client.post(
+        "/campaigns/camp-1/bulk-schedule",
+        json={
+            "post_variant_ids": ["v-cp-1-a", "v-cp-2-a"],
+            "scheduled_at": "2026-08-01T09:00:00Z",
+        },
+    )
+    assert res.status_code == 200
+    assert res.json() == {"ok": True, "scheduled_count": 2}
+    assert set(client.state["scheduled_at"]) == {"v-cp-1-a", "v-cp-2-a"}
+
+
+def test_bulk_schedule_requires_variant_ids(client):
+    res = client.post("/campaigns/camp-1/bulk-schedule", json={"post_variant_ids": []})
+    assert res.status_code == 400
     res = client.request("DELETE", "/campaigns/camp-1")
     assert res.status_code == 200
     assert client.state["deleted"] is True

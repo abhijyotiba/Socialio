@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { workerFetch } from "@/lib/worker-client";
-import { resolvePersonaIdsForVariants } from "@/lib/db/campaign-variants";
 
 // Bulk approve for the review grid.
 //
-// No dedicated worker bulk-approve endpoint exists. We reuse the EXISTING
-// `POST /campaigns/{id}/approve { persona_ids }` chokepoint, which approves a
-// persona's variants and assigns scheduled_at automatically. The grid selects
-// post_variant_ids, so we first resolve those to their owning persona_ids
-// (server-side, under RLS) and forward the persona subset to the worker.
+// Thin proxy to the worker's variant-scoped `POST /campaigns/{id}/bulk-approve
+// { post_variant_ids }`. The worker approves ONLY the selected variants (not
+// every variant of their personas) and assigns each a distinct scheduled_at
+// through the shared approval chokepoint.
 //
 // Body: { post_variant_ids: string[] }.
 export async function POST(
@@ -34,20 +32,15 @@ export async function POST(
     );
   }
 
-  const personaIds = await resolvePersonaIdsForVariants(id, postVariantIds);
-  if (personaIds.length === 0) {
-    return NextResponse.json(
-      { error: "No matching variants for this campaign" },
-      { status: 404 }
-    );
-  }
-
   try {
-    const res = await workerFetch(`/campaigns/${encodeURIComponent(id)}/approve`, {
-      method: "POST",
-      accessToken: session.access_token,
-      json: { persona_ids: personaIds },
-    });
+    const res = await workerFetch(
+      `/campaigns/${encodeURIComponent(id)}/bulk-approve`,
+      {
+        method: "POST",
+        accessToken: session.access_token,
+        json: { post_variant_ids: postVariantIds },
+      }
+    );
     const data = await res.json().catch(() => ({ error: "Worker error" }));
     return NextResponse.json(data, { status: res.status });
   } catch {
