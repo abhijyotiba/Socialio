@@ -18,6 +18,7 @@ from db import content_cadences as db_cadences
 from db import content_cells as db_cells
 from db import media_assets as db_media
 from db import metrics as db_metrics
+from db import notifications as db_notifications
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from db import social_connections as db_connections
@@ -187,9 +188,30 @@ async def run_pull_metrics(svc: AsyncClient) -> dict:
 # ---------------------------------------------------------------------------
 
 
+async def _flag_and_notify_reauth(svc: AsyncClient, connection: dict) -> None:
+    """Flag a connection for manual reconnect and surface it in-app so the user
+    isn't left guessing why publishing silently stopped."""
+    await db_connections.flag_needs_reauth(svc, connection["id"])
+    await db_notifications.insert_notification(
+        svc,
+        {
+            "workspace_id": connection["workspace_id"],
+            "persona_id": connection.get("persona_id"),
+            "kind": "needs_reauth",
+            "title": f"Reconnect your {connection['platform']} account",
+            "body": (
+                f"We couldn't refresh your {connection['platform']} access token. "
+                "Reconnect the account to resume publishing."
+            ),
+            "entity_type": "social_connection",
+            "entity_id": connection["id"],
+        },
+    )
+
+
 async def _refresh_connection(svc: AsyncClient, connection: dict) -> str:
     if not connection.get("refresh_token_vault_id"):
-        await db_connections.flag_needs_reauth(svc, connection["id"])
+        await _flag_and_notify_reauth(svc, connection)
         return "flagged"
 
     try:
@@ -226,7 +248,7 @@ async def _refresh_connection(svc: AsyncClient, connection: dict) -> str:
         await db_connections.update_connection_tokens(svc, connection["id"], updates)
         return "refreshed"
     except Exception:  # noqa: BLE001 — any failure → flag for manual reconnect
-        await db_connections.flag_needs_reauth(svc, connection["id"])
+        await _flag_and_notify_reauth(svc, connection)
         return "flagged"
 
 

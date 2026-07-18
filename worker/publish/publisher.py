@@ -8,18 +8,42 @@ the adapter ``publish(...)`` call, and the ``publish_attempts`` /
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from adapters.platforms import get_adapter
 from db import media_assets as db_media
+from db import notifications as db_notifications
+from db import persona_rate_limits as db_rate_limits
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from publish.upload_media import upload_media_for_platform
 from security import vault
 
+# Error codes (from adapter.classify_error / PublishError.error_code) that are
+# worth retrying — transient platform conditions. Everything else (CONTENT_POLICY,
+# TOKEN_EXPIRED after a failed refresh, UNKNOWN) is terminal on first failure.
+RETRYABLE_ERROR_CODES = frozenset({"RATE_LIMITED", "SERVER_ERROR"})
+
+# Backoff schedule in minutes, indexed by the pre-increment retry_count. A
+# variant is retried at most 3 times (retry_count 0→1→2), then goes terminal.
+RETRY_BACKOFF_MINUTES = (5, 15, 60)
+MAX_RETRIES = len(RETRY_BACKOFF_MINUTES)
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _next_retry_at(retry_count: int, retry_after_seconds: float | None) -> str:
+    """When to next attempt a retryable failure. Honor the platform's
+    Retry-After (seconds) when it exposed one; otherwise fall back to the fixed
+    5/15/60-minute backoff schedule indexed by the current retry_count."""
+    if retry_after_seconds is not None:
+        delta = timedelta(seconds=retry_after_seconds)
+    else:
+        minutes = RETRY_BACKOFF_MINUTES[min(retry_count, MAX_RETRIES - 1)]
+        delta = timedelta(minutes=minutes)
+    return (datetime.now(timezone.utc) + delta).isoformat()
 
 
 @dataclass
@@ -111,6 +135,11 @@ async def publish_variant(
                 "platform_post_url": result["platform_post_url"],
             },
         )
+        # Live daily-cap counter: only meaningful for persona-scoped variants
+        # (the cap is per persona+platform). Uses the service-role client since
+        # the RPC is service_role-only.
+        if variant.get("persona_id"):
+            await db_rate_limits.increment(svc, variant["persona_id"], platform)
         return PublishResult(
             ok=True,
             platform_post_id=result["platform_post_id"],
@@ -129,11 +158,50 @@ async def publish_variant(
                 "completed_at": _now(),
             },
         )
-        await db_posts.update_post_variant(
-            client,
-            variant["id"],
-            {"status": "failed", "error": error_detail, "error_code": error_code},
-        )
+
+        retry_count = variant.get("retry_count") or 0
+        is_retryable = error_code in RETRYABLE_ERROR_CODES
+
+        if is_retryable and retry_count < MAX_RETRIES:
+            # Transient failure with retries left → back off and let the next
+            # claim_due_variants sweep re-pick it once next_retry_at passes.
+            retry_after = getattr(err, "retry_after", None)
+            await db_posts.update_post_variant(
+                client,
+                variant["id"],
+                {
+                    "status": "failed",
+                    "error": error_detail,
+                    "error_code": error_code,
+                    "retry_count": retry_count + 1,
+                    "next_retry_at": _next_retry_at(retry_count, retry_after),
+                },
+            )
+        else:
+            # Non-retryable, or retries exhausted → give up and alert the user.
+            await db_posts.update_post_variant(
+                client,
+                variant["id"],
+                {
+                    "status": "failed_terminal",
+                    "error": error_detail,
+                    "error_code": error_code,
+                    "next_retry_at": None,
+                },
+            )
+            await db_notifications.insert_notification(
+                client,
+                {
+                    "workspace_id": variant["workspace_id"],
+                    "persona_id": variant.get("persona_id"),
+                    "kind": "publish_failed",
+                    "title": f"Publishing to {platform} failed",
+                    "body": error_detail,
+                    "entity_type": "post_variant",
+                    "entity_id": variant["id"],
+                },
+            )
+
         return PublishResult(
             ok=False, error_code=error_code, error_detail=error_detail
         )

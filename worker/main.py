@@ -13,6 +13,7 @@ from routes.campaigns import router as campaigns_router
 from routes.personas import router as personas_router
 from routes.posts import router as posts_router
 from routes.cron import router as cron_router
+from routes.notifications import router as notifications_router
 from routes.schedule_slots import router as schedule_slots_router
 from routes.media import router as media_router
 from routes.oauth import router as oauth_router
@@ -53,6 +54,7 @@ app.include_router(campaigns_router)
 app.include_router(personas_router)
 app.include_router(posts_router)
 app.include_router(cron_router)
+app.include_router(notifications_router)
 app.include_router(schedule_slots_router)
 app.include_router(media_router)
 app.include_router(oauth_router)

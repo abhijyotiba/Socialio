@@ -11,6 +11,8 @@ import pytest
 
 from adapters.base import PublishError
 from db import media_assets as db_media
+from db import notifications as db_notifications
+from db import persona_rate_limits as db_rate_limits
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from publish import publisher
@@ -70,6 +72,8 @@ def base_mocks(monkeypatch):
     monkeypatch.setattr(db_media, "get_variant_media_urls", _aret([]))
     monkeypatch.setattr(vault, "read_secret", _aret("access-token"))
     monkeypatch.setattr(publisher, "upload_media_for_platform", _aret([]))
+    monkeypatch.setattr(db_rate_limits, "increment", _aret(None))
+    monkeypatch.setattr(db_notifications, "insert_notification", _aret(None))
 
     fake = _FakeAdapter()
     monkeypatch.setattr(publisher, "get_adapter", lambda _slug: fake)

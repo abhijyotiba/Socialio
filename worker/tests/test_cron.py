@@ -73,6 +73,8 @@ def publish_due_mocks(monkeypatch):
     monkeypatch.setattr(jobs.vault, "read_secret", _aret("token"))
     monkeypatch.setattr(jobs.db_media, "get_variant_media_urls", _aret([]))
     monkeypatch.setattr(publisher, "upload_media_for_platform", _aret([]))
+    monkeypatch.setattr(publisher.db_rate_limits, "increment", _aret(None))
+    monkeypatch.setattr(publisher.db_notifications, "insert_notification", _aret(None))
     fake = _FakeAdapter()
     monkeypatch.setattr(publisher, "get_adapter", lambda _slug: fake)
     return fake
@@ -217,8 +219,71 @@ async def test_token_expiry_flags_when_no_refresh_token(monkeypatch):
     conn = {"id": "c1", "platform": "x", "workspace_id": "ws1", "refresh_token_vault_id": None}
     monkeypatch.setattr(jobs.db_connections, "get_expiring_connections", _aret([conn]))
     monkeypatch.setattr(jobs.db_connections, "flag_needs_reauth", _aret(None))
+    notes = []
+
+    async def _insert(_svc, values):
+        notes.append(values)
+
+    monkeypatch.setattr(jobs.db_notifications, "insert_notification", _insert)
     result = await jobs.run_token_expiry_check(SVC)
     assert result == {"checked": 1, "refreshed": 0, "flagged": 1}
+    # Flagging for reauth also surfaces an in-app notification so the user knows.
+    assert len(notes) == 1
+    assert notes[0]["kind"] == "needs_reauth"
+    assert notes[0]["entity_type"] == "social_connection"
+    assert notes[0]["entity_id"] == "c1"
+    assert notes[0]["workspace_id"] == "ws1"
+
+
+@pytest.mark.asyncio
+async def test_refresh_failure_flags_and_notifies(monkeypatch):
+    conn = {
+        "id": "c1",
+        "platform": "linkedin",
+        "workspace_id": "ws1",
+        "refresh_token_vault_id": "r1",
+    }
+    monkeypatch.setattr(jobs.db_connections, "get_expiring_connections", _aret([conn]))
+    monkeypatch.setattr(jobs.vault, "read_secret", _aret("refresh-token"))
+
+    async def _boom(*_a, **_k):
+        raise RuntimeError("refresh rejected")
+
+    monkeypatch.setattr(jobs.linkedin, "refresh_token", _boom)
+    monkeypatch.setattr(jobs.db_connections, "flag_needs_reauth", _aret(None))
+    notes = []
+
+    async def _insert(_svc, values):
+        notes.append(values)
+
+    monkeypatch.setattr(jobs.db_notifications, "insert_notification", _insert)
+    result = await jobs.run_token_expiry_check(SVC)
+    assert result == {"checked": 1, "refreshed": 0, "flagged": 1}
+    assert len(notes) == 1 and notes[0]["kind"] == "needs_reauth"
+
+
+# --------------------------------------------------------------------------
+# publish-due re-claims retryable failures
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_publish_due_reclaims_failed_due_retry(monkeypatch, publish_due_mocks):
+    """A 'failed' variant whose next_retry_at has passed is returned by the
+    claim RPC just like a scheduled one, and run_publish_due publishes it."""
+    retry_variant = {
+        "id": "v9",
+        "workspace_id": "ws1",
+        "persona_id": "pp1",
+        "platform": "linkedin",
+        "body": "retry me",
+        "status": "failed",
+        "retry_count": 1,
+        "next_retry_at": "2000-01-01T00:00:00+00:00",
+    }
+    monkeypatch.setattr(jobs.db_posts, "claim_due_variants", _aret([retry_variant]))
+    result = await jobs.run_publish_due(SVC)
+    assert result == {"swept": 0, "attempted": 1, "succeeded": 1, "failed": 0}
 
 
 # --------------------------------------------------------------------------

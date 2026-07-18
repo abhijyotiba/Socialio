@@ -299,3 +299,17 @@ export async function workerReviewPost(
 }
 
 
+// Mark a single notification read (status → read_at set). The worker owns this
+// write under RLS; the web route is a thin proxy.
+export async function workerMarkNotificationRead(
+  notificationId: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(
+    `/notifications/${encodeURIComponent(notificationId)}/read`,
+    {
+      method: "POST",
+      accessToken,
+    }
+  );
+}

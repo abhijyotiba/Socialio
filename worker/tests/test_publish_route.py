@@ -5,6 +5,8 @@ import main
 import routes.posts as pr
 from adapters.base import PublishError
 from db import media_assets as db_media
+from db import notifications as db_notifications
+from db import persona_rate_limits as db_rate_limits
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from db import social_connections as db_connections
@@ -101,6 +103,12 @@ def client(monkeypatch):
     async def _upload(_platform, _token, _urls, author_urn=None):
         return []
 
+    async def _increment(_svc, _pid, _platform):
+        return None
+
+    async def _insert_notification(_client, _values):
+        return None
+
     fake_adapter = _FakeAdapter()
 
     def _get_adapter(_slug):
@@ -117,6 +125,8 @@ def client(monkeypatch):
     monkeypatch.setattr(vault, "read_secret", _read_secret)
     monkeypatch.setattr(publisher, "upload_media_for_platform", _upload)
     monkeypatch.setattr(publisher, "get_adapter", _get_adapter)
+    monkeypatch.setattr(db_rate_limits, "increment", _increment)
+    monkeypatch.setattr(db_notifications, "insert_notification", _insert_notification)
 
     tc = TestClient(main.app)
     tc.state = state  # type: ignore[attr-defined]
@@ -188,7 +198,9 @@ def test_publish_token_expired_maps_to_401(client):
     res = client.post("/posts/v1/publish")
     assert res.status_code == 401
     assert res.json()["error_code"] == "TOKEN_EXPIRED"
-    assert client.state["variant_status"] == "failed"
+    # TOKEN_EXPIRED is terminal (refresh already failed by this point) → the
+    # variant goes straight to failed_terminal, not the retry state.
+    assert client.state["variant_status"] == "failed_terminal"
     assert client.state["attempt_status"] == "failed"
 
 

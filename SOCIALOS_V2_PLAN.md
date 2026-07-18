@@ -285,6 +285,19 @@ The Pass 2 generator can fabricate statistics that weren't in the source. There'
 
 ---
 
+## Cron cadence
+
+There is **no in-repo scheduler** — the worker's `/cron/*` endpoints are driven
+by an external pinger (e.g. a platform cron / uptime monitor). The
+retry/backoff schedule for failed publishes uses fixed 5 / 15 / 60-minute
+buckets (`post_variants.next_retry_at`), and each bucket only fires when
+`/cron/publish-due` runs and re-claims the due `failed` rows. **The external
+pinger must call `/cron/publish-due` at least every 5 minutes** so the first
+(5-minute) retry bucket fires on time; a slower cadence delays every retry by
+the gap between pings.
+
+---
+
 ## 7. TL;DR
 
 **V2 ships (in order):**

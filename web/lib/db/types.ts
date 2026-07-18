@@ -766,6 +766,60 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          kind: string
+          persona_id: string | null
+          read_at: string | null
+          title: string
+          workspace_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          kind: string
+          persona_id?: string | null
+          read_at?: string | null
+          title: string
+          workspace_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          kind?: string
+          persona_id?: string | null
+          read_at?: string | null
+          title?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       personas: {
         Row: {
           avatar_color: string
@@ -989,12 +1043,14 @@ export type Database = {
           error: string | null
           error_code: string | null
           id: string
+          next_retry_at: string | null
           persona_id: string | null
           platform: string
           platform_post_id: string | null
           platform_post_url: string | null
           prompt_version_id: string | null
           published_at: string | null
+          retry_count: number | null
           scheduled_at: string | null
           status: string
           updated_at: string
@@ -1009,12 +1065,14 @@ export type Database = {
           error?: string | null
           error_code?: string | null
           id?: string
+          next_retry_at?: string | null
           persona_id?: string | null
           platform: string
           platform_post_id?: string | null
           platform_post_url?: string | null
           prompt_version_id?: string | null
           published_at?: string | null
+          retry_count?: number | null
           scheduled_at?: string | null
           status?: string
           updated_at?: string
@@ -1029,12 +1087,14 @@ export type Database = {
           error?: string | null
           error_code?: string | null
           id?: string
+          next_retry_at?: string | null
           persona_id?: string | null
           platform?: string
           platform_post_id?: string | null
           platform_post_url?: string | null
           prompt_version_id?: string | null
           published_at?: string | null
+          retry_count?: number | null
           scheduled_at?: string | null
           status?: string
           updated_at?: string
@@ -1388,12 +1448,14 @@ export type Database = {
           error: string | null
           error_code: string | null
           id: string
+          next_retry_at: string | null
           persona_id: string | null
           platform: string
           platform_post_id: string | null
           platform_post_url: string | null
           prompt_version_id: string | null
           published_at: string | null
+          retry_count: number | null
           scheduled_at: string | null
           status: string
           updated_at: string
@@ -1406,6 +1468,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      increment_persona_rate_limit: {
+        Args: { p_persona_id: string; p_platform: string }
+        Returns: undefined
       }
       user_workspace_ids: { Args: never; Returns: string[] }
       vault_create_secret: {
