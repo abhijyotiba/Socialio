@@ -8,7 +8,28 @@ from db import media_assets as db_media
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from db import social_connections as db_connections
+from publish import publisher
 from security import vault
+
+
+class _FakeAdapter:
+    """Stand-in for a PlatformAdapter so the route/publisher tests never touch
+    linkedin/x free functions directly. ``publish`` is overridable per-test."""
+
+    def __init__(self):
+        async def _default_publish(**_kwargs):
+            return {
+                "platform_post_id": "urn:li:share:1",
+                "platform_post_url": "https://www.linkedin.com/feed/update/urn:li:share:1/",
+            }
+
+        self._publish = _default_publish
+
+    def build_author_urn(self, platform_user_id):
+        return f"urn:li:person:{platform_user_id}" if platform_user_id else None
+
+    async def publish(self, **kwargs):
+        return await self._publish(**kwargs)
 
 
 @pytest.fixture
@@ -39,6 +60,7 @@ def client(monkeypatch):
     async def _variant(_client, vid):
         return {
             "id": vid,
+            "workspace_id": "ws-1",
             "status": "draft",
             "persona_id": "p1",
             "platform": "linkedin",
@@ -79,11 +101,10 @@ def client(monkeypatch):
     async def _upload(_platform, _token, _urls, author_urn=None):
         return []
 
-    async def _publish_li(_token, _urn, _text, _key, _media):
-        return {
-            "platform_post_id": "urn:li:share:1",
-            "platform_post_url": "https://www.linkedin.com/feed/update/urn:li:share:1/",
-        }
+    fake_adapter = _FakeAdapter()
+
+    def _get_adapter(_slug):
+        return fake_adapter
 
     monkeypatch.setattr(db_posts, "get_post_variant", _variant)
     monkeypatch.setattr(db_posts, "update_post_variant", _update_variant)
@@ -94,11 +115,12 @@ def client(monkeypatch):
     monkeypatch.setattr(db_connections, "get_social_connection_for_persona", _connection)
     monkeypatch.setattr(db_media, "get_variant_media_urls", _media_urls)
     monkeypatch.setattr(vault, "read_secret", _read_secret)
-    monkeypatch.setattr(pr, "upload_media_for_platform", _upload)
-    monkeypatch.setattr(pr.linkedin, "publish_post", _publish_li)
+    monkeypatch.setattr(publisher, "upload_media_for_platform", _upload)
+    monkeypatch.setattr(publisher, "get_adapter", _get_adapter)
 
     tc = TestClient(main.app)
     tc.state = state  # type: ignore[attr-defined]
+    tc.fake_adapter = fake_adapter  # type: ignore[attr-defined]
     return tc
 
 
@@ -158,11 +180,11 @@ def test_needs_reauth(client, monkeypatch):
     assert "re-authentication" in res.json()["error"]
 
 
-def test_publish_token_expired_maps_to_401(client, monkeypatch):
-    async def _boom(_token, _urn, _text, _key, _media):
+def test_publish_token_expired_maps_to_401(client):
+    async def _boom(**_kwargs):
         raise PublishError("LinkedIn publish failed: 401", "TOKEN_EXPIRED")
 
-    monkeypatch.setattr(pr.linkedin, "publish_post", _boom)
+    client.fake_adapter._publish = _boom
     res = client.post("/posts/v1/publish")
     assert res.status_code == 401
     assert res.json()["error_code"] == "TOKEN_EXPIRED"
@@ -170,11 +192,11 @@ def test_publish_token_expired_maps_to_401(client, monkeypatch):
     assert client.state["attempt_status"] == "failed"
 
 
-def test_publish_generic_failure_maps_to_502(client, monkeypatch):
-    async def _boom(_token, _urn, _text, _key, _media):
+def test_publish_generic_failure_maps_to_502(client):
+    async def _boom(**_kwargs):
         raise PublishError("LinkedIn publish failed: 500", "SERVER_ERROR")
 
-    monkeypatch.setattr(pr.linkedin, "publish_post", _boom)
+    client.fake_adapter._publish = _boom
     res = client.post("/posts/v1/publish")
     assert res.status_code == 502
     assert res.json()["error_code"] == "SERVER_ERROR"
