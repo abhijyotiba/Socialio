@@ -3,6 +3,25 @@ from typing import Any
 from supabase import AsyncClient
 
 
+async def filter_workspace_media_ids(
+    client: AsyncClient, workspace_id: str, media_asset_ids: list[str]
+) -> list[str]:
+    """Return the subset of media_asset_ids that belong to workspace_id,
+    preserving input order. Guards against attaching assets from another
+    workspace via a client-supplied brief."""
+    if not media_asset_ids:
+        return []
+    res = (
+        await client.table("media_assets")
+        .select("id")
+        .eq("workspace_id", workspace_id)
+        .in_("id", media_asset_ids)
+        .execute()
+    )
+    owned = {r["id"] for r in (res.data or [])}
+    return [mid for mid in media_asset_ids if mid in owned]
+
+
 async def create_media_assets(
     client: AsyncClient,
     workspace_id: str,

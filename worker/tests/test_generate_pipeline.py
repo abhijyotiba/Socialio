@@ -149,3 +149,81 @@ async def test_generate_rejects_empty_inputs():
             platforms=["linkedin"],
             user_angle=None,
         )
+
+
+# ─── brief tests (Task 6) ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_generate_with_brief_includes_goal_message_cta():
+    with patch("pipeline.generate.generate", new_callable=AsyncMock) as mock_gen:
+        mock_gen.return_value = "Post on-brief."
+        from pipeline.generate import generate_variants
+        brief = {
+            "goal": "Drive signups for the beta",
+            "core_message": "Our tool saves hours weekly",
+            "tone": "confident but friendly",
+            "cta": "Join the beta today",
+            "do": ["mention time savings"],
+            "dont": ["use jargon"],
+        }
+        variants = await generate_variants(
+            summary="Product launch summary.",
+            brand_system_prompt="Professional tone.",
+            platforms=["linkedin"],
+            brief=brief,
+        )
+        assert variants[0]["body"] == "Post on-brief."
+        msg = mock_gen.call_args[1]["user_message"]
+        assert "Drive signups for the beta" in msg
+        assert "Our tool saves hours weekly" in msg
+        assert "confident but friendly" in msg
+        assert "Join the beta today" in msg
+        assert "mention time savings" in msg
+        assert "use jargon" in msg
+
+
+@pytest.mark.asyncio
+async def test_generate_brief_supersedes_user_angle():
+    """A structured brief takes precedence — the free-text angle is not injected."""
+    with patch("pipeline.generate.generate", new_callable=AsyncMock) as mock_gen:
+        mock_gen.return_value = "Post."
+        from pipeline.generate import generate_variants
+        await generate_variants(
+            summary="",
+            brand_system_prompt="prompt",
+            platforms=["x"],
+            user_angle="IGNORE THIS ANGLE",
+            brief={"goal": "Launch announcement"},
+        )
+        msg = mock_gen.call_args[1]["user_message"]
+        assert "Launch announcement" in msg
+        assert "IGNORE THIS ANGLE" not in msg
+
+
+@pytest.mark.asyncio
+async def test_generate_with_brief_only_no_summary_no_angle():
+    with patch("pipeline.generate.generate", new_callable=AsyncMock) as mock_gen:
+        mock_gen.return_value = "Post."
+        from pipeline.generate import generate_variants
+        variants = await generate_variants(
+            summary="",
+            brand_system_prompt="prompt",
+            platforms=["linkedin"],
+            brief={"goal": "Announce Q3 results"},
+        )
+        assert variants[0]["body"] == "Post."
+        assert "Announce Q3 results" in mock_gen.call_args[1]["user_message"]
+
+
+@pytest.mark.asyncio
+async def test_generate_empty_brief_behaves_like_no_brief():
+    """A brief with no meaningful content is ignored; empty inputs still raise."""
+    from pipeline.generate import generate_variants
+    with pytest.raises(ValueError):
+        await generate_variants(
+            summary="",
+            brand_system_prompt="prompt",
+            platforms=["linkedin"],
+            user_angle=None,
+            brief={"do": [], "dont": [], "media_asset_ids": []},
+        )

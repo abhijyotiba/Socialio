@@ -12,6 +12,8 @@ from db import audit_events as db_audit
 from db import brand_configs as db_brand
 from db import campaigns as db_campaigns
 from db import ingestion as db_ingestion
+from db import media_assets as db_media
+from db import persona_groups as db_groups
 from db import personas as db_personas
 from db import posts as db_posts
 from db import social_connections as db_connections
@@ -24,17 +26,70 @@ log = structlog.get_logger()
 
 router = APIRouter()
 
+
+def _parse_ts(value: str | None) -> datetime | None:
+    """Parse an ISO timestamp (tolerating a trailing 'Z') to an aware datetime."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
 # Mirrors web PERSONA_HARD_CAP (web/lib/constants/platforms.ts). A single
 # campaign may target up to this many personas.
 CAMPAIGN_PERSONA_CAP = 50
 GENERATION_TIMEOUT_S = 45
 
 
+class CampaignBrief(BaseModel):
+    """Structured campaign brief (Task 6). All fields optional so a caller can
+    supply as little as a goal; bounded lengths guard the prompt size."""
+
+    goal: str | None = Field(default=None, max_length=1000)
+    core_message: str | None = Field(default=None, max_length=1000)
+    tone: str | None = Field(default=None, max_length=200)
+    cta: str | None = Field(default=None, max_length=300)
+    dos: list[str] = Field(default_factory=list, max_length=10, alias="do")
+    donts: list[str] = Field(default_factory=list, max_length=10, alias="dont")
+    media_asset_ids: list[str] = Field(default_factory=list, max_length=4)
+
+    model_config = {"populate_by_name": True}
+
+    def to_storage(self) -> dict[str, Any]:
+        """JSONB shape persisted on campaigns.brief (matches migration 0026)."""
+        return {
+            "goal": self.goal,
+            "core_message": self.core_message,
+            "tone": self.tone,
+            "cta": self.cta,
+            "do": self.dos,
+            "dont": self.donts,
+            "media_asset_ids": self.media_asset_ids,
+        }
+
+    def has_content(self) -> bool:
+        return bool(
+            (self.goal or "").strip()
+            or (self.core_message or "").strip()
+            or (self.tone or "").strip()
+            or (self.cta or "").strip()
+            or self.dos
+            or self.donts
+        )
+
+
 class CampaignRequest(BaseModel):
     ingestion_job_id: str
-    persona_ids: list[str] = Field(min_length=1, max_length=CAMPAIGN_PERSONA_CAP)
+    # persona_ids may be empty when group_ids is supplied; the route resolves
+    # the union of the two and enforces the 1..CAMPAIGN_PERSONA_CAP bound.
+    persona_ids: list[str] = Field(default_factory=list, max_length=CAMPAIGN_PERSONA_CAP)
+    group_ids: list[str] = Field(default_factory=list, max_length=CAMPAIGN_PERSONA_CAP)
     platforms: list[Literal["linkedin", "x"]] | None = None
     user_angle: str | None = None
+    brief: CampaignBrief | None = None
+    window_start: str | None = None
+    window_end: str | None = None
 
 
 async def _generate_for_persona(
@@ -45,6 +100,7 @@ async def _generate_for_persona(
     requested_platforms: list[str] | None,
     summary: str,
     user_angle: str | None,
+    brief: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Pure (no DB): resolve platforms and run the LLM pipeline for one persona.
     Returns {persona_id, variants} or {persona_id, error}.
@@ -67,6 +123,7 @@ async def _generate_for_persona(
             brand_system_prompt=brand["custom_system_prompt"],
             platforms=platforms,
             user_angle=user_angle,
+            brief=brief,
         )
 
     try:
@@ -89,6 +146,8 @@ async def _run_campaign_generation(
     user_angle: str | None,
     effective_title: str,
     effective_text: str,
+    brief: dict[str, Any] | None = None,
+    media_asset_ids: list[str] | None = None,
 ) -> None:
     """Background task: summarize, generate per-persona in parallel, persist
     content_items/post_variants/campaign_persona_variants, and roll the campaign
@@ -126,6 +185,7 @@ async def _run_campaign_generation(
                     requested_platforms=requested_platforms,
                     summary=summary,
                     user_angle=user_angle,
+                    brief=brief,
                 )
                 for idx, pid in enumerate(persona_ids)
             ],
@@ -185,6 +245,13 @@ async def _run_campaign_generation(
                     for pv in post_variants
                 ],
             )
+            # Attach brief media (bounded to 4 by set_variant_media) to every
+            # generated variant for this persona.
+            if media_asset_ids:
+                for pv in post_variants:
+                    await db_media.set_variant_media(
+                        client, pv["id"], media_asset_ids[:4]
+                    )
             success_count += 1
 
         if success_count == 0:
@@ -259,9 +326,55 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             status_code=429, detail="Rate limit: 2 campaigns per minute"
         )
 
+    # Resolve group targeting (Task 7): expand group_ids to their member
+    # personas and union with explicitly listed persona_ids, deduped. Cap 50.
+    resolved_persona_ids = list(dict.fromkeys(req.persona_ids))
+    if req.group_ids:
+        group_persona_ids = await db_groups.expand_group_ids_to_persona_ids(
+            client, req.group_ids
+        )
+        resolved_persona_ids = list(
+            dict.fromkeys([*resolved_persona_ids, *group_persona_ids])
+        )
+    if not resolved_persona_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one persona (directly or via a group) is required",
+        )
+    if len(resolved_persona_ids) > CAMPAIGN_PERSONA_CAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A campaign can target at most {CAMPAIGN_PERSONA_CAP} personas",
+        )
+
     user_angle = (req.user_angle or "").strip() or None
     if user_angle and len(user_angle) > 1000:
         raise HTTPException(status_code=400, detail="user_angle too long")
+
+    # Structured brief (Task 6) supersedes user_angle for generation. Media
+    # ids come from client-supplied JSONB; the post_variant_media insert policy
+    # only checks post-variant ownership, not media ownership, so validate the
+    # ids belong to this workspace before attaching (RLS read already scopes
+    # media_assets to the caller's workspaces).
+    media_asset_ids: list[str] | None = None
+    if req.brief and req.brief.media_asset_ids:
+        requested_media = req.brief.media_asset_ids[:4]
+        owned = await db_media.filter_workspace_media_ids(
+            client, workspace_id, requested_media
+        )
+        media_asset_ids = owned or None
+
+    # Persist the brief JSONB when it carries textual content OR valid media, so
+    # the stored brief always records the media_asset_ids that were attached.
+    has_brief_content = bool(req.brief and req.brief.has_content())
+    has_brief = bool(has_brief_content or media_asset_ids)
+    brief_storage = None
+    if has_brief:
+        brief_storage = req.brief.to_storage()
+        brief_storage["media_asset_ids"] = media_asset_ids or []
+    # Only a brief with textual content is a generation source; media-only
+    # briefs are attached but don't drive the LLM prompt.
+    brief_dict = brief_storage if has_brief_content else None
 
     job = await db_ingestion.get_job(client, req.ingestion_job_id)
     if not job:
@@ -271,39 +384,40 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
 
     has_extracted_text = bool((job.get("extracted_text") or "").strip())
     has_user_angle = bool(user_angle)
-    if not has_extracted_text and not has_user_angle:
+    if not has_extracted_text and not has_user_angle and not has_brief_content:
         raise HTTPException(
             status_code=409,
-            detail="Ingestion job has no extracted text and no user angle was provided",
+            detail="Ingestion job has no extracted text and no user angle or brief was provided",
         )
 
     # ── Batch DB reads (replaces N+1 sequential queries) ────────────────
-    personas_resp = await client.table("personas").select("*").in_("id", req.persona_ids).execute()
+    personas_resp = await client.table("personas").select("*").in_("id", resolved_persona_ids).execute()
     personas_map: dict[str, dict] = {p["id"]: p for p in (personas_resp.data or [])}
-    personas = [personas_map.get(pid) for pid in req.persona_ids]
+    personas = [personas_map.get(pid) for pid in resolved_persona_ids]
     if any(p is None for p in personas):
         raise HTTPException(status_code=403, detail="Invalid persona")
 
-    brand_resp = await client.table("brand_configs").select("*").in_("persona_id", req.persona_ids).execute()
+    brand_resp = await client.table("brand_configs").select("*").in_("persona_id", resolved_persona_ids).execute()
     brand_map: dict[str, dict] = {b["persona_id"]: b for b in (brand_resp.data or [])}
-    brand_configs = [brand_map.get(pid) for pid in req.persona_ids]
+    brand_configs = [brand_map.get(pid) for pid in resolved_persona_ids]
 
-    conn_resp = await client.table("social_connections").select("*").in_("persona_id", req.persona_ids).execute()
+    conn_resp = await client.table("social_connections").select("*").in_("persona_id", resolved_persona_ids).execute()
     conn_map: dict[str, list[dict]] = {}
     for c in (conn_resp.data or []):
         conn_map.setdefault(c["persona_id"], []).append(c)
-    connections_by_persona = [conn_map.get(pid, []) for pid in req.persona_ids]
+    connections_by_persona = [conn_map.get(pid, []) for pid in resolved_persona_ids]
 
     if any(not (bc and bc.get("custom_system_prompt")) for bc in brand_configs):
         raise HTTPException(
             status_code=409, detail="One or more personas have no voice profile set"
         )
 
-    # Prompt-only flow: a text job carrying a user angle means the angle IS the
-    # topic — don't also feed the echoed prompt back as source material.
+    # Prompt-only flow: a text job carrying a user angle or brief means the
+    # instruction IS the topic — don't also feed the echoed prompt back as
+    # source material.
     effective_title = job.get("extracted_title") or ""
     effective_text = job.get("extracted_text") or ""
-    if job["source_type"] == "text" and has_user_angle:
+    if job["source_type"] == "text" and (has_user_angle or has_brief_content):
         effective_text = ""
 
     campaign = await db_campaigns.create_campaign(
@@ -315,10 +429,13 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             "status": "generating",
             "generation_started_at": datetime.now(timezone.utc).isoformat(),
             "user_angle": user_angle,
+            "brief": brief_storage,
+            "window_start": req.window_start,
+            "window_end": req.window_end,
         },
     )
     campaign_persona_rows = await db_campaigns.create_campaign_personas(
-        client, campaign["id"], req.persona_ids
+        client, campaign["id"], resolved_persona_ids
     )
     cp_by_persona = {row["persona_id"]: row for row in campaign_persona_rows}
 
@@ -332,7 +449,7 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
         "campaign_generation_start_async",
         campaign_id=campaign["id"],
         workspace_id=workspace_id,
-        persona_count=len(req.persona_ids),
+        persona_count=len(resolved_persona_ids),
     )
 
     asyncio.create_task(
@@ -341,7 +458,7 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             campaign_id=campaign["id"],
             workspace_id=workspace_id,
             ingestion_job_id=req.ingestion_job_id,
-            persona_ids=req.persona_ids,
+            persona_ids=resolved_persona_ids,
             brand_configs=brand_configs,
             connections_by_persona=connections_by_persona,
             cp_by_persona=cp_by_persona,
@@ -349,6 +466,8 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             user_angle=user_angle,
             effective_title=effective_title,
             effective_text=effective_text,
+            brief=brief_dict,
+            media_asset_ids=media_asset_ids,
         )
     )
 
@@ -384,24 +503,76 @@ async def _maybe_mark_approved(client: Any, campaign_id: str) -> None:
         await db_campaigns.update_campaign(client, campaign_id, {"status": "approved"})
 
 
+async def _roll_up_touched_personas(client: Any, cp_ids) -> None:
+    """Roll each touched campaign_persona to 'approved' only when none of its
+    variants remain pending/draft (the whole persona is resolved), so a partial
+    (variant-scoped) selection never prematurely marks a persona approved.
+    Shared by bulk-approve and bulk-schedule so grid progress (which counts
+    'scheduled' as approved) stays consistent with campaign_personas state."""
+    for cp_id in cp_ids:
+        statuses = await db_campaigns.get_variant_statuses_for_campaign_persona(
+            client, cp_id
+        )
+        if statuses and all(
+            s not in ("pending_approval", "draft") for s in statuses
+        ):
+            await db_campaigns.update_campaign_persona_approval(
+                client, cp_id, "approved"
+            )
+
+
+async def _schedule_and_audit_variants(
+    client: Any,
+    workspace_id: str,
+    actor_id: str,
+    persona_id: str | None,
+    entity_id: str,
+    variant_ids: list[str],
+    campaign: dict,
+) -> dict[str, str]:
+    """The single approval chokepoint: mark variants scheduled, assign a
+    distinct non-null scheduled_at to each (fixes the live never-claimed bug),
+    and emit one audit event. Shared by persona-level and variant-level approval
+    so the scheduling fix lives in exactly one place. Returns {variant_id: iso}.
+    """
+    if not variant_ids:
+        return {}
+    await db_campaigns.set_post_variants_status(client, variant_ids, "scheduled")
+    assigned = await db_campaigns.assign_scheduled_times(
+        client,
+        variant_ids,
+        window_start=_parse_ts(campaign.get("window_start")),
+        window_end=_parse_ts(campaign.get("window_end")),
+    )
+    await db_audit.insert_audit_event(
+        client,
+        {
+            "workspace_id": workspace_id,
+            "persona_id": persona_id,
+            "actor_user_id": actor_id,
+            "event_type": "campaign_persona.approved",
+            "entity_type": "campaign_persona",
+            "entity_id": entity_id,
+        },
+    )
+    return assigned
+
+
 async def _approve_persona(
-    client: Any, workspace_id: str, actor_id: str, cp: dict
+    client: Any, workspace_id: str, actor_id: str, cp: dict, campaign: dict
 ) -> None:
     await db_campaigns.update_campaign_persona_approval(client, cp["id"], "approved")
     variant_ids = await db_campaigns.get_variants_for_campaign_persona(
         client, cp["id"]
     )
-    await db_campaigns.set_post_variants_status(client, variant_ids, "scheduled")
-    await db_audit.insert_audit_event(
+    await _schedule_and_audit_variants(
         client,
-        {
-            "workspace_id": workspace_id,
-            "persona_id": cp["persona_id"],
-            "actor_user_id": actor_id,
-            "event_type": "campaign_persona.approved",
-            "entity_type": "campaign_persona",
-            "entity_id": cp["id"],
-        },
+        workspace_id,
+        actor_id,
+        cp["persona_id"],
+        cp["id"],
+        variant_ids,
+        campaign,
     )
 
 
@@ -409,7 +580,7 @@ async def _approve_persona(
 async def approve_campaign(campaign_id: str, request: Request) -> dict:
     body = await request.body()
     client, workspace_id, claims = await _authorize(request, body)
-    await _require_campaign(client, campaign_id)
+    campaign = await _require_campaign(client, campaign_id)
 
     target_ids: list[str] | None = None
     if body:
@@ -428,7 +599,7 @@ async def approve_campaign(campaign_id: str, request: Request) -> dict:
     ]
 
     for cp in to_approve:
-        await _approve_persona(client, workspace_id, claims["sub"], cp)
+        await _approve_persona(client, workspace_id, claims["sub"], cp, campaign)
 
     await _maybe_mark_approved(client, campaign_id)
     return {"ok": True, "approved_count": len(to_approve)}
@@ -440,16 +611,179 @@ async def approve_persona(
 ) -> dict:
     body = await request.body()
     client, workspace_id, claims = await _authorize(request, body)
-    await _require_campaign(client, campaign_id)
+    campaign = await _require_campaign(client, campaign_id)
 
     cps = await db_campaigns.get_campaign_personas(client, campaign_id)
     cp = next((c for c in cps if c["persona_id"] == persona_id), None)
     if not cp:
         raise HTTPException(status_code=404, detail="Persona not in campaign")
 
-    await _approve_persona(client, workspace_id, claims["sub"], cp)
+    await _approve_persona(client, workspace_id, claims["sub"], cp, campaign)
     await _maybe_mark_approved(client, campaign_id)
     return {"ok": True}
+
+
+class BulkApproveRequest(BaseModel):
+    post_variant_ids: list[str] = Field(default_factory=list, max_length=200)
+
+
+# Statuses a bulk action may legitimately act on. Guards against re-publishing
+# already-live/terminal variants: the grid lets a user select any row, so a
+# selection could include published/publishing/failed_terminal/cancelled rows
+# that must NOT be flipped back to 'scheduled'. Mirrors the per-variant
+# /posts/{id} route guards (approve = pre-send states; schedule = editable).
+_APPROVABLE_STATUSES = ("draft", "pending_approval")
+_SCHEDULABLE_STATUSES = ("draft", "scheduled", "failed", "pending_approval")
+
+
+@router.post("/campaigns/{campaign_id}/bulk-approve")
+async def bulk_approve_variants(campaign_id: str, request: Request) -> dict:
+    """Variant-scoped bulk approval for the review grid. Approves ONLY the
+    selected post_variant_ids (not every variant of their personas), routing
+    through the same scheduling chokepoint so each approved variant gets a
+    distinct non-null scheduled_at. A persona's approval_status is rolled to
+    'approved' only once none of its variants remain pending/draft."""
+    body = await request.body()
+    client, workspace_id, claims = await _authorize(request, body)
+    campaign = await _require_campaign(client, campaign_id)
+
+    req = BulkApproveRequest.model_validate_json(body or b"{}")
+    if not req.post_variant_ids:
+        raise HTTPException(status_code=400, detail="post_variant_ids required")
+
+    # Resolve selected variants to their owning campaign_personas, scoped to
+    # this campaign (foreign / cross-campaign ids are dropped here).
+    mappings = await db_campaigns.map_variants_to_campaign_personas(
+        client, campaign_id, req.post_variant_ids
+    )
+    # Only act on pre-send statuses — never flip an already-live/terminal
+    # variant (published/publishing/failed_terminal/cancelled/scheduled) back to
+    # 'scheduled', which would risk a double-post.
+    mappings = [m for m in mappings if m.get("status") in _APPROVABLE_STATUSES]
+    if not mappings:
+        raise HTTPException(
+            status_code=404,
+            detail="No approvable variants in the selection for this campaign",
+        )
+
+    # persona_id per touched campaign_persona (for audit + completion check).
+    persona_by_cp: dict[str, str | None] = {
+        m["campaign_persona_id"]: m["persona_id"] for m in mappings
+    }
+
+    # Schedule the exact selected variants through the shared chokepoint, one
+    # audit event per touched persona so the trail stays per-persona.
+    for cp_id, persona_id in persona_by_cp.items():
+        cp_variant_ids = [
+            m["post_variant_id"]
+            for m in mappings
+            if m["campaign_persona_id"] == cp_id
+        ]
+        await _schedule_and_audit_variants(
+            client,
+            workspace_id,
+            claims["sub"],
+            persona_id,
+            cp_id,
+            cp_variant_ids,
+            campaign,
+        )
+
+    await _roll_up_touched_personas(client, persona_by_cp.keys())
+    await _maybe_mark_approved(client, campaign_id)
+    return {"ok": True, "approved_count": len(mappings)}
+
+
+class BulkScheduleRequest(BaseModel):
+    post_variant_ids: list[str] = Field(default_factory=list, max_length=200)
+    scheduled_at: str | None = None
+
+
+@router.post("/campaigns/{campaign_id}/bulk-schedule")
+async def bulk_schedule_variants(campaign_id: str, request: Request) -> dict:
+    """Variant-scoped bulk schedule for the review grid. Routes the selected
+    variants through the same assign_scheduled_times chokepoint so every post
+    gets a DISTINCT scheduled_at (never the same second — important for daily
+    caps / rate limits). Anchors at the caller's chosen time when provided
+    (posts cluster from that instant, nudged 1s apart to stay distinct), else
+    falls back to the campaign's brief window / persona slots / now()+jitter."""
+    body = await request.body()
+    client, workspace_id, claims = await _authorize(request, body)
+    campaign = await _require_campaign(client, campaign_id)
+
+    req = BulkScheduleRequest.model_validate_json(body or b"{}")
+    if not req.post_variant_ids:
+        raise HTTPException(status_code=400, detail="post_variant_ids required")
+
+    # Validate an explicit scheduled_at BEFORE mutating any status, so a bad
+    # request leaves variant status untouched (no partial write). Mirror the
+    # per-variant /posts/{id}/schedule contract: reject unparseable input and
+    # past times. Only when scheduled_at is genuinely absent do we fall through
+    # to the server-computed window / now()+jitter branch.
+    anchor: datetime | None = None
+    if req.scheduled_at is not None:
+        anchor = _parse_ts(req.scheduled_at)
+        if anchor is None:
+            raise HTTPException(
+                status_code=400,
+                detail="scheduled_at must be an ISO 8601 datetime string",
+            )
+        if anchor <= datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=400, detail="scheduled_at must be in the future"
+            )
+
+    mappings = await db_campaigns.map_variants_to_campaign_personas(
+        client, campaign_id, req.post_variant_ids
+    )
+    mappings = [m for m in mappings if m.get("status") in _SCHEDULABLE_STATUSES]
+    if not mappings:
+        raise HTTPException(
+            status_code=404,
+            detail="No schedulable variants in the selection for this campaign",
+        )
+    variant_ids = [m["post_variant_id"] for m in mappings]
+
+    await db_campaigns.set_post_variants_status(client, variant_ids, "scheduled")
+
+    if anchor is not None:
+        # Honor the chosen time: anchor as `now` with zero jitter and skip
+        # posting-slot lookup so posts cluster from that instant, nudged 1s
+        # apart to stay distinct even for personas with posting_schedules.
+        assigned = await db_campaigns.assign_scheduled_times(
+            client, variant_ids, jitter_seconds=0, now=anchor, anchor=True
+        )
+    else:
+        assigned = await db_campaigns.assign_scheduled_times(
+            client,
+            variant_ids,
+            window_start=_parse_ts(campaign.get("window_start")),
+            window_end=_parse_ts(campaign.get("window_end")),
+        )
+
+    # Scheduling IS the approval decision here (the grid counts 'scheduled' as
+    # approved), so reconcile campaign_personas / campaign state the same way
+    # bulk-approve does — otherwise a fully-scheduled campaign would still show
+    # personas pending and stay pending_approval.
+    persona_by_cp = {m["campaign_persona_id"]: m["persona_id"] for m in mappings}
+    for cp_id, persona_id in persona_by_cp.items():
+        await db_audit.insert_audit_event(
+            client,
+            {
+                "workspace_id": workspace_id,
+                "persona_id": persona_id,
+                "actor_user_id": claims["sub"],
+                # Distinct from 'campaign_persona.approved' so the audit trail
+                # doesn't conflate an explicit approval with a scheduling action,
+                # even though both roll the persona to approval_status='approved'.
+                "event_type": "campaign_persona.scheduled",
+                "entity_type": "campaign_persona",
+                "entity_id": cp_id,
+            },
+        )
+    await _roll_up_touched_personas(client, persona_by_cp.keys())
+    await _maybe_mark_approved(client, campaign_id)
+    return {"ok": True, "scheduled_count": len(assigned)}
 
 
 @router.post("/campaigns/{campaign_id}/persona/{persona_id}/reject")

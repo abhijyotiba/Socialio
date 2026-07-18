@@ -11,6 +11,7 @@ from routes.ingest import router as ingest_router
 from routes.brand import router as brand_router
 from routes.campaigns import router as campaigns_router
 from routes.personas import router as personas_router
+from routes.persona_groups import router as persona_groups_router
 from routes.posts import router as posts_router
 from routes.cron import router as cron_router
 from routes.notifications import router as notifications_router
@@ -52,6 +53,7 @@ app.include_router(ingest_router)
 app.include_router(brand_router)
 app.include_router(campaigns_router)
 app.include_router(personas_router)
+app.include_router(persona_groups_router)
 app.include_router(posts_router)
 app.include_router(cron_router)
 app.include_router(notifications_router)

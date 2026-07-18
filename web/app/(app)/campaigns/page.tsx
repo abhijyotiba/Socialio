@@ -3,6 +3,8 @@ import { getWorkspaceForUser } from "@/lib/db/workspaces";
 import { listCampaignsForWorkspace } from "@/lib/db/campaigns";
 import { getCadencesForWorkspace, getReservoirForPersona } from "@/lib/db/content-engine";
 import { LowFuelBanner, type LowFuelPlatform } from "@/components/app/LowFuelBanner";
+import { FailureBanner } from "@/components/app/FailureBanner";
+import { getTerminalFailures } from "@/lib/db/post-failures";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Inbox, ChevronRight, Zap } from "lucide-react";
@@ -48,23 +50,35 @@ export default async function CampaignsListPage() {
       : []
   );
 
+  // Terminal publish failures (retries exhausted) surfaced as a red banner.
+  const failures = await getTerminalFailures(workspace.workspace_id);
+
   return (
     <div className="space-y-6 page-enter">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
-          <Inbox className="h-5 w-5" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-inset ring-indigo-100">
+            <Inbox className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+              Campaigns
+            </h1>
+            <p className="text-xs text-slate-400">
+              Review and approve content generated for each persona.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-            Campaigns
-          </h1>
-          <p className="text-xs text-slate-400">
-            Review and approve content generated for each persona.
-          </p>
-        </div>
+        <Link
+          href="/campaigns/new"
+          className="inline-flex h-9 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+        >
+          New campaign
+        </Link>
       </div>
 
       <LowFuelBanner low={low} />
+      <FailureBanner failures={failures} />
 
       {campaigns.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">

@@ -4,6 +4,7 @@ import { getPersonasForWorkspace } from "@/lib/db/personas";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Users } from "lucide-react";
+import { PERSONA_SOFT_CAP, PERSONA_HARD_CAP } from "@/lib/constants/platforms";
 
 export default async function PersonasPage() {
   const supabase = await createClient();
@@ -28,6 +29,10 @@ export default async function PersonasPage() {
           <div>
             <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Personas</h1>
             <p className="text-xs text-slate-400">Each persona has its own voice, accounts, and posting schedule.</p>
+            <p className="mt-1 text-xs text-slate-400">
+              {personas.length} / {PERSONA_SOFT_CAP} personas · up to{" "}
+              {PERSONA_HARD_CAP} supported.
+            </p>
           </div>
         </div>
         <Link
