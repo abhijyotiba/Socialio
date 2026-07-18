@@ -503,6 +503,24 @@ async def _maybe_mark_approved(client: Any, campaign_id: str) -> None:
         await db_campaigns.update_campaign(client, campaign_id, {"status": "approved"})
 
 
+async def _roll_up_touched_personas(client: Any, cp_ids) -> None:
+    """Roll each touched campaign_persona to 'approved' only when none of its
+    variants remain pending/draft (the whole persona is resolved), so a partial
+    (variant-scoped) selection never prematurely marks a persona approved.
+    Shared by bulk-approve and bulk-schedule so grid progress (which counts
+    'scheduled' as approved) stays consistent with campaign_personas state."""
+    for cp_id in cp_ids:
+        statuses = await db_campaigns.get_variant_statuses_for_campaign_persona(
+            client, cp_id
+        )
+        if statuses and all(
+            s not in ("pending_approval", "draft") for s in statuses
+        ):
+            await db_campaigns.update_campaign_persona_approval(
+                client, cp_id, "approved"
+            )
+
+
 async def _schedule_and_audit_variants(
     client: Any,
     workspace_id: str,
@@ -671,20 +689,7 @@ async def bulk_approve_variants(campaign_id: str, request: Request) -> dict:
             campaign,
         )
 
-    # Roll each touched persona to 'approved' only when none of its variants are
-    # still pending/draft (whole persona resolved), so a partial selection
-    # doesn't prematurely mark the persona approved.
-    for cp_id in persona_by_cp:
-        statuses = await db_campaigns.get_variant_statuses_for_campaign_persona(
-            client, cp_id
-        )
-        if statuses and all(
-            s not in ("pending_approval", "draft") for s in statuses
-        ):
-            await db_campaigns.update_campaign_persona_approval(
-                client, cp_id, "approved"
-            )
-
+    await _roll_up_touched_personas(client, persona_by_cp.keys())
     await _maybe_mark_approved(client, campaign_id)
     return {"ok": True, "approved_count": len(mappings)}
 
@@ -703,12 +708,30 @@ async def bulk_schedule_variants(campaign_id: str, request: Request) -> dict:
     (posts cluster from that instant, nudged 1s apart to stay distinct), else
     falls back to the campaign's brief window / persona slots / now()+jitter."""
     body = await request.body()
-    client, _workspace_id, _claims = await _authorize(request, body)
+    client, workspace_id, claims = await _authorize(request, body)
     campaign = await _require_campaign(client, campaign_id)
 
     req = BulkScheduleRequest.model_validate_json(body or b"{}")
     if not req.post_variant_ids:
         raise HTTPException(status_code=400, detail="post_variant_ids required")
+
+    # Validate an explicit scheduled_at BEFORE mutating any status, so a bad
+    # request leaves variant status untouched (no partial write). Mirror the
+    # per-variant /posts/{id}/schedule contract: reject unparseable input and
+    # past times. Only when scheduled_at is genuinely absent do we fall through
+    # to the server-computed window / now()+jitter branch.
+    anchor: datetime | None = None
+    if req.scheduled_at is not None:
+        anchor = _parse_ts(req.scheduled_at)
+        if anchor is None:
+            raise HTTPException(
+                status_code=400,
+                detail="scheduled_at must be an ISO 8601 datetime string",
+            )
+        if anchor <= datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=400, detail="scheduled_at must be in the future"
+            )
 
     mappings = await db_campaigns.map_variants_to_campaign_personas(
         client, campaign_id, req.post_variant_ids
@@ -723,8 +746,7 @@ async def bulk_schedule_variants(campaign_id: str, request: Request) -> dict:
 
     await db_campaigns.set_post_variants_status(client, variant_ids, "scheduled")
 
-    anchor = _parse_ts(req.scheduled_at)
-    if anchor:
+    if anchor is not None:
         # Honor the chosen time: anchor as `now` with zero jitter and skip
         # posting-slot lookup so posts cluster from that instant, nudged 1s
         # apart to stay distinct even for personas with posting_schedules.
@@ -738,6 +760,29 @@ async def bulk_schedule_variants(campaign_id: str, request: Request) -> dict:
             window_start=_parse_ts(campaign.get("window_start")),
             window_end=_parse_ts(campaign.get("window_end")),
         )
+
+    # Scheduling IS the approval decision here (the grid counts 'scheduled' as
+    # approved), so reconcile campaign_personas / campaign state the same way
+    # bulk-approve does — otherwise a fully-scheduled campaign would still show
+    # personas pending and stay pending_approval.
+    persona_by_cp = {m["campaign_persona_id"]: m["persona_id"] for m in mappings}
+    for cp_id, persona_id in persona_by_cp.items():
+        await db_audit.insert_audit_event(
+            client,
+            {
+                "workspace_id": workspace_id,
+                "persona_id": persona_id,
+                "actor_user_id": claims["sub"],
+                # Distinct from 'campaign_persona.approved' so the audit trail
+                # doesn't conflate an explicit approval with a scheduling action,
+                # even though both roll the persona to approval_status='approved'.
+                "event_type": "campaign_persona.scheduled",
+                "entity_type": "campaign_persona",
+                "entity_id": cp_id,
+            },
+        )
+    await _roll_up_touched_personas(client, persona_by_cp.keys())
+    await _maybe_mark_approved(client, campaign_id)
     return {"ok": True, "scheduled_count": len(assigned)}
 
 

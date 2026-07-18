@@ -81,20 +81,6 @@ async def add_members(
     ).execute()
 
 
-async def remove_members(
-    client: AsyncClient, group_id: str, persona_ids: list[str]
-) -> None:
-    if not persona_ids:
-        return
-    await (
-        client.table("persona_group_members")
-        .delete()
-        .eq("group_id", group_id)
-        .in_("persona_id", persona_ids)
-        .execute()
-    )
-
-
 async def set_members(
     client: AsyncClient, group_id: str, persona_ids: list[str]
 ) -> None:

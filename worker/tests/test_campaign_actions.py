@@ -298,12 +298,78 @@ def test_bulk_schedule_assigns_distinct_times_to_selected(client):
         "/campaigns/camp-1/bulk-schedule",
         json={
             "post_variant_ids": ["v-cp-1-a", "v-cp-2-a"],
-            "scheduled_at": "2026-08-01T09:00:00Z",
+            "scheduled_at": "2099-08-01T09:00:00Z",
         },
     )
     assert res.status_code == 200
     assert res.json() == {"ok": True, "scheduled_count": 2}
     assert set(client.state["scheduled_at"]) == {"v-cp-1-a", "v-cp-2-a"}
+
+
+def test_bulk_schedule_rolls_up_persona_and_campaign(client):
+    """Scheduling IS the approval decision (grid counts 'scheduled' as
+    approved), so bulk-schedule must reconcile campaign_personas / campaign
+    state the same way bulk-approve does — else grid progress and the campaign
+    list disagree. A persona whose remaining variants are all scheduled rolls
+    to 'approved'; when both personas resolve, the campaign rolls to approved."""
+    client.state["cp_variant_statuses"]["cp-1"] = ["scheduled", "scheduled"]
+    client.state["cp_variant_statuses"]["cp-2"] = ["scheduled"]
+    res = client.post(
+        "/campaigns/camp-1/bulk-schedule",
+        json={
+            "post_variant_ids": ["v-cp-1-a", "v-cp-1-b", "v-cp-2-a"],
+            "scheduled_at": "2099-08-01T09:00:00Z",
+        },
+    )
+    assert res.status_code == 200
+    assert ("cp-1", "approved") in client.state["approvals"]
+    assert ("cp-2", "approved") in client.state["approvals"]
+    assert client.state["campaign_status"] == "approved"
+
+
+def test_bulk_schedule_rolls_up_with_mixed_scheduled_and_cancelled(client):
+    """A persona whose variants are a mix of 'scheduled' and terminal
+    'cancelled'/'rejected' is still fully resolved — none remain
+    pending_approval/draft — so it must roll out of 'pending' to 'approved'."""
+    client.state["cp_variant_statuses"]["cp-1"] = ["scheduled", "cancelled"]
+    res = client.post(
+        "/campaigns/camp-1/bulk-schedule",
+        json={
+            "post_variant_ids": ["v-cp-1-a"],
+            "scheduled_at": "2099-08-01T09:00:00Z",
+        },
+    )
+    assert res.status_code == 200
+    assert ("cp-1", "approved") in client.state["approvals"]
+
+
+def test_bulk_schedule_rejects_past_time(client):
+    """A past explicit scheduled_at is rejected (parity with the per-variant
+    /posts/{id}/schedule route) so posts aren't immediately claimable, and the
+    guard runs BEFORE any status write (no partial mutation)."""
+    res = client.post(
+        "/campaigns/camp-1/bulk-schedule",
+        json={
+            "post_variant_ids": ["v-cp-1-a"],
+            "scheduled_at": "2000-01-01T00:00:00Z",
+        },
+    )
+    assert res.status_code == 400
+    assert client.state["variants_scheduled"] == []
+
+
+def test_bulk_schedule_rejects_invalid_time(client):
+    """An unparseable scheduled_at is rejected rather than silently falling
+    through to the server-computed window/jitter branch."""
+    res = client.post(
+        "/campaigns/camp-1/bulk-schedule",
+        json={
+            "post_variant_ids": ["v-cp-1-a"],
+            "scheduled_at": "not-a-date",
+        },
+    )
+    assert res.status_code == 400
+    assert client.state["variants_scheduled"] == []
 
 
 def test_bulk_schedule_requires_variant_ids(client):
