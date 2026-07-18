@@ -213,12 +213,19 @@ export function BulkReviewGrid({
       "Schedule selected posts for (local datetime, e.g. 2026-07-20T09:00):"
     );
     if (!input) return;
-    const iso = new Date(input).toISOString();
-    if (new Date(iso) <= new Date()) {
+    // Guard before toISOString(): an unparseable datetime yields an invalid
+    // Date, and calling toISOString() on it throws RangeError. Mirror the
+    // toIso() helper in BriefComposerForm (NaN check on getTime()).
+    const d = new Date(input);
+    if (Number.isNaN(d.getTime())) {
+      setActionMsg("Enter a valid date/time, e.g. 2026-07-20T09:00.");
+      return;
+    }
+    if (d <= new Date()) {
       setActionMsg("Scheduled time must be in the future.");
       return;
     }
-    runBulk("bulk-schedule", { scheduled_at: iso }, "Schedule");
+    runBulk("bulk-schedule", { scheduled_at: d.toISOString() }, "Schedule");
   }
 
   return (

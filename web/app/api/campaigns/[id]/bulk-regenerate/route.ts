@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { workerRegeneratePost } from "@/lib/worker-client";
+import { filterVariantIdsForCampaign } from "@/lib/db/campaign-variants";
 
 // Bulk regenerate for the review grid.
 //
@@ -9,8 +10,16 @@ import { workerRegeneratePost } from "@/lib/worker-client";
 // server-side, one call per selected variant, and aggregates the results. Each
 // call is independent; a failure on one variant doesn't abort the rest.
 //
+// Selected ids are first scoped to THIS campaign (like the approve/schedule
+// bulk paths) so a stale/crafted request can't regenerate another campaign's
+// variants in the same workspace.
+//
 // Body: { post_variant_ids: string[], instruction: string }.
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
   const supabase = await createClient();
   const {
     data: { session },
@@ -21,13 +30,22 @@ export async function POST(request: Request) {
     post_variant_ids?: string[];
     instruction?: string;
   };
-  const postVariantIds = payload.post_variant_ids ?? [];
+  const requestedIds = payload.post_variant_ids ?? [];
   const instruction = (payload.instruction ?? "").trim();
-  if (postVariantIds.length === 0) {
+  if (requestedIds.length === 0) {
     return NextResponse.json({ error: "post_variant_ids required" }, { status: 400 });
   }
   if (!instruction) {
     return NextResponse.json({ error: "instruction required" }, { status: 400 });
+  }
+
+  // Drop any ids that don't belong to this campaign before fanning out.
+  const postVariantIds = await filterVariantIdsForCampaign(id, requestedIds);
+  if (postVariantIds.length === 0) {
+    return NextResponse.json(
+      { error: "No variants in the selection for this campaign" },
+      { status: 404 }
+    );
   }
 
   const results = await Promise.all(

@@ -222,6 +222,33 @@ export async function listCampaignVariants(
   return { rows, page, pageSize, total: count ?? 0 };
 }
 
+// ── Campaign-scoped id filter ─────────────────────────────────────────────────
+// Given a set of post_variant_ids, return only those that genuinely belong to
+// this campaign. Used to scope bulk fan-out routes (e.g. regenerate) so a
+// stale/crafted request from campaign A can't touch campaign B's variants in
+// the same workspace. RLS already limits visibility to the caller's workspace;
+// this adds the per-campaign scope the approve/schedule worker endpoints get
+// for free via their campaign_id-filtered mapping query.
+export async function filterVariantIdsForCampaign(
+  campaignId: string,
+  postVariantIds: string[]
+): Promise<string[]> {
+  if (postVariantIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("campaign_persona_variants")
+    .select("post_variant_id, campaign_personas!inner ( campaign_id )")
+    .eq("campaign_personas.campaign_id", campaignId)
+    .in("post_variant_id", postVariantIds);
+  const allowed = new Set(
+    ((data ?? []) as Array<{ post_variant_id: string }>).map(
+      (r) => r.post_variant_id
+    )
+  );
+  // Preserve caller order, drop foreign ids.
+  return postVariantIds.filter((id) => allowed.has(id));
+}
+
 // ── On-demand detail ──────────────────────────────────────────────────────────
 // Full body + revisions + media + source for a single variant. Loaded only when
 // a row is opened in the drawer (spot-editing), so the grid never pays for it.
