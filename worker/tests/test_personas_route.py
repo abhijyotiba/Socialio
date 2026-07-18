@@ -60,14 +60,23 @@ def test_create_invalid_color(client):
     assert res.status_code == 400
 
 
-def test_create_blocked_by_soft_cap(client, monkeypatch):
+def test_create_blocked_by_hard_cap(client, monkeypatch):
     async def _count(_client, _ws):
-        return 10
+        return 50
 
     monkeypatch.setattr(db_personas, "count_personas", _count)
     res = client.post("/personas", json={"name": "X"})
     assert res.status_code == 400
     assert "limit" in res.json()["error"]
+
+
+def test_create_allowed_below_hard_cap(client, monkeypatch):
+    async def _count(_client, _ws):
+        return 10
+
+    monkeypatch.setattr(db_personas, "count_personas", _count)
+    res = client.post("/personas", json={"name": "X"})
+    assert res.status_code == 201
 
 
 def test_create_hard_cap_value_error(client, monkeypatch):

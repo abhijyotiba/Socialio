@@ -5,7 +5,6 @@ from typing import Any, Literal
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from auth import verify_hmac, verify_user
@@ -25,13 +24,15 @@ log = structlog.get_logger()
 
 router = APIRouter()
 
-PERSONA_SOFT_CAP = 10
+# Mirrors web PERSONA_HARD_CAP (web/lib/constants/platforms.ts). A single
+# campaign may target up to this many personas.
+CAMPAIGN_PERSONA_CAP = 50
 GENERATION_TIMEOUT_S = 45
 
 
 class CampaignRequest(BaseModel):
     ingestion_job_id: str
-    persona_ids: list[str] = Field(min_length=1, max_length=PERSONA_SOFT_CAP)
+    persona_ids: list[str] = Field(min_length=1, max_length=CAMPAIGN_PERSONA_CAP)
     platforms: list[Literal["linkedin", "x"]] | None = None
     user_angle: str | None = None
 
@@ -73,6 +74,172 @@ async def _generate_for_persona(
         return {"persona_id": persona_id, "variants": variants}
     except Exception as exc:  # noqa: BLE001 — surfaced as this persona's error
         return {"persona_id": persona_id, "error": str(exc) or "Failed"}
+
+
+async def _run_campaign_generation(
+    token: str,
+    campaign_id: str,
+    workspace_id: str,
+    ingestion_job_id: str,
+    persona_ids: list[str],
+    brand_configs: list[dict[str, Any] | None],
+    connections_by_persona: list[list[dict[str, Any]]],
+    cp_by_persona: dict[str, dict[str, Any]],
+    requested_platforms: list[str] | None,
+    user_angle: str | None,
+    effective_title: str,
+    effective_text: str,
+) -> None:
+    """Background task: summarize, generate per-persona in parallel, persist
+    content_items/post_variants/campaign_persona_variants, and roll the campaign
+    to its terminal status.
+
+    Runs outside the original request lifecycle so the client gets an immediate
+    response within the ~20s proxy timeout — the LLM calls (summarize +
+    per-persona generation) happen here, not in the request path. Errors are
+    recorded on the campaign / campaign_persona rows rather than surfaced as HTTP
+    exceptions.
+
+    NOTE: kept structured so a future `brief` parameter (Task 6) can be threaded
+    through additively into summarization / generation.
+    """
+    bound = log.bind(campaign_id=campaign_id, workspace_id=workspace_id)
+
+    # Build a fresh RLS client for the background context.
+    client = await rls_client(token)
+
+    try:
+        # ── Single summarization pass (was duplicated N times per persona) ──
+        summary = (
+            await analyze.summarize(effective_title, effective_text)
+            if effective_text.strip()
+            else ""
+        )
+
+        # Fire generation in parallel — one per persona.
+        results = await asyncio.gather(
+            *[
+                _generate_for_persona(
+                    persona_id=pid,
+                    brand=brand_configs[idx],
+                    connections=connections_by_persona[idx] or [],
+                    requested_platforms=requested_platforms,
+                    summary=summary,
+                    user_angle=user_angle,
+                )
+                for idx, pid in enumerate(persona_ids)
+            ],
+            return_exceptions=True,
+        )
+
+        success_count = 0
+
+        for idx, result in enumerate(results):
+            if isinstance(result, BaseException):
+                continue
+            persona_id = result["persona_id"]
+            campaign_persona = cp_by_persona[persona_id]
+
+            if result.get("error") or not result.get("variants"):
+                await db_campaigns.set_campaign_persona_error(
+                    client,
+                    campaign_persona["id"],
+                    result.get("error") or "Generation failed",
+                )
+                continue
+
+            prompt_version_id = (brand_configs[idx] or {}).get(
+                "current_prompt_version_id"
+            )
+            content_item = await db_posts.create_content_item(
+                client,
+                {
+                    "workspace_id": workspace_id,
+                    "ingestion_job_id": ingestion_job_id,
+                    "prompt_version_id": prompt_version_id,
+                },
+            )
+            post_variants = await db_posts.create_post_variants(
+                client,
+                [
+                    {
+                        "workspace_id": workspace_id,
+                        "content_item_id": content_item["id"],
+                        "platform": v["platform"],
+                        "body": v["body"],
+                        "status": "draft",
+                        "persona_id": persona_id,
+                    }
+                    for v in result["variants"]
+                ],
+            )
+            await db_campaigns.create_campaign_persona_variants(
+                client,
+                campaign_persona["id"],
+                [
+                    {
+                        "post_variant_id": pv["id"],
+                        "platform": pv["platform"],
+                        "prompt_version_id": prompt_version_id,
+                    }
+                    for pv in post_variants
+                ],
+            )
+            success_count += 1
+
+        if success_count == 0:
+            final_status = "failed"
+        elif success_count < len(persona_ids):
+            final_status = "generation_partial"
+        else:
+            final_status = "pending_approval"
+
+        if success_count == 0:
+            await db_campaigns.update_campaign(
+                client,
+                campaign_id,
+                {
+                    "status": final_status,
+                    "failure_code": "ALL_PERSONAS_FAILED",
+                    "failure_reason": "Every persona generation attempt failed. Check that each persona has a connected platform and a voice profile.",
+                },
+            )
+        else:
+            await db_campaigns.update_campaign(
+                client, campaign_id, {"status": final_status}
+            )
+
+        await db_audit.insert_audit_event(
+            client,
+            {
+                "workspace_id": workspace_id,
+                "event_type": "campaign.created",
+                "entity_type": "campaign",
+                "entity_id": campaign_id,
+                "metadata": {
+                    "persona_count": len(persona_ids),
+                    "success_count": success_count,
+                },
+            },
+        )
+
+        bound.info(
+            "campaign_generation_done",
+            persona_count=len(persona_ids),
+            success_count=success_count,
+            status=final_status,
+        )
+    except Exception as exc:  # noqa: BLE001 — recorded on the campaign row
+        bound.error("campaign_generation_failed", error=str(exc))
+        await db_campaigns.update_campaign(
+            client,
+            campaign_id,
+            {
+                "status": "failed",
+                "failure_code": "GENERATION_ERROR",
+                "failure_reason": str(exc) or "Campaign generation failed.",
+            },
+        )
 
 
 @router.post("/campaigns")
@@ -139,13 +306,6 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
     if job["source_type"] == "text" and has_user_angle:
         effective_text = ""
 
-    # ── Single summarization pass (was duplicated N times per persona) ──
-    summary = (
-        await analyze.summarize(effective_title, effective_text)
-        if effective_text.strip()
-        else ""
-    )
-
     campaign = await db_campaigns.create_campaign(
         client,
         {
@@ -162,145 +322,37 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
     )
     cp_by_persona = {row["persona_id"]: row for row in campaign_persona_rows}
 
-    # Fire generation in parallel — one per persona.
-    results = await asyncio.gather(
-        *[
-            _generate_for_persona(
-                persona_id=pid,
-                brand=brand_configs[idx],
-                connections=connections_by_persona[idx] or [],
-                requested_platforms=req.platforms,
-                summary=summary,
-                user_angle=user_angle,
-            )
-            for idx, pid in enumerate(req.persona_ids)
-        ],
-        return_exceptions=True,
+    # ── Generation (async background) ──────────────────────────────────
+    # Return immediately — summarization and the per-persona LLM generation
+    # (which can take tens of seconds across 50 personas) run in the
+    # background so the route responds well within the ~20s proxy timeout.
+    # The client polls the campaign / listens for the status transition off
+    # "generating".
+    log.info(
+        "campaign_generation_start_async",
+        campaign_id=campaign["id"],
+        workspace_id=workspace_id,
+        persona_count=len(req.persona_ids),
     )
 
-    all_variants: list[dict[str, Any]] = []
-    success_count = 0
-
-    for idx, result in enumerate(results):
-        if isinstance(result, BaseException):
-            continue
-        persona_id = result["persona_id"]
-        campaign_persona = cp_by_persona[persona_id]
-
-        if result.get("error") or not result.get("variants"):
-            await db_campaigns.set_campaign_persona_error(
-                client, campaign_persona["id"], result.get("error") or "Generation failed"
-            )
-            continue
-
-        prompt_version_id = (brand_configs[idx] or {}).get("current_prompt_version_id")
-        content_item = await db_posts.create_content_item(
-            client,
-            {
-                "workspace_id": workspace_id,
-                "ingestion_job_id": req.ingestion_job_id,
-                "prompt_version_id": prompt_version_id,
-            },
+    asyncio.create_task(
+        _run_campaign_generation(
+            token=token,
+            campaign_id=campaign["id"],
+            workspace_id=workspace_id,
+            ingestion_job_id=req.ingestion_job_id,
+            persona_ids=req.persona_ids,
+            brand_configs=brand_configs,
+            connections_by_persona=connections_by_persona,
+            cp_by_persona=cp_by_persona,
+            requested_platforms=req.platforms,
+            user_angle=user_angle,
+            effective_title=effective_title,
+            effective_text=effective_text,
         )
-        post_variants = await db_posts.create_post_variants(
-            client,
-            [
-                {
-                    "workspace_id": workspace_id,
-                    "content_item_id": content_item["id"],
-                    "platform": v["platform"],
-                    "body": v["body"],
-                    "status": "draft",
-                    "persona_id": persona_id,
-                }
-                for v in result["variants"]
-            ],
-        )
-        await db_campaigns.create_campaign_persona_variants(
-            client,
-            campaign_persona["id"],
-            [
-                {
-                    "post_variant_id": pv["id"],
-                    "platform": pv["platform"],
-                    "prompt_version_id": prompt_version_id,
-                }
-                for pv in post_variants
-            ],
-        )
-        for pv in post_variants:
-            all_variants.append(
-                {
-                    "persona_id": persona_id,
-                    "platform": pv["platform"],
-                    "variant_id": pv["id"],
-                    "body": pv["body"],
-                }
-            )
-        success_count += 1
-
-    if success_count == 0:
-        final_status = "failed"
-    elif success_count < len(req.persona_ids):
-        final_status = "generation_partial"
-    else:
-        final_status = "pending_approval"
-
-    if success_count == 0:
-        await db_campaigns.update_campaign(
-            client,
-            campaign["id"],
-            {
-                "status": final_status,
-                "failure_code": "ALL_PERSONAS_FAILED",
-                "failure_reason": "Every persona generation attempt failed. Check that each persona has a connected platform and a voice profile.",
-            },
-        )
-    else:
-        await db_campaigns.update_campaign(
-            client, campaign["id"], {"status": final_status}
-        )
-
-    await db_audit.insert_audit_event(
-        client,
-        {
-            "workspace_id": workspace_id,
-            "event_type": "campaign.created",
-            "entity_type": "campaign",
-            "entity_id": campaign["id"],
-            "metadata": {
-                "persona_count": len(req.persona_ids),
-                "success_count": success_count,
-            },
-        },
     )
 
-    if success_count == 0:
-        return JSONResponse(
-            status_code=502,
-            content={
-                "error": "All persona generation attempts failed",
-                "campaign_id": campaign["id"],
-            },
-        )
-
-    persona_map = {p["id"]: p for p in personas if p}
-    return {
-        "campaign_id": campaign["id"],
-        "status": final_status,
-        "variants": [
-            {
-                "persona_id": v["persona_id"],
-                "persona_name": persona_map.get(v["persona_id"], {}).get(
-                    "name", "Unknown"
-                ),
-                "platform": v["platform"],
-                "variant_id": v["variant_id"],
-                "body": v["body"],
-            }
-            for v in all_variants
-        ],
-    }
+    return {"campaign_id": campaign["id"], "status": "generating"}
 
 
 # ─── Campaign management (approve / reject / cancel / delete) ─────────────────

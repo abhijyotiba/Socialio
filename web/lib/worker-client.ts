@@ -74,10 +74,11 @@ export async function workerGetIngestion(
   );
 }
 
-// Campaign generation now runs entirely in the worker (orchestration + the LLM
-// pipeline + content_items/post_variants writes), scoped to the user's JWT + RLS.
-// The web route is a thin proxy; this returns the raw Response for passthrough.
-// Generous timeout: the worker generates for every persona in one request.
+// Campaign generation now runs entirely in the worker under the user's JWT +
+// RLS. The route does only lightweight validation + row creation, then kicks
+// off the LLM pipeline in a background task and returns { campaign_id, status:
+// "generating" } immediately — so a short timeout is enough. The web route is a
+// thin proxy; this returns the raw Response for passthrough.
 export async function workerCampaigns(
   payload: unknown,
   accessToken: string
@@ -91,7 +92,7 @@ export async function workerCampaigns(
       Authorization: `Bearer ${accessToken}`,
     },
     body,
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(20_000),
   });
 }
 

@@ -10,7 +10,7 @@ from db.workspaces import get_workspace_id_for_user
 
 router = APIRouter()
 
-PERSONA_SOFT_CAP = 10
+PERSONA_HARD_CAP = 50
 _COLOR_PATTERN = r"^#[0-9a-fA-F]{6}$"
 
 
@@ -38,10 +38,10 @@ async def _authorize(request: Request, body: bytes) -> tuple[Any, str]:
 async def create_persona(req: CreatePersonaRequest, request: Request) -> dict:
     client, workspace_id = await _authorize(request, await request.body())
 
-    if await db_personas.count_personas(client, workspace_id) >= PERSONA_SOFT_CAP:
+    if await db_personas.count_personas(client, workspace_id) >= PERSONA_HARD_CAP:
         raise HTTPException(
             status_code=400,
-            detail=f"Workspace has reached the {PERSONA_SOFT_CAP}-persona limit",
+            detail=f"Workspace has reached the {PERSONA_HARD_CAP}-persona limit",
         )
 
     try:
