@@ -225,6 +225,18 @@ cd worker && uv run fastapi dev      # http://localhost:8000
 
 You need a Supabase project (free tier is fine), Cloudinary, Groq, Gemini, and Firecrawl accounts.
 
+### Commands quick reference
+
+| | Command |
+|---|---|
+| Web dev | `pnpm --dir web dev` |
+| Web test | `pnpm --dir web test` |
+| Web lint | `pnpm --dir web lint` |
+| Web typecheck | `pnpm --dir web typecheck` |
+| Web build | `pnpm --dir web build` |
+| Worker dev | `cd worker && uv run fastapi dev` |
+| Worker test | `cd worker && uv run pytest` |
+
 ## B.9 Environment variables
 
 ### Web — only 4 are required ([web/lib/env.ts](web/lib/env.ts))

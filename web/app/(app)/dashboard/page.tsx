@@ -13,7 +13,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getWorkspaceForUser } from "@/lib/db/workspaces";
-import { getPersonasForWorkspace, getPersona } from "@/lib/db/personas";
+import { getPersonasForWorkspace } from "@/lib/db/personas";
 import {
   listPublishedVariantsWithMetrics,
   listScheduledVariants,
@@ -197,22 +197,24 @@ export default async function DashboardPage({
   const workspace = await getWorkspaceForUser(user.id);
   if (!workspace) redirect("/onboarding");
 
-  // Validate persona scoping when filtering. Silently fall back to "all" on
-  // mismatch — the UI just stops filtering rather than throwing in the user's
-  // face.
-  let validPersonaId: string | undefined;
-  if (activePersonaId) {
-    const persona = await getPersona(activePersonaId);
-    if (persona && persona.workspace_id === workspace.workspace_id) {
-      validPersonaId = activePersonaId;
-    }
-  }
-
-  const [metrics, queue, personas] = await Promise.all([
-    listPublishedVariantsWithMetrics(validPersonaId),
+  // Fetch the persona list and queue concurrently — neither depends on the
+  // persona filter. The list also lets us validate `activePersonaId` without a
+  // separate round-trip.
+  const [queue, personas] = await Promise.all([
     listScheduledVariants(),
     getPersonasForWorkspace(workspace.workspace_id),
   ]);
+
+  // Validate persona scoping when filtering. Silently fall back to "all" on
+  // mismatch — the UI just stops filtering rather than throwing in the user's
+  // face. (All personas are already workspace-scoped, so membership in this
+  // list is sufficient validation.)
+  const validPersonaId =
+    activePersonaId && personas.some((p) => p.id === activePersonaId)
+      ? activePersonaId
+      : undefined;
+
+  const metrics = await listPublishedVariantsWithMetrics(validPersonaId);
 
   const publishedCount = metrics.length;
   const totalImpressions = metrics.reduce(
