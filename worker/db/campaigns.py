@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from random import Random
 from typing import Any
 
 from supabase import AsyncClient
@@ -208,6 +209,165 @@ async def set_post_variants_status(
     await client.table("post_variants").update({"status": status}).in_(
         "id", variant_ids
     ).execute()
+
+
+def _compute_scheduled_times(
+    variants: list[dict[str, Any]],
+    *,
+    window_start: datetime | None,
+    window_end: datetime | None,
+    slots_by_persona_platform: dict[tuple[str, str], list[datetime]] | None,
+    now: datetime,
+    jitter_seconds: int,
+    rng: Random,
+) -> dict[str, datetime]:
+    """Pure resolver (no DB) — assign each variant a distinct scheduled_at.
+
+    Precedence (Decision #2290):
+      1. window_start/window_end present → spread variants uniformly across the
+         window, with small per-variant jitter.
+      2. else per-persona+platform posting_schedules slots → next open slot.
+      3. else now() + random jitter (0..jitter_seconds).
+
+    Every variant gets a *distinct* timestamp so 50 posts never fire the same
+    second (uniqueness enforced by nudging duplicates forward by 1s)."""
+    assigned: dict[str, datetime] = {}
+
+    if window_start and window_end and window_end > window_start:
+        n = len(variants)
+        span = (window_end - window_start).total_seconds()
+        # Uniform spread: variant i at start + i/n * span, plus small jitter
+        # bounded so it can't cross into the neighbouring slot.
+        step = span / max(n, 1)
+        max_jitter = max(0, min(jitter_seconds, int(step / 2)))
+        for i, v in enumerate(variants):
+            base = window_start + timedelta(seconds=step * i)
+            offset = rng.randint(0, max_jitter) if max_jitter > 0 else 0
+            assigned[v["id"]] = base + timedelta(seconds=offset)
+    elif slots_by_persona_platform:
+        # Next open posting slot per persona+platform; consume slots so two
+        # variants for the same persona+platform don't collide.
+        cursor: dict[tuple[str, str], int] = {}
+        for v in variants:
+            key = (v.get("persona_id") or "", v["platform"])
+            slots = slots_by_persona_platform.get(key)
+            if slots:
+                idx = cursor.get(key, 0)
+                assigned[v["id"]] = slots[idx % len(slots)] + timedelta(
+                    days=(idx // len(slots))
+                )
+                cursor[key] = idx + 1
+            else:
+                assigned[v["id"]] = now + timedelta(
+                    seconds=rng.randint(0, max(jitter_seconds, 1))
+                )
+    else:
+        for v in variants:
+            assigned[v["id"]] = now + timedelta(
+                seconds=rng.randint(0, max(jitter_seconds, 1))
+            )
+
+    # Guarantee distinct timestamps (nudge collisions forward by whole seconds).
+    seen: set[datetime] = set()
+    for vid in sorted(assigned, key=lambda k: assigned[k]):
+        t = assigned[vid].replace(microsecond=0)
+        while t in seen:
+            t = t + timedelta(seconds=1)
+        seen.add(t)
+        assigned[vid] = t
+    return assigned
+
+
+async def assign_scheduled_times(
+    client: AsyncClient,
+    variant_ids: list[str],
+    *,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+    jitter_seconds: int = 5400,  # ±90 min default
+    now: datetime | None = None,
+) -> dict[str, str]:
+    """Set a distinct, non-null scheduled_at on every variant in variant_ids.
+
+    This repairs the live bug where approved campaign variants were set to
+    status='scheduled' with a NULL scheduled_at and therefore never claimed by
+    claim_due_variants (which requires scheduled_at <= now()).
+
+    Resolver precedence: brief window → persona posting_schedules → now()+jitter.
+    Returns {variant_id: iso_timestamp}."""
+    if not variant_ids:
+        return {}
+
+    now = now or datetime.now(timezone.utc)
+    rng = Random()
+
+    # Fetch the variants we're scheduling (persona_id + platform for slot lookup).
+    vres = (
+        await client.table("post_variants")
+        .select("id, persona_id, platform, workspace_id")
+        .in_("id", variant_ids)
+        .execute()
+    )
+    variants = vres.data or []
+    if not variants:
+        return {}
+
+    slots_by_persona_platform: dict[tuple[str, str], list[datetime]] | None = None
+    if not (window_start and window_end):
+        slots_by_persona_platform = await _load_next_slots(client, variants, now)
+
+    assigned = _compute_scheduled_times(
+        variants,
+        window_start=window_start,
+        window_end=window_end,
+        slots_by_persona_platform=slots_by_persona_platform,
+        now=now,
+        jitter_seconds=jitter_seconds,
+        rng=rng,
+    )
+
+    # Persist per-variant (distinct timestamps → one update each).
+    for vid, when in assigned.items():
+        await client.table("post_variants").update(
+            {"scheduled_at": when.isoformat()}
+        ).eq("id", vid).execute()
+
+    return {vid: when.isoformat() for vid, when in assigned.items()}
+
+
+async def _load_next_slots(
+    client: AsyncClient, variants: list[dict[str, Any]], now: datetime
+) -> dict[tuple[str, str], list[datetime]]:
+    """Resolve upcoming posting_schedules slots per persona+platform, as absolute
+    datetimes on/after `now`. Returns empty dict when no slots configured."""
+    workspace_ids = {v["workspace_id"] for v in variants if v.get("workspace_id")}
+    if not workspace_ids:
+        return {}
+    platforms = {v["platform"] for v in variants}
+    res = (
+        await client.table("posting_schedules")
+        .select("persona_id, platform, hour, minute, is_active")
+        .in_("workspace_id", list(workspace_ids))
+        .in_("platform", list(platforms))
+        .execute()
+    )
+    rows = [r for r in (res.data or []) if r.get("is_active", True)]
+    if not rows:
+        return {}
+
+    out: dict[tuple[str, str], list[datetime]] = {}
+    for r in rows:
+        key = (r.get("persona_id") or "", r["platform"])
+        # Next occurrence of hour:minute at/after now (today or tomorrow, UTC).
+        candidate = now.replace(
+            hour=r["hour"], minute=r["minute"], second=0, microsecond=0
+        )
+        if candidate < now:
+            candidate = candidate + timedelta(days=1)
+        out.setdefault(key, []).append(candidate)
+    for key in out:
+        out[key].sort()
+    return out
 
 
 async def delete_campaign(client: AsyncClient, campaign_id: str) -> None:

@@ -737,6 +737,68 @@ export type Database = {
           },
         ]
       }
+      persona_group_members: {
+        Row: {
+          created_at: string
+          group_id: string
+          persona_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          persona_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          persona_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "persona_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "persona_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "persona_group_members_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      persona_groups: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "persona_groups_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       persona_rate_limits: {
         Row: {
           day_reset_at: string

@@ -313,3 +313,56 @@ export async function workerMarkNotificationRead(
     }
   );
 }
+
+
+// ── Account groups (Task 7) ───────────────────────────────────────────────────
+// All group writes are owned by the worker under RLS; web routes are thin
+// proxies. Reads go through lib/db/account-groups.ts, not these.
+
+export async function workerCreateAccountGroup(
+  payload: { name: string; persona_ids?: string[] },
+  accessToken: string
+): Promise<Response> {
+  return workerFetch("/account-groups", {
+    method: "POST",
+    accessToken,
+    json: payload,
+  });
+}
+
+export async function workerRenameAccountGroup(
+  groupId: string,
+  name: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/account-groups/${encodeURIComponent(groupId)}`, {
+    method: "PATCH",
+    accessToken,
+    json: { name },
+  });
+}
+
+export async function workerDeleteAccountGroup(
+  groupId: string,
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(`/account-groups/${encodeURIComponent(groupId)}`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
+export async function workerSetAccountGroupMembers(
+  groupId: string,
+  personaIds: string[],
+  accessToken: string
+): Promise<Response> {
+  return workerFetch(
+    `/account-groups/${encodeURIComponent(groupId)}/members`,
+    {
+      method: "PUT",
+      accessToken,
+      json: { persona_ids: personaIds },
+    }
+  );
+}

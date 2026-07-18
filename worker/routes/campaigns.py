@@ -13,6 +13,7 @@ from db import brand_configs as db_brand
 from db import campaigns as db_campaigns
 from db import ingestion as db_ingestion
 from db import media_assets as db_media
+from db import persona_groups as db_groups
 from db import personas as db_personas
 from db import posts as db_posts
 from db import social_connections as db_connections
@@ -24,6 +25,16 @@ from pipeline import generate as gen_pipeline
 log = structlog.get_logger()
 
 router = APIRouter()
+
+
+def _parse_ts(value: str | None) -> datetime | None:
+    """Parse an ISO timestamp (tolerating a trailing 'Z') to an aware datetime."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
 
 # Mirrors web PERSONA_HARD_CAP (web/lib/constants/platforms.ts). A single
 # campaign may target up to this many personas.
@@ -70,7 +81,10 @@ class CampaignBrief(BaseModel):
 
 class CampaignRequest(BaseModel):
     ingestion_job_id: str
-    persona_ids: list[str] = Field(min_length=1, max_length=CAMPAIGN_PERSONA_CAP)
+    # persona_ids may be empty when group_ids is supplied; the route resolves
+    # the union of the two and enforces the 1..CAMPAIGN_PERSONA_CAP bound.
+    persona_ids: list[str] = Field(default_factory=list, max_length=CAMPAIGN_PERSONA_CAP)
+    group_ids: list[str] = Field(default_factory=list, max_length=CAMPAIGN_PERSONA_CAP)
     platforms: list[Literal["linkedin", "x"]] | None = None
     user_angle: str | None = None
     brief: CampaignBrief | None = None
@@ -312,6 +326,27 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             status_code=429, detail="Rate limit: 2 campaigns per minute"
         )
 
+    # Resolve group targeting (Task 7): expand group_ids to their member
+    # personas and union with explicitly listed persona_ids, deduped. Cap 50.
+    resolved_persona_ids = list(dict.fromkeys(req.persona_ids))
+    if req.group_ids:
+        group_persona_ids = await db_groups.expand_group_ids_to_persona_ids(
+            client, req.group_ids
+        )
+        resolved_persona_ids = list(
+            dict.fromkeys([*resolved_persona_ids, *group_persona_ids])
+        )
+    if not resolved_persona_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one persona (directly or via a group) is required",
+        )
+    if len(resolved_persona_ids) > CAMPAIGN_PERSONA_CAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"A campaign can target at most {CAMPAIGN_PERSONA_CAP} personas",
+        )
+
     user_angle = (req.user_angle or "").strip() or None
     if user_angle and len(user_angle) > 1000:
         raise HTTPException(status_code=400, detail="user_angle too long")
@@ -356,21 +391,21 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
         )
 
     # ── Batch DB reads (replaces N+1 sequential queries) ────────────────
-    personas_resp = await client.table("personas").select("*").in_("id", req.persona_ids).execute()
+    personas_resp = await client.table("personas").select("*").in_("id", resolved_persona_ids).execute()
     personas_map: dict[str, dict] = {p["id"]: p for p in (personas_resp.data or [])}
-    personas = [personas_map.get(pid) for pid in req.persona_ids]
+    personas = [personas_map.get(pid) for pid in resolved_persona_ids]
     if any(p is None for p in personas):
         raise HTTPException(status_code=403, detail="Invalid persona")
 
-    brand_resp = await client.table("brand_configs").select("*").in_("persona_id", req.persona_ids).execute()
+    brand_resp = await client.table("brand_configs").select("*").in_("persona_id", resolved_persona_ids).execute()
     brand_map: dict[str, dict] = {b["persona_id"]: b for b in (brand_resp.data or [])}
-    brand_configs = [brand_map.get(pid) for pid in req.persona_ids]
+    brand_configs = [brand_map.get(pid) for pid in resolved_persona_ids]
 
-    conn_resp = await client.table("social_connections").select("*").in_("persona_id", req.persona_ids).execute()
+    conn_resp = await client.table("social_connections").select("*").in_("persona_id", resolved_persona_ids).execute()
     conn_map: dict[str, list[dict]] = {}
     for c in (conn_resp.data or []):
         conn_map.setdefault(c["persona_id"], []).append(c)
-    connections_by_persona = [conn_map.get(pid, []) for pid in req.persona_ids]
+    connections_by_persona = [conn_map.get(pid, []) for pid in resolved_persona_ids]
 
     if any(not (bc and bc.get("custom_system_prompt")) for bc in brand_configs):
         raise HTTPException(
@@ -400,7 +435,7 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
         },
     )
     campaign_persona_rows = await db_campaigns.create_campaign_personas(
-        client, campaign["id"], req.persona_ids
+        client, campaign["id"], resolved_persona_ids
     )
     cp_by_persona = {row["persona_id"]: row for row in campaign_persona_rows}
 
@@ -414,7 +449,7 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
         "campaign_generation_start_async",
         campaign_id=campaign["id"],
         workspace_id=workspace_id,
-        persona_count=len(req.persona_ids),
+        persona_count=len(resolved_persona_ids),
     )
 
     asyncio.create_task(
@@ -423,7 +458,7 @@ async def create_campaign_route(req: CampaignRequest, request: Request):
             campaign_id=campaign["id"],
             workspace_id=workspace_id,
             ingestion_job_id=req.ingestion_job_id,
-            persona_ids=req.persona_ids,
+            persona_ids=resolved_persona_ids,
             brand_configs=brand_configs,
             connections_by_persona=connections_by_persona,
             cp_by_persona=cp_by_persona,
@@ -469,13 +504,23 @@ async def _maybe_mark_approved(client: Any, campaign_id: str) -> None:
 
 
 async def _approve_persona(
-    client: Any, workspace_id: str, actor_id: str, cp: dict
+    client: Any, workspace_id: str, actor_id: str, cp: dict, campaign: dict
 ) -> None:
     await db_campaigns.update_campaign_persona_approval(client, cp["id"], "approved")
     variant_ids = await db_campaigns.get_variants_for_campaign_persona(
         client, cp["id"]
     )
     await db_campaigns.set_post_variants_status(client, variant_ids, "scheduled")
+    # Assign a distinct, non-null scheduled_at to every approved variant so
+    # claim_due_variants actually publishes them (fixes the live bug where
+    # approved campaign posts were never claimed). Uses the campaign's brief
+    # window when present, else persona posting slots, else now()+jitter.
+    await db_campaigns.assign_scheduled_times(
+        client,
+        variant_ids,
+        window_start=_parse_ts(campaign.get("window_start")),
+        window_end=_parse_ts(campaign.get("window_end")),
+    )
     await db_audit.insert_audit_event(
         client,
         {
@@ -493,7 +538,7 @@ async def _approve_persona(
 async def approve_campaign(campaign_id: str, request: Request) -> dict:
     body = await request.body()
     client, workspace_id, claims = await _authorize(request, body)
-    await _require_campaign(client, campaign_id)
+    campaign = await _require_campaign(client, campaign_id)
 
     target_ids: list[str] | None = None
     if body:
@@ -512,7 +557,7 @@ async def approve_campaign(campaign_id: str, request: Request) -> dict:
     ]
 
     for cp in to_approve:
-        await _approve_persona(client, workspace_id, claims["sub"], cp)
+        await _approve_persona(client, workspace_id, claims["sub"], cp, campaign)
 
     await _maybe_mark_approved(client, campaign_id)
     return {"ok": True, "approved_count": len(to_approve)}
@@ -524,14 +569,14 @@ async def approve_persona(
 ) -> dict:
     body = await request.body()
     client, workspace_id, claims = await _authorize(request, body)
-    await _require_campaign(client, campaign_id)
+    campaign = await _require_campaign(client, campaign_id)
 
     cps = await db_campaigns.get_campaign_personas(client, campaign_id)
     cp = next((c for c in cps if c["persona_id"] == persona_id), None)
     if not cp:
         raise HTTPException(status_code=404, detail="Persona not in campaign")
 
-    await _approve_persona(client, workspace_id, claims["sub"], cp)
+    await _approve_persona(client, workspace_id, claims["sub"], cp, campaign)
     await _maybe_mark_approved(client, campaign_id)
     return {"ok": True}
 
