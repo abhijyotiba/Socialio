@@ -31,9 +31,21 @@ async def create_schedule_slot(
     if not workspace_id:
         raise HTTPException(status_code=403, detail="Workspace not found")
 
-    if req.platform not in ("linkedin", "x"):
+    # Validate the platform against the in-process adapter registry (no DB
+    # round-trip). Imported lazily/guarded so this route stays importable even
+    # if the adapters.platforms package (Task 1) isn't available yet; falls back
+    # to the historical hardcoded set only in that transitional case.
+    try:
+        from adapters.platforms import all_platforms
+
+        supported = tuple(all_platforms())
+    except Exception:
+        supported = ("linkedin", "x")
+
+    if req.platform not in supported:
         raise HTTPException(
-            status_code=400, detail="platform must be 'linkedin' or 'x'"
+            status_code=400,
+            detail=f"platform must be one of: {', '.join(supported)}",
         )
 
     if req.minute not in (0, 30):

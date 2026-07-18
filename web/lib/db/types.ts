@@ -417,6 +417,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "content_cadences_platform_platform_fkey"
+            columns: ["platform"]
+            isOneToOne: false
+            referencedRelation: "platforms"
+            referencedColumns: ["slug"]
+          },
+          {
             foreignKeyName: "content_cadences_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
@@ -546,6 +553,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "personas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_platform_platform_fkey"
+            columns: ["platform"]
+            isOneToOne: false
+            referencedRelation: "platforms"
+            referencedColumns: ["slug"]
           },
           {
             foreignKeyName: "content_items_prompt_version_id_fkey"
@@ -809,6 +823,35 @@ export type Database = {
           platform?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "platform_limits_platform_fkey"
+            columns: ["platform"]
+            isOneToOne: true
+            referencedRelation: "platforms"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      platforms: {
+        Row: {
+          created_at: string
+          display_name: string
+          is_active: boolean
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          is_active?: boolean
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          is_active?: boolean
+          slug?: string
+        }
         Relationships: []
       }
       post_metrics: {
@@ -1014,6 +1057,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "post_variants_platform_platform_fkey"
+            columns: ["platform"]
+            isOneToOne: false
+            referencedRelation: "platforms"
+            referencedColumns: ["slug"]
+          },
+          {
             foreignKeyName: "post_variants_prompt_version_id_fkey"
             columns: ["prompt_version_id"]
             isOneToOne: false
@@ -1073,6 +1123,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "personas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "posting_schedules_platform_platform_fkey"
+            columns: ["platform"]
+            isOneToOne: false
+            referencedRelation: "platforms"
+            referencedColumns: ["slug"]
           },
           {
             foreignKeyName: "posting_schedules_workspace_id_fkey"
@@ -1252,6 +1309,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "personas"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_connections_platform_platform_fkey"
+            columns: ["platform"]
+            isOneToOne: false
+            referencedRelation: "platforms"
+            referencedColumns: ["slug"]
           },
           {
             foreignKeyName: "social_connections_workspace_id_fkey"
