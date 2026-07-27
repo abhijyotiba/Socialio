@@ -1,5 +1,16 @@
 from adapters.llm import generate
 
+
+def scan_forbidden(body: str, phrases: list[str]) -> list[str]:
+    """Check generated text against a list of forbidden phrases. Returns the
+    list of phrases that matched — empty means clean. Case-insensitive substring
+    match, so the phrase list should include variants (plural, tense, etc.) that
+    the brand wants to avoid."""
+    if not phrases or not body:
+        return []
+    body_lower = body.lower()
+    return [p for p in phrases if p.lower() in body_lower]
+
 _PLATFORM_HINTS: dict[str, str] = {
     "linkedin": (
         "LinkedIn post (professional tone, 150–300 words, use line breaks for "

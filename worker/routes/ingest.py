@@ -74,6 +74,25 @@ async def _run_url_ingestion(
     # Build a fresh RLS client for the background context.
     client = await rls_client(token)
 
+    # ── URL-hash cache check (7-day TTL) ──────────────────────────────────
+    cached = await db_ingestion.get_cached_ingestion(client, workspace_id, source_url)
+    if cached:
+        bound.info("ingest_cache_hit")
+        await db_ingestion.update_job(
+            client,
+            job_id,
+            {
+                "extracted_title": cached["extracted_title"],
+                "extracted_text": cached["extracted_text"],
+                "stage": "done",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        await db_media.create_media_assets(
+            client, workspace_id, job_id, cached.get("media_assets") or []
+        )
+        return
+
     await db_ingestion.update_job(client, job_id, {"stage": "scraping"})
 
     t0 = _ms()
@@ -109,6 +128,16 @@ async def _run_url_ingestion(
         },
     )
     await db_media.create_media_assets(client, workspace_id, job_id, media)
+
+    # Populate the cache for next time.
+    await db_ingestion.upsert_ingestion_cache(
+        client,
+        workspace_id,
+        source_url,
+        extracted.title,
+        extracted.text,
+        media,
+    )
 
     bound.info(
         "ingest_done",

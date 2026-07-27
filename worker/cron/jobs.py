@@ -16,13 +16,14 @@ from db import brand_configs as db_brand
 from db import campaigns as db_campaigns
 from db import content_cadences as db_cadences
 from db import content_cells as db_cells
+from db import ingestion as db_ingestion
 from db import media_assets as db_media
 from db import metrics as db_metrics
 from db import notifications as db_notifications
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from db import social_connections as db_connections
-from pipeline.generate import render_cell
+from pipeline.generate import render_cell, scan_forbidden
 from publish import publisher
 from security import vault
 
@@ -272,8 +273,12 @@ async def run_token_expiry_check(svc: AsyncClient) -> dict:
 
 async def run_cleanup_orphaned_media(svc: AsyncClient) -> dict:
     orphans = await db_media.get_orphaned_media_assets(svc)
+
+    # Also purge expired URL-hash ingestion cache (>7 days).
+    cache_purged = await db_ingestion.delete_expired_cache(svc)
+
     if not orphans:
-        return {"deleted": 0, "failed": 0}
+        return {"deleted": 0, "failed": 0, "cache_purged": cache_purged}
 
     # Delete from Cloudinary first; only remove DB rows for assets that left
     # Cloudinary cleanly. A partial failure is retried next run (delete is
@@ -292,7 +297,7 @@ async def run_cleanup_orphaned_media(svc: AsyncClient) -> dict:
         log.warning("cleanup_cloudinary_partial_failure", failed=failed_count)
 
     await db_media.delete_media_assets_by_ids(svc, deleted_ids)
-    return {"deleted": len(deleted_ids), "failed": failed_count}
+    return {"deleted": len(deleted_ids), "failed": failed_count, "cache_purged": cache_purged}
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +362,32 @@ async def _refill_one_cadence(
             platform=platform,
             brand_system_prompt=brand_prompt,
         )
+
+        # Scan for forbidden phrases (advisory — never blocks publish).
+        forbidden = (brand or {}).get("forbidden_phrases") or []
+        matches = scan_forbidden(body, forbidden)
+
+        variant_row: dict = {
+            "workspace_id": cell["workspace_id"],
+            "persona_id": persona_id,
+            "content_item_id": "",  # filled after create_content_item
+            "platform": platform,
+            "body": body,
+            "status": variant_status,
+        }
+        if matches:
+            variant_row["warning"] = (
+                f"Contains forbidden phrases: {', '.join(matches)}"
+            )
+            variant_row["forbidden_matches"] = matches
+            # Force draft so a human reviews before any autopilot publish.
+            variant_row["status"] = "draft"
+            log.info(
+                "forbidden_phrase_match",
+                cell_id=cell["id"],
+                matches=matches,
+            )
+
         content_item = await db_posts.create_content_item(
             svc,
             {
@@ -365,18 +396,9 @@ async def _refill_one_cadence(
                 "idea_id": cell["idea_id"],
             },
         )
+        variant_row["content_item_id"] = content_item["id"]
         created_variants = await db_posts.create_post_variants(
-            svc,
-            [
-                {
-                    "workspace_id": cell["workspace_id"],
-                    "persona_id": persona_id,
-                    "content_item_id": content_item["id"],
-                    "platform": platform,
-                    "body": body,
-                    "status": variant_status,
-                }
-            ],
+            svc, [variant_row]
         )
 
         # Link the variant into the asset's autopilot campaign so it shows up in
