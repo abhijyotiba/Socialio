@@ -70,6 +70,33 @@ async def sweep_stuck_publishing(
     return len(res.data or [])
 
 
+async def sweep_stuck_failed(
+    client: AsyncClient, older_than_minutes: int = 30
+) -> int:
+    """Reset 'failed' rows that have no `next_retry_at` back to 'scheduled' so
+    the next claim_due_variants sweep re-picks them. These are rows that were set
+    to 'failed' before migration 0024 added the retry/backoff columns, or edge
+    cases where `next_retry_at` was cleared. Returns count reset.
+
+    Only touches rows older than `older_than_minutes` to avoid racing with
+    in-flight retries that haven't written `next_retry_at` yet."""
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
+    ).isoformat()
+    res = (
+        await client.table("post_variants")
+        .update({"status": "scheduled"})
+        .eq("status", "failed")
+        .is_("next_retry_at", "null")
+        .lt("updated_at", cutoff)
+        .select("id")
+        .execute()
+    )
+    return len(res.data or [])
+
+
 async def get_published_variants_for_metrics(
     client: AsyncClient, since_iso: str, limit: int = 50
 ) -> list[dict[str, Any]]:

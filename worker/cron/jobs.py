@@ -97,6 +97,7 @@ async def run_publish_due(svc: AsyncClient) -> dict:
             )
 
     swept = await db_posts.sweep_stuck_publishing(svc)
+    swept_failed = await db_posts.sweep_stuck_failed(svc)
 
     worker_id = str(uuid.uuid4())
     claimed = await db_posts.claim_due_variants(svc, worker_id, 10)
@@ -110,6 +111,7 @@ async def run_publish_due(svc: AsyncClient) -> dict:
 
     return {
         "swept": swept,
+        "swept_failed": swept_failed,
         "attempted": len(claimed),
         "succeeded": succeeded,
         "failed": failed,

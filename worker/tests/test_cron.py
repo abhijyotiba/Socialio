@@ -54,6 +54,7 @@ SVC = object()
 def publish_due_mocks(monkeypatch):
     monkeypatch.setattr(jobs.db_campaigns, "fail_zombie_campaigns", _aret([]))
     monkeypatch.setattr(jobs.db_posts, "sweep_stuck_publishing", _aret(0))
+    monkeypatch.setattr(jobs.db_posts, "sweep_stuck_failed", _aret(0))
     monkeypatch.setattr(jobs.db_attempts, "has_successful_attempt", _aret(False))
     monkeypatch.setattr(jobs.db_attempts, "get_latest_attempt", _aret(None))
     monkeypatch.setattr(jobs.db_attempts, "create_publish_attempt", _aret({"id": "a1"}))
@@ -91,7 +92,7 @@ async def test_publish_due_publishes_claimed(monkeypatch, publish_due_mocks):
     }
     monkeypatch.setattr(jobs.db_posts, "claim_due_variants", _aret([variant]))
     result = await jobs.run_publish_due(SVC)
-    assert result == {"swept": 0, "attempted": 1, "succeeded": 1, "failed": 0}
+    assert result == {"swept": 0, "swept_failed": 0, "attempted": 1, "succeeded": 1, "failed": 0}
 
 
 @pytest.mark.asyncio
@@ -125,7 +126,7 @@ async def test_publish_due_failure_counts(monkeypatch, publish_due_mocks):
 
     publish_due_mocks._publish = _boom
     result = await jobs.run_publish_due(SVC)
-    assert result == {"swept": 0, "attempted": 1, "succeeded": 0, "failed": 1}
+    assert result == {"swept": 0, "swept_failed": 0, "attempted": 1, "succeeded": 0, "failed": 1}
 
 
 # --------------------------------------------------------------------------
@@ -283,7 +284,7 @@ async def test_publish_due_reclaims_failed_due_retry(monkeypatch, publish_due_mo
     }
     monkeypatch.setattr(jobs.db_posts, "claim_due_variants", _aret([retry_variant]))
     result = await jobs.run_publish_due(SVC)
-    assert result == {"swept": 0, "attempted": 1, "succeeded": 1, "failed": 0}
+    assert result == {"swept": 0, "swept_failed": 0, "attempted": 1, "succeeded": 1, "failed": 0}
 
 
 # --------------------------------------------------------------------------
