@@ -58,6 +58,13 @@ class Settings(BaseSettings):
     # provider quota allows; keep conservative by default.
     llm_max_concurrency: int = 5
 
+    # Per-call-type HTTP timeouts (seconds). Atomize generates large structured
+    # JSON (up to 8000 tokens) so it gets a longer window; single-post generation
+    # and summarization are much faster.
+    llm_timeout_atomize_s: float = 60
+    llm_timeout_generate_s: float = 30
+    llm_timeout_summarize_s: float = 30
+
     firecrawl_api_key: str = ""
     firecrawl_timeout_s: int = 45
 

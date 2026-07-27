@@ -1,4 +1,5 @@
 from adapters.llm import generate
+from config import settings
 
 _PLATFORM_HINTS: dict[str, str] = {
     "linkedin": (
@@ -126,7 +127,11 @@ async def generate_variants(
     for platform in platforms:
         hint = _PLATFORM_HINTS.get(platform, platform)
         user_message = _build_user_message(hint, summary, user_angle, brief)
-        body = await generate(system_prompt=brand_system_prompt, user_message=user_message)
+        body = await generate(
+            system_prompt=brand_system_prompt,
+            user_message=user_message,
+            timeout=settings.llm_timeout_generate_s,
+        )
         results.append({"platform": platform, "body": body.strip()})
     return results
 
@@ -172,5 +177,9 @@ async def render_cell(
         f"Stay truthful to this source quote (do not invent facts):\n{source_quote}\n\n"
         "Return only the post text — no labels, no quotation marks."
     )
-    body = await generate(system_prompt=brand_system_prompt, user_message=user_message)
+    body = await generate(
+        system_prompt=brand_system_prompt,
+        user_message=user_message,
+        timeout=settings.llm_timeout_generate_s,
+    )
     return body.strip()

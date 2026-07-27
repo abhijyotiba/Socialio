@@ -1,4 +1,5 @@
 from adapters.llm import generate
+from config import settings
 
 _SYSTEM = (
     "You are a content analyst. Read the article below and extract the key points "
@@ -14,4 +15,8 @@ async def summarize(title: str, text: str) -> str:
     truncated = text[:_MAX_TEXT_CHARS]
     title_line = f"Title: {title}\n\n" if title else ""
     user_message = f"{title_line}Article:\n{truncated}"
-    return await generate(system_prompt=_SYSTEM, user_message=user_message)
+    return await generate(
+        system_prompt=_SYSTEM,
+        user_message=user_message,
+        timeout=settings.llm_timeout_summarize_s,
+    )

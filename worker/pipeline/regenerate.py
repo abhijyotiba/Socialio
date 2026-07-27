@@ -6,6 +6,7 @@ still controls voice; the instruction controls what to change.
 """
 
 from adapters.llm import generate
+from config import settings
 
 _PLATFORM_HINTS: dict[str, str] = {
     "linkedin": (
@@ -74,5 +75,6 @@ async def regenerate_variant(
     body = await generate(
         system_prompt=brand_system_prompt,
         user_message=user_message,
+        timeout=settings.llm_timeout_generate_s,
     )
     return body.strip()
