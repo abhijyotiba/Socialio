@@ -323,6 +323,21 @@ async def _refill_one_cadence(
                 "metadata": {"platform": platform, "reservoir": reservoir},
             },
         )
+        await db_notifications.insert_notification(
+            svc,
+            {
+                "workspace_id": cadence["workspace_id"],
+                "persona_id": persona_id,
+                "kind": "low_reservoir",
+                "title": f"Content reservoir running low ({platform})",
+                "body": (
+                    f"Only {reservoir} planned posts left for {platform}. "
+                    "Ingest more content to keep the autopilot running."
+                ),
+                "entity_type": "cadence",
+                "entity_id": cadence["id"],
+            },
+        )
         await db_cadences.mark_low_nudge_sent(svc, cadence["id"])
         nudged = 1
 

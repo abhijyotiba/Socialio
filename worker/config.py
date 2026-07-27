@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     # provider quota allows; keep conservative by default.
     llm_max_concurrency: int = 5
 
+    # Resend — transactional email for publish-failure / low-reservoir alerts.
+    # When empty every email call is a silent no-op (safe for dev/staging).
+    resend_api_key: str = ""
+    resend_from_address: str = ""
+
     firecrawl_api_key: str = ""
     firecrawl_timeout_s: int = 45
 
