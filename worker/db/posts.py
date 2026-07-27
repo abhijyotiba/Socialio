@@ -87,7 +87,7 @@ async def sweep_stuck_failed(
     ).isoformat()
     res = (
         await client.table("post_variants")
-        .update({"status": "scheduled"})
+        .update({"status": "scheduled", "retry_count": 0})
         .eq("status", "failed")
         .is_("next_retry_at", "null")
         .lt("updated_at", cutoff)
