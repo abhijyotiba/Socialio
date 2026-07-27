@@ -18,28 +18,14 @@ async def get_workspace_id_for_user(
 async def get_workspace_owner_email(
     svc: AsyncClient, workspace_id: str
 ) -> str | None:
-    """Look up the workspace owner's email via auth.users. Uses the service-role
-    client (svc) because auth.admin requires admin privileges. Returns None if
-    the owner cannot be found or the user has no email."""
+    """Look up the workspace owner's email via the get_workspace_owner_email RPC.
+    Uses the service-role client (svc) because the function is SECURITY DEFINER
+    and restricted to service_role. Returns None if no owner is found."""
     try:
-        # Find the owner (role='owner') in workspace_members
-        res = (
-            await svc.table("workspace_members")
-            .select("user_id")
-            .eq("workspace_id", workspace_id)
-            .eq("role", "owner")
-            .limit(1)
-            .maybe_single()
-            .execute()
-        )
-        if not res.data:
-            return None
-        user_id = res.data["user_id"]
-        user = await svc.auth.admin.get_user_by_id(user_id)
-        # user is a User object with email attribute
-        email = getattr(user, "email", None) or (
-            user.user.email if hasattr(user, "user") else None
-        )
-        return email
+        res = await svc.rpc(
+            "get_workspace_owner_email",
+            {"p_workspace_id": workspace_id},
+        ).execute()
+        return res.data if res.data else None
     except Exception:
         return None

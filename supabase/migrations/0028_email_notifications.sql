@@ -20,4 +20,27 @@ ALTER TABLE public.notifications ADD CONSTRAINT notifications_kind_check
 ALTER TABLE public.workspaces
   ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{}';
 
+-- ── 3. RPC: lookup workspace owner's email ────────────────────────────────────
+-- Service-role only. Queries auth.users directly (requires the supabase_admin
+-- role or a SECURITY DEFINER function owned by a role with auth schema access).
+-- Used by the email adapter to send notifications to the workspace owner.
+CREATE OR REPLACE FUNCTION public.get_workspace_owner_email(
+  p_workspace_id UUID
+)
+RETURNS TEXT
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT u.email
+  FROM   workspace_members wm
+  JOIN   auth.users u ON u.id = wm.user_id
+  WHERE  wm.workspace_id = p_workspace_id
+    AND  wm.role = 'owner'
+  LIMIT  1;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_workspace_owner_email(UUID) FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.get_workspace_owner_email(UUID) TO service_role;
+
 NOTIFY pgrst, 'reload schema';

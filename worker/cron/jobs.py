@@ -82,24 +82,22 @@ async def _publish_claimed_variant(svc: AsyncClient, variant: dict) -> bool:
     # Send email for terminal failures (publisher.py already inserts the
     # in-app notification). Fire-and-forget — email delivery failure must
     # not change the publish outcome.
-    if not result.ok:
-        updated = await db_posts.get_post_variant(svc, variant["id"])
-        if updated and updated.get("status") == "failed_terminal":
-            workspace_id = variant["workspace_id"]
-            email = await db_workspaces.get_workspace_owner_email(svc, workspace_id)
-            if email:
-                platform = variant["platform"]
-                await send_notification_email(
-                    to_email=email,
-                    subject=f"SocialOS: Publishing to {platform} failed",
-                    body=(
-                        f"Your scheduled post for {platform} could not be published "
-                        f"after multiple retries.\n\n"
-                        f"Error: {result.error_detail or 'Unknown error'}\n\n"
-                        f"View it in your SocialOS dashboard."
-                    ),
-                    workspace_id=workspace_id,
-                )
+    if not result.ok and result.terminal:
+        workspace_id = variant["workspace_id"]
+        email = await db_workspaces.get_workspace_owner_email(svc, workspace_id)
+        if email:
+            platform = variant["platform"]
+            await send_notification_email(
+                to_email=email,
+                subject=f"SocialOS: Publishing to {platform} failed",
+                body=(
+                    f"Your scheduled post for {platform} could not be published "
+                    f"after multiple retries.\n\n"
+                    f"Error: {result.error_detail or 'Unknown error'}\n\n"
+                    f"View it in your SocialOS dashboard."
+                ),
+                workspace_id=workspace_id,
+            )
 
     return result.ok
 
