@@ -7,6 +7,12 @@ from db.client import service_client
 router = APIRouter(prefix="/cron")
 
 
+@router.get("/health")
+async def health():
+    """Liveness check for external cron pingers. Returns 200 if the worker is up."""
+    return {"status": "ok"}
+
+
 @router.post("/publish-due")
 async def publish_due(request: Request):
     verify_cron(request)
