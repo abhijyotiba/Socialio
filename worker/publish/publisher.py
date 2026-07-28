@@ -53,6 +53,7 @@ class PublishResult:
     ``platform_post_*`` fields populate the success response."""
 
     ok: bool
+    terminal: bool = False  # True when the failure is final (exhausted retries or non-retryable)
     error_code: str | None = None
     error_detail: str | None = None
     platform_post_id: str | None = None
@@ -203,5 +204,8 @@ async def publish_variant(
             )
 
         return PublishResult(
-            ok=False, error_code=error_code, error_detail=error_detail
+            ok=False,
+            terminal=(not is_retryable or retry_count >= MAX_RETRIES),
+            error_code=error_code,
+            error_detail=error_detail,
         )

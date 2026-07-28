@@ -10,6 +10,7 @@ import structlog
 from supabase import AsyncClient
 
 from adapters import cloudinary, linkedin, x
+from adapters.email import send_notification_email
 from adapters.platforms import get_adapter
 from db import audit_events as db_audit
 from db import brand_configs as db_brand
@@ -22,6 +23,7 @@ from db import notifications as db_notifications
 from db import posts as db_posts
 from db import publish_attempts as db_attempts
 from db import social_connections as db_connections
+from db import workspaces as db_workspaces
 from pipeline.generate import render_cell
 from publish import publisher
 from security import vault
@@ -76,6 +78,27 @@ async def _publish_claimed_variant(svc: AsyncClient, variant: dict) -> bool:
     result = await publisher.publish_variant(
         svc, svc, variant, connection, idempotency_key=idempotency_key
     )
+
+    # Send email for terminal failures (publisher.py already inserts the
+    # in-app notification). Fire-and-forget — email delivery failure must
+    # not change the publish outcome.
+    if not result.ok and result.terminal:
+        workspace_id = variant["workspace_id"]
+        email = await db_workspaces.get_workspace_owner_email(svc, workspace_id)
+        if email:
+            platform = variant["platform"]
+            await send_notification_email(
+                to_email=email,
+                subject=f"SocialOS: Publishing to {platform} failed",
+                body=(
+                    f"Your scheduled post for {platform} could not be published "
+                    f"after multiple retries.\n\n"
+                    f"Error: {result.error_detail or 'Unknown error'}\n\n"
+                    f"View it in your SocialOS dashboard."
+                ),
+                workspace_id=workspace_id,
+            )
+
     return result.ok
 
 
@@ -325,7 +348,36 @@ async def _refill_one_cadence(
                 "metadata": {"platform": platform, "reservoir": reservoir},
             },
         )
+        await db_notifications.insert_notification(
+            svc,
+            {
+                "workspace_id": cadence["workspace_id"],
+                "persona_id": persona_id,
+                "kind": "low_reservoir",
+                "title": f"Content reservoir running low ({platform})",
+                "body": (
+                    f"Only {reservoir} planned posts left for {platform}. "
+                    "Ingest more content to keep the autopilot running."
+                ),
+                "entity_type": "cadence",
+                "entity_id": cadence["id"],
+            },
+        )
         await db_cadences.mark_low_nudge_sent(svc, cadence["id"])
+        # Also send an email so the user gets alerted even when not in-app.
+        workspace_id = cadence["workspace_id"]
+        email = await db_workspaces.get_workspace_owner_email(svc, workspace_id)
+        if email:
+            await send_notification_email(
+                to_email=email,
+                subject=f"SocialOS: Content reservoir running low ({platform})",
+                body=(
+                    f"Your autopilot for {platform} only has {reservoir} planned "
+                    f"posts left. Ingest more content to keep it running.\n\n"
+                    f"View cadences in your SocialOS dashboard."
+                ),
+                workspace_id=workspace_id,
+            )
         nudged = 1
 
     cells = await db_cells.next_planned_cells(
