@@ -12,6 +12,7 @@ import re
 import structlog
 
 from adapters.llm import generate
+from config import settings
 from pipeline.matrix import FORMATS, ANGLES, IDEA_TYPES
 
 log = structlog.get_logger()
@@ -89,6 +90,7 @@ async def extract_ideas(
         system_prompt=system_prompt,
         user_message=user_message,
         max_tokens=_ATOMIZE_MAX_TOKENS,
+        timeout=settings.llm_timeout_atomize_s,
     )
 
     try:
