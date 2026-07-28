@@ -31,9 +31,29 @@ async def run_atomize(
     platforms: list[str],
 ) -> dict:
     """Stage A + matrix materialize. Pure orchestration over the tested units."""
-    ideas = await extract_ideas(title, text, brand_system_prompt)
-    if not ideas:
+    raw_ideas = await extract_ideas(title, text, brand_system_prompt)
+    if not raw_ideas:
         return {"ideas_extracted": 0, "cells_materialized": 0}
+
+    # Filter weak ideas (strength ≤ 2) before materialization so the reservoir
+    # only holds quality content. The strength floor is hard-coded at 3; a
+    # per-cadence override is deferred (migration 0029 in the plan).
+    ideas = [i for i in raw_ideas if i.get("strength", 3) >= 3]
+    if not ideas:
+        log.info(
+            "atomize_all_weak",
+            raw_count=len(raw_ideas),
+            kept=0,
+            filtered=len(raw_ideas),
+        )
+        return {"ideas_extracted": 0, "cells_materialized": 0}
+    if len(ideas) < len(raw_ideas):
+        log.info(
+            "atomize_strength_filtered",
+            raw_count=len(raw_ideas),
+            kept=len(ideas),
+            filtered=len(raw_ideas) - len(ideas),
+        )
 
     saved = await db_ideas.create_content_ideas(
         client,
