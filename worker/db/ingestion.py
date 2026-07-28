@@ -1,7 +1,67 @@
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from supabase import AsyncClient
+
+
+def _url_hash(source_url: str) -> str:
+    return hashlib.sha256(source_url.strip().encode()).hexdigest()
+
+
+async def get_cached_ingestion(
+    client: AsyncClient, workspace_id: str, source_url: str
+) -> dict[str, Any] | None:
+    """Return a cached ingestion result if one exists and is < 7 days old."""
+    cache_key = _url_hash(source_url)
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    res = (
+        await client.table("ingestion_cache")
+        .select("*")
+        .eq("url_hash", cache_key)
+        .eq("workspace_id", workspace_id)
+        .gte("cached_at", cutoff)
+        .maybe_single()
+        .execute()
+    )
+    return res.data
+
+
+async def upsert_ingestion_cache(
+    client: AsyncClient,
+    workspace_id: str,
+    source_url: str,
+    extracted_title: str,
+    extracted_text: str,
+    media_assets: list[dict],
+) -> None:
+    """Store a completed ingestion result in the cache."""
+    cache_key = _url_hash(source_url)
+    await client.table("ingestion_cache").upsert(
+        {
+            "url_hash": cache_key,
+            "source_url": source_url,
+            "workspace_id": workspace_id,
+            "extracted_title": extracted_title,
+            "extracted_text": extracted_text,
+            "media_assets": media_assets,
+            "cached_at": datetime.now(timezone.utc).isoformat(),
+        },
+        on_conflict="url_hash",
+    ).execute()
+
+
+async def delete_expired_cache(client: AsyncClient) -> int:
+    """Delete cache rows older than 7 days. Returns count deleted."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    res = (
+        await client.table("ingestion_cache")
+        .delete()
+        .lt("cached_at", cutoff)
+        .select("url_hash")
+        .execute()
+    )
+    return len(res.data or [])
 
 
 async def create_job(
