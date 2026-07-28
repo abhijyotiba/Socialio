@@ -33,7 +33,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
   SELECT u.email
-  FROM   workspace_members wm
+  FROM   public.workspace_members wm
   JOIN   auth.users u ON u.id = wm.user_id
   WHERE  wm.workspace_id = p_workspace_id
     AND  wm.role = 'owner'

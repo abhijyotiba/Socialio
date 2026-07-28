@@ -28,9 +28,8 @@ CREATE TABLE IF NOT EXISTS public.ingestion_cache (
   cached_at       TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_ingestion_cache_expires
-  ON public.ingestion_cache (cached_at)
-  WHERE cached_at < now() - interval '7 days';
+CREATE INDEX IF NOT EXISTS idx_ingestion_cache_cached_at
+  ON public.ingestion_cache (cached_at);
 
 -- RLS: workspace-scoped reads/writes via the standard helper.
 ALTER TABLE public.ingestion_cache ENABLE ROW LEVEL SECURITY;
