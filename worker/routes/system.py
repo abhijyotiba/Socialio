@@ -3,11 +3,21 @@ from pydantic import BaseModel
 from typing import Any
 import structlog
 
-from auth import verify_hmac
+from auth import verify_cron, verify_hmac
 from db.client import service_client
+from observability.metrics import snapshot
 
 log = structlog.get_logger()
 router = APIRouter()
+
+
+@router.get("/system/metrics")
+async def metrics_endpoint(request: Request):
+    """Return in-process counters and latency histograms. Protected by cron_secret
+    since these can expose load patterns. Resets on worker restart."""
+    verify_cron(request)
+    return snapshot()
+
 
 class LogErrorRequest(BaseModel):
     source: str

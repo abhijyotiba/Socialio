@@ -415,6 +415,8 @@ async def _refill_one_cadence(
             angle=cell["angle"],
             platform=platform,
             brand_system_prompt=brand_prompt,
+            workspace_id=cadence["workspace_id"],
+            svc=svc,
         )
 
         # Scan for forbidden phrases (advisory — never blocks publish).

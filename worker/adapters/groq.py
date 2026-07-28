@@ -3,6 +3,7 @@ import asyncio
 import structlog
 from groq import AsyncGroq, RateLimitError, APITimeoutError, InternalServerError
 
+from adapters._types import GenerateResult
 from config import get_settings
 
 log = structlog.get_logger()
@@ -19,9 +20,9 @@ async def groq_generate(
     user_message: str,
     max_tokens: int = 1024,
     timeout: float = 30,
-) -> str:
-    """Call Groq with retry on transient errors. Falls through to Gemini in
-    the llm.py adapter on any exception after retries are exhausted."""
+) -> GenerateResult:
+    """Call Groq with retry on transient errors. Returns body + token counts
+    for cost tracking. Falls through to Gemini via llm.py on failure."""
     settings = get_settings()
     client = AsyncGroq(api_key=settings.groq_api_key)
     last_error: Exception | None = None
@@ -40,7 +41,12 @@ async def groq_generate(
                 ),
                 timeout=timeout,
             )
-            return response.choices[0].message.content or ""
+            usage = response.usage
+            return GenerateResult(
+                body=response.choices[0].message.content or "",
+                prompt_tokens=usage.prompt_tokens if usage else 0,
+                output_tokens=usage.completion_tokens if usage else 0,
+            )
         except _RETRYABLE as exc:
             last_error = exc
             if attempt < _MAX_RETRIES:

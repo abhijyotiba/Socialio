@@ -1,3 +1,5 @@
+from typing import Any
+
 from adapters.llm import generate
 from config import settings
 
@@ -125,6 +127,9 @@ async def generate_variants(
     platforms: list[str],
     user_angle: str | None = None,
     brief: dict | None = None,
+    *,
+    workspace_id: str = "",
+    svc: Any = None,
 ) -> list[dict[str, str]]:
     if (
         not summary.strip()
@@ -142,6 +147,9 @@ async def generate_variants(
             system_prompt=brand_system_prompt,
             user_message=user_message,
             timeout=settings.llm_timeout_generate_s,
+            workspace_id=workspace_id,
+            call_type="generate",
+            svc=svc,
         )
         results.append({"platform": platform, "body": body.strip()})
     return results
@@ -171,6 +179,9 @@ async def render_cell(
     angle: str,
     platform: str,
     brand_system_prompt: str,
+    *,
+    workspace_id: str = "",
+    svc: Any = None,
 ) -> str:
     """Stage B — render ONE matrix cell into a finished post body."""
     if not essence.strip():
@@ -192,5 +203,8 @@ async def render_cell(
         system_prompt=brand_system_prompt,
         user_message=user_message,
         timeout=settings.llm_timeout_generate_s,
+        workspace_id=workspace_id,
+        call_type="generate",
+        svc=svc,
     )
     return body.strip()

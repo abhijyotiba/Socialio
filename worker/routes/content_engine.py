@@ -31,7 +31,12 @@ async def run_atomize(
     platforms: list[str],
 ) -> dict:
     """Stage A + matrix materialize. Pure orchestration over the tested units."""
-    raw_ideas = await extract_ideas(title, text, brand_system_prompt)
+    raw_ideas = await extract_ideas(
+        title, text, brand_system_prompt,
+        workspace_id=workspace_id,
+        call_type="atomize",
+        svc=client,
+    )
     if not raw_ideas:
         return {"ideas_extracted": 0, "cells_materialized": 0}
 

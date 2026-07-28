@@ -8,6 +8,7 @@ expands sensible cells.
 
 import json
 import re
+from typing import Any
 
 import structlog
 
@@ -79,7 +80,13 @@ def _clean_idea(entry: object) -> dict | None:
 
 
 async def extract_ideas(
-    title: str, text: str, brand_system_prompt: str
+    title: str,
+    text: str,
+    brand_system_prompt: str,
+    *,
+    workspace_id: str = "",
+    call_type: str = "atomize",
+    svc: Any = None,
 ) -> list[dict]:
     if not text.strip():
         return []
@@ -91,6 +98,9 @@ async def extract_ideas(
         user_message=user_message,
         max_tokens=_ATOMIZE_MAX_TOKENS,
         timeout=settings.llm_timeout_atomize_s,
+        workspace_id=workspace_id,
+        call_type=call_type,
+        svc=svc,
     )
 
     try:
